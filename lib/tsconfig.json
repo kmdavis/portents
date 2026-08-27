@@ -1,0 +1,13 @@
+{
+  "extends": "../tsconfig.base.json",
+  "compilerOptions": {
+    // DOM is here for the browser adapter (IndexedDB) and node for the Node
+    // adapter. Neither is a licence for engine code to use them: the real
+    // boundary is enforced by src/isomorphism.test.ts, which bans both families
+    // outside their own adapter directory. tsc lib settings cannot express
+    // "this file may use DOM, that one may not".
+    "lib": ["ES2023", "DOM"],
+    "types": ["node"]
+  },
+  "include": ["src/**/*.ts", "scripts/**/*.mjs"]
+}

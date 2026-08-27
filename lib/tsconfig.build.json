@@ -1,0 +1,18 @@
+{
+  "extends": "./tsconfig.json",
+  "compilerOptions": {
+    "noEmit": false,
+    "declaration": true,
+    "declarationMap": true,
+    "sourceMap": true,
+    "outDir": "dist",
+    "rootDir": "src",
+    // The source imports siblings as "./x.ts" so Node can run it untranspiled;
+    // this rewrites those to "./x.js" in the emitted output.
+    "rewriteRelativeImportExtensions": true
+  },
+  "include": ["src/**/*.ts"],
+  // src/testing is published: downstream adapter authors run the storage
+  // conformance suite against their own implementations.
+  "exclude": ["src/**/*.test.ts"]
+}

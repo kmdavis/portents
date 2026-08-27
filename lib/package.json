@@ -1,0 +1,50 @@
+{
+  "name": "@portent/core",
+  "version": "0.0.0",
+  "description": "Solo tabletop RPG engine: dice, oracles, decks, random tables, and map tiles that render identically as text and as vectors. Runs in Node and the browser.",
+  "keywords": ["rpg", "ttrpg", "dice", "oracle", "solo", "dungeon", "tiles", "generator"],
+  "license": "MIT",
+  "author": "Kevan Davis",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/kmdavis/portent.git",
+    "directory": "lib"
+  },
+  "homepage": "https://github.com/kmdavis/portent/tree/main/lib#readme",
+  "type": "module",
+  "sideEffects": false,
+  "files": ["dist", "README.md"],
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "default": "./dist/index.js"
+    },
+    "./memory": {
+      "types": "./dist/adapters/memory/index.d.ts",
+      "default": "./dist/adapters/memory/index.js"
+    },
+    "./node": {
+      "types": "./dist/adapters/node/index.d.ts",
+      "default": "./dist/adapters/node/index.js"
+    },
+    "./browser": {
+      "types": "./dist/adapters/browser/index.d.ts",
+      "default": "./dist/adapters/browser/index.js"
+    },
+    "./testing": {
+      "types": "./dist/testing/index.d.ts",
+      "default": "./dist/testing/index.js"
+    }
+  },
+  "scripts": {
+    "build": "tsc -p tsconfig.build.json",
+    "typecheck": "tsc -p tsconfig.json --noEmit",
+    "test": "node --test 'src/**/*.test.ts'",
+    "check:browser": "node scripts/check-browser.mjs",
+    "prepublishOnly": "pnpm build"
+  },
+  "devDependencies": {
+    "esbuild": "^0.25.0",
+    "typescript": "^5.7.0"
+  }
+}

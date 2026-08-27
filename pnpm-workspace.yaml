@@ -1,0 +1,7 @@
+packages:
+  - lib
+  - cli
+  - web
+  - extensions/*
+onlyBuiltDependencies:
+  - esbuild

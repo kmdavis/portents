@@ -1,0 +1,52 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+jobs:
+  check:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: pnpm/action-setup@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          # 22.6 is the first version that runs TypeScript by type stripping,
+          # which is why there is no build step before the tests.
+          node-version: 22.x
+          cache: pnpm
+
+      - run: pnpm install --frozen-lockfile
+
+      - name: Typecheck
+        run: pnpm typecheck
+
+      - name: Test
+        run: pnpm test
+
+      # Proves the isomorphism claim by actually bundling for a browser with no
+      # polyfills, rather than trusting the static scan in isomorphism.test.ts.
+      - name: Check browser bundle
+        run: pnpm check:browser
+
+      - name: Build
+        run: pnpm --filter @portent/core build
+
+  # ext4 is case-sensitive and macOS APFS is not. The storage conformance suite
+  # detects which and asserts accordingly, so running both catches a regression
+  # in either direction.
+  check-macos:
+    runs-on: macos-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22.x
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+      - run: pnpm test
