@@ -1,0 +1,77 @@
+# @portent/content
+
+Content packs for [Portent](https://github.com/kmdavis/portent): dungeon tiles,
+and decks and random tables as they land.
+
+**Data only.** Everything here is a plain value that `@portent/core` knows how to
+parse, validate and render; nothing in this package has behaviour of its own.
+`@portent/core` is a peer dependency and only its *types* are imported, so
+installing this adds nothing to a bundle but the data.
+
+```bash
+pnpm add @portent/content @portent/core
+```
+
+```ts
+import { parseTileSet, renderAscii, renderSvg, composeTiles } from "@portent/core";
+import { dungeonTiles } from "@portent/content";
+
+const tiles = parseTileSet(dungeonTiles);
+renderSvg(tiles[0]);
+renderAscii(composeTiles([[tiles[0], tiles[1]], [tiles[2], tiles[3]]]));
+```
+
+## Dungeon tiles
+
+27 tiles, all 7×7, every connector at the centre of an edge. That is what makes
+them fit together with no matching logic: a tile's east door is always opposite
+its neighbour's west door.
+
+```
+###+###     #######     ###+###
+#.....#     #######     #i...i#
+#.O.O.#     #######     #.....#
++.....+     +.....+     +..*..+
+#.O.O.#     #######     #.....#
+#.....#     #######     #i...i#
+###+###     #######     ###+###
+Pillared    Straight    Statue
+Hall        Corridor    Gallery
+```
+
+Tiles are authored as ASCII art, which is the source of truth. The graphical
+rendering is a projection of the same parsed grid, so the two cannot disagree,
+and exits are derived from the art rather than declared, so a tile cannot claim a
+door it does not draw.
+
+### Adding a tile
+
+Add a `TileSource` to `src/dungeon-tiles.ts` and run `pnpm test`. The suite will
+tell you if you got it wrong, by name and coordinate:
+
+```
+pillared-hall: has a door at (1,0) on the north edge; connectors must be at the edge centre, x=3
+straight-corridor: is 11×7, but every standard tile must be 7×7
+```
+
+What it checks:
+
+- 7×7, and every connector at an edge centre — no corners, no off-centre doors.
+- At least one exit, and somewhere to stand.
+- Round-trips through ASCII, and the SVG draws exactly the cells the grid holds.
+- Every cell kind in the registry is used by some tile, so no shape ships unlooked-at.
+- Kebab-case unique ids, a name, a note, at least one tag.
+- **Every pair of tiles, in both orientations, composes without a door opening
+  onto rock.**
+
+The cell vocabulary lives in `@portent/core` (`src/tiles/cells.ts`) and the
+legend is generated from it, so it can never describe a character the parser
+rejects. Adding a new kind of cell is a change to the engine, not to this
+package.
+
+## Licensing
+
+All original writing, CC0. Nothing is reproduced from a published rulebook, solo
+system or commercial deck.
+
+Package code is MIT, like the rest of the repo.

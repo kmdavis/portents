@@ -17,9 +17,14 @@ can be spotted.
 | Package | Directory | What it is |
 | --- | --- | --- |
 | `@portent/core` | [`lib/`](lib) | The engine. Runs in Node and the browser. |
+| `@portent/content` | [`content/`](content) | Tiles, decks and tables. Data only, no behaviour. |
 | `@portent/cli` | `cli/` | `portent roll 6#4d6kh3` and friends. Not written yet. |
-| `@portent/pi` | `extensions/pi/` | Extension for the [pi](https://github.com/badlogic/pi-mono) coding agent. Not ported yet. |
+| `@portent/pi` | `extensions/pi/` | Extension for the [pi](https://pi.dev) coding agent. Not ported yet. |
 | `@portent/web` | `web/` | Browser wrapper. Not written yet. |
+
+Content is a separate package from the engine because content is the part people
+will want to fork, extend and version independently. The engine knows how to
+parse, validate and render tiles; it ships none of them.
 
 ## The two ideas
 
@@ -33,35 +38,54 @@ same grid — so they cannot describe different tiles. The equivalence is checke
 not promised:
 
 ```
-#####+#####          the same tile, rendered as SVG, is verified cell by cell
-#.O.....O.#          against this text: same coordinates, same kinds, and each
-+.........+          cell drawing the symbol its kind is supposed to use
-#....T....#
-#####+#####
+###+###          the same tile, rendered as SVG, is verified cell by cell
+#.....#          against this text: same coordinates, same kinds, and each
+#.O.O.#          cell drawing the symbol its kind is supposed to use
++.....+
+#.O.O.#
+#.....#
+###+###
 ```
 
 Adding a cell kind is one row in the registry plus one shape. Forgetting the
 shape is a compile error, a duplicate glyph throws on import, and exits are
 derived from the art so a tile cannot claim a door it does not draw.
 
+**Tiles are 7×7, doors always centred.** One size, one connector position per
+edge, enforced by `standardTileProblems`. That is what lets tiles be laid on a
+lattice and simply fit, with no edge-matching logic:
+
+```ts
+const map = composeTiles([[hall, corridor, room], [corridor, null, stair]]);
+renderAscii(map);  // the whole dungeon as text
+renderSvg(map);    // the same dungeon as vectors
+```
+
+A composed map is itself a `Tile`, so both projections work on a dungeon
+unchanged and the equivalence guarantee comes with them. Where one tile has a
+door and its neighbour has wall, the seam is sealed — an assembled map never
+shows an exit into solid rock.
+
 ## Getting started
 
 ```bash
 pnpm install
 pnpm check      # typecheck, test, and bundle for the browser
+pnpm manual     # build the manual-check page, then open manual/index.html
 ```
 
 ```ts
-import { roll, formatRoll, parseTile, renderAscii, renderSvg, exitsOf } from "@portent/core";
+import { roll, formatRoll, parseTileSet, renderAscii, renderSvg, exitsOf } from "@portent/core";
+import { dungeonTiles } from "@portent/content";
 
 formatRoll(roll("2d20kh1+5"));        // advantage
 formatRoll(roll("6#4d6kh3"));         // six ability scores in one call
 formatRoll(roll("floor((2d6+3)/2)")); // real arithmetic
 
-const tile = parseTile({ id: "hall", name: "Hall", art: ["###+###", "+.....+", "###+###"] });
-renderAscii(tile);  // "###+###\n+.....+\n###+###"
+const [tile] = parseTileSet(dungeonTiles);
+renderAscii(tile);  // the text
 renderSvg(tile);    // "<svg …>" — the same tile
-exitsOf(tile);      // derived from the art, four exits
+exitsOf(tile);      // derived from the art, never declared
 ```
 
 Dice notation follows Foundry VTT: `4d6kh3`, `2d20kl1`, `1d6x`, `4d6r1`,
@@ -96,6 +120,24 @@ Three mechanisms keep that honest rather than aspirational:
 **Known gap:** the IndexedDB adapter has no automated coverage, because Node has
 no IndexedDB. It typechecks and it bundles; it has not been run. A browser test
 job is needed before anyone should trust it.
+
+## Checking it by eye
+
+Some things a test suite cannot judge. The automated tests prove the SVG and the
+ASCII describe the same grid, cell for cell; they cannot tell you whether a door
+*looks* like a door.
+
+```bash
+pnpm manual        # bundles lib + content, no build of either needed
+open manual/index.html
+```
+
+The page renders a random composed map as SVG and as fixed-width ASCII side by
+side, a swatch and glyph for every cell kind, every tile in the pack in both
+projections, and a row of dice formats. It re-derives both projections in the
+browser and reports whether they agree, so it checks the invariant rather than
+trusting the library. If a picture and its text ever disagree there, that is a
+real bug — the test suite believes they match.
 
 ## Content and licensing
 

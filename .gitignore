@@ -6,3 +6,4 @@ dist/
 coverage/
 .tmp/
 scratch/
+manual/dist/

@@ -10,9 +10,12 @@
     "test": "pnpm -r test",
     "typecheck": "pnpm -r typecheck",
     "check:browser": "pnpm --filter @portent/core check:browser",
-    "check": "pnpm typecheck && pnpm test && pnpm check:browser"
+    "check": "pnpm typecheck && pnpm test && pnpm check:browser",
+    "manual": "node manual/build.mjs"
   },
   "devDependencies": {
+    "@portent/content": "workspace:*",
+    "@portent/core": "workspace:*",
     "@types/node": "^26.3.0",
     "esbuild": "^0.25.0",
     "typescript": "^5.7.0"

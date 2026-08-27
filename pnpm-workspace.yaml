@@ -1,5 +1,6 @@
 packages:
   - lib
+  - content
   - cli
   - web
   - extensions/*

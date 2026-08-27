@@ -11,6 +11,24 @@ export {
 	specOfGlyph,
 } from "./cells.ts";
 export {
+	composeTiles,
+	type ComposedMap,
+	type ComposeOptions,
+	mergeCells,
+	tileAt,
+	toTileSource,
+} from "./layout.ts";
+export {
+	assertStandardTile,
+	connectorPositions,
+	edgeCentre,
+	isStandardTile,
+	STANDARD_TILE_SIZE,
+	standardEdges,
+	standardTileProblems,
+	type StandardTileOptions,
+} from "./standard.ts";
+export {
 	parchmentTheme,
 	readSvgCells,
 	readSvgSymbols,

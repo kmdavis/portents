@@ -1,0 +1,359 @@
+<!doctype html>
+<html lang="en">
+	<head>
+		<meta charset="utf-8" />
+		<meta name="viewport" content="width=device-width, initial-scale=1" />
+		<title>Portent — manual check</title>
+		<style>
+			:root {
+				--ink: #1b1f24;
+				--paper: #f7f4ee;
+				--rule: #d8d2c6;
+				--accent: #8a5a2b;
+				--warn: #a3341f;
+				--ok: #2f6b3a;
+				font-family: ui-sans-serif, system-ui, -apple-system, "Segoe UI", sans-serif;
+			}
+			* { box-sizing: border-box; }
+			body {
+				margin: 0;
+				padding: 2rem clamp(1rem, 4vw, 3rem) 6rem;
+				background: var(--paper);
+				color: var(--ink);
+				line-height: 1.5;
+			}
+			h1 { font-size: 1.6rem; margin: 0 0 0.25rem; }
+			h2 {
+				font-size: 1.15rem;
+				margin: 3rem 0 0.25rem;
+				padding-bottom: 0.4rem;
+				border-bottom: 2px solid var(--rule);
+			}
+			h3 { font-size: 0.95rem; margin: 1.5rem 0 0.5rem; font-weight: 600; }
+			p.lede { margin: 0 0 1rem; color: #55504a; max-width: 62ch; }
+			.hint { font-size: 0.85rem; color: #6b655e; max-width: 70ch; }
+			.hint strong { color: var(--warn); }
+
+			.controls {
+				display: flex;
+				flex-wrap: wrap;
+				gap: 0.75rem 1.25rem;
+				align-items: center;
+				margin: 1rem 0;
+				padding: 0.85rem 1rem;
+				background: #fffdf8;
+				border: 1px solid var(--rule);
+				border-radius: 6px;
+			}
+			label { font-size: 0.85rem; display: inline-flex; gap: 0.4rem; align-items: center; }
+			button {
+				font: inherit;
+				font-size: 0.85rem;
+				padding: 0.35rem 0.8rem;
+				background: var(--accent);
+				color: #fff;
+				border: 0;
+				border-radius: 4px;
+				cursor: pointer;
+			}
+			button:hover { filter: brightness(1.1); }
+			input[type="text"] { font: inherit; font-size: 0.85rem; padding: 0.3rem 0.5rem; border: 1px solid var(--rule); border-radius: 4px; width: 10rem; }
+
+			/* The core comparison: picture on the left, text on the right. */
+			.pair {
+				display: grid;
+				grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+				gap: 1.25rem;
+				align-items: start;
+				margin-bottom: 1.5rem;
+			}
+			@media (max-width: 900px) { .pair { grid-template-columns: minmax(0, 1fr); } }
+
+			.panel {
+				background: #fffdf8;
+				border: 1px solid var(--rule);
+				border-radius: 6px;
+				padding: 0.75rem;
+				overflow: auto;
+			}
+			.panel > figcaption {
+				font-size: 0.75rem;
+				text-transform: uppercase;
+				letter-spacing: 0.06em;
+				color: #6b655e;
+				margin-bottom: 0.5rem;
+			}
+			.panel svg { display: block; max-width: 100%; height: auto; }
+
+			/* Fixed width, no wrapping, no ligatures: ASCII must line up exactly. */
+			pre {
+				margin: 0;
+				font-family: ui-monospace, "SF Mono", Menlo, Consolas, "Liberation Mono", monospace;
+				font-size: 13px;
+				line-height: 1.15;
+				font-variant-ligatures: none;
+				font-feature-settings: "liga" 0, "calt" 0;
+				tab-size: 1;
+				white-space: pre;
+				overflow-x: auto;
+			}
+
+			.gallery { display: grid; grid-template-columns: repeat(auto-fill, minmax(320px, 1fr)); gap: 1.25rem; }
+			.tile-card { background: #fffdf8; border: 1px solid var(--rule); border-radius: 6px; padding: 0.75rem; }
+			.tile-card h4 { margin: 0 0 0.1rem; font-size: 0.9rem; }
+			.tile-card .meta { font-size: 0.72rem; color: #6b655e; margin-bottom: 0.6rem; }
+			.tile-card .side-by-side { display: grid; grid-template-columns: auto auto; gap: 0.9rem; align-items: start; justify-content: start; }
+
+			table { border-collapse: collapse; font-size: 0.85rem; }
+			th, td { text-align: left; padding: 0.3rem 0.75rem 0.3rem 0; border-bottom: 1px solid var(--rule); }
+			td.glyph { font-family: ui-monospace, Menlo, monospace; font-size: 15px; }
+			.status { font-size: 0.85rem; padding: 0.5rem 0.75rem; border-radius: 4px; margin: 0.75rem 0; }
+			.status.ok { background: #eaf3ec; color: var(--ok); }
+			.status.bad { background: #fbeae7; color: var(--warn); }
+			.dice-row { font-family: ui-monospace, Menlo, monospace; font-size: 13px; padding: 0.15rem 0; }
+		</style>
+	</head>
+	<body>
+		<h1>Portent — manual check</h1>
+		<p class="lede">
+			The things a test suite cannot judge. Automated tests already prove the SVG and the ASCII
+			describe the same grid, cell for cell. What they cannot tell you is whether the picture
+			<em>looks</em> like what the text says — whether a door reads as a door.
+		</p>
+		<p class="hint">
+			Every pair below is one tile rendered twice from one parsed grid.
+			<strong>If a picture and its text disagree, that is a bug worth reporting</strong>, because
+			the test suite believes they match.
+		</p>
+
+		<div id="load-error" class="status bad" hidden>
+			Could not load <code>manual/dist/portent.js</code>. Run <code>pnpm manual</code> first.
+		</div>
+
+		<div class="controls">
+			<label>Theme
+				<select id="theme"><option value="parchment">parchment</option><option value="slate">slate</option></select>
+			</label>
+			<label>Cell size
+				<input id="cell" type="range" min="8" max="48" value="22" />
+				<span id="cell-value">22</span>px
+			</label>
+			<label><input id="grid" type="checkbox" /> grid overlay</label>
+			<label><input id="legend" type="checkbox" /> legend in SVG</label>
+		</div>
+
+		<h2>1. A random map</h2>
+		<p class="hint">
+			Tiles laid on a lattice. Because every tile is 7×7 with centred doors, neighbours line up with
+			no matching logic. A seam where only one side has a door is sealed to wall, so
+			<strong>there should be no door anywhere that opens onto solid rock</strong>.
+		</p>
+		<p class="hint">
+			Placement is random, not edge-matched, so expect isolated rooms and stretches of blank wall.
+			That is the lattice doing what it was asked, not a bug — picking tiles whose edges agree is a
+			generator's job, and there is no generator yet.
+		</p>
+		<div class="controls">
+			<label>Seed <input id="seed" type="text" value="grimhold" /></label>
+			<label>Columns <input id="cols" type="number" min="1" max="8" value="4" style="width:4rem" /></label>
+			<label>Rows <input id="rows" type="number" min="1" max="8" value="3" style="width:4rem" /></label>
+			<label><input id="gaps" type="checkbox" checked /> allow gaps</label>
+			<button id="reroll">Reroll</button>
+		</div>
+		<div id="map-status"></div>
+		<div class="pair">
+			<figure class="panel"><figcaption>SVG</figcaption><div id="map-svg"></div></figure>
+			<figure class="panel"><figcaption>ASCII</figcaption><pre id="map-ascii"></pre></figure>
+		</div>
+
+		<h2>2. Every cell kind</h2>
+		<p class="hint">
+			One cell of each kind, drawn and written. Check the glyph is a sensible mnemonic and the shape
+			is recognisable at small sizes.
+		</p>
+		<div id="legend-table"></div>
+
+		<h2>3. Every tile in the pack</h2>
+		<p class="hint">Picture and text side by side, per tile. Doors should sit dead centre on each wall.</p>
+		<div id="gallery" class="gallery"></div>
+
+		<h2>4. Dice</h2>
+		<p class="hint">Sanity check on formatting: dropped dice struck through, labels carried, totals bold.</p>
+		<div id="dice"></div>
+
+		<script src="./dist/portent.js" onerror="document.getElementById('load-error').hidden = false"></script>
+		<script>
+			(function () {
+				if (typeof Portent === "undefined") {
+					document.getElementById("load-error").hidden = false;
+					return;
+				}
+
+				const P = Portent;
+				const tiles = P.parseTileSet(P.dungeonTiles);
+
+				const el = (id) => document.getElementById(id);
+				const themes = { parchment: P.parchmentTheme, slate: P.slateTheme };
+
+				function svgOptions(overrides) {
+					return Object.assign(
+						{
+							theme: themes[el("theme").value],
+							cellSize: Number(el("cell").value),
+							grid: el("grid").checked,
+							legend: el("legend").checked,
+						},
+						overrides || {},
+					);
+				}
+
+				// ── 1. Random map ──────────────────────────────────────────────────
+				function buildMap() {
+					const seed = el("seed").value || "grimhold";
+					const rng = P.seededRandomSource(seed);
+					const cols = Math.max(1, Math.min(8, Number(el("cols").value) || 4));
+					const rows = Math.max(1, Math.min(8, Number(el("rows").value) || 3));
+					const allowGaps = el("gaps").checked;
+
+					const lattice = [];
+					for (let r = 0; r < rows; r++) {
+						const row = [];
+						for (let c = 0; c < cols; c++) {
+							row.push(allowGaps && rng.float() < 0.15 ? null : rng.pick(tiles));
+						}
+						lattice.push(row);
+					}
+
+					const map = P.composeTiles(lattice, { id: "manual-map", name: seed + " map" });
+					el("map-svg").innerHTML = P.renderSvg(map, svgOptions());
+					el("map-ascii").textContent = P.renderAscii(map);
+
+					// Independently re-derive both projections and compare, so the page
+					// checks the invariant rather than just trusting the library.
+					const ascii = P.renderAscii(map).split("\n").map((r) => Array.from(r));
+					const fromSvg = Array.from({ length: map.height }, () => Array.from({ length: map.width }, () => " "));
+					for (const cell of P.readSvgCells(P.renderSvg(map, svgOptions()))) {
+						fromSvg[cell.y][cell.x] = P.specOf(cell.kind).glyph;
+					}
+					let mismatch = null;
+					for (let y = 0; y < map.height && !mismatch; y++) {
+						for (let x = 0; x < map.width; x++) {
+							if (fromSvg[y][x] !== ascii[y][x]) {
+								mismatch = "(" + x + "," + y + "): svg " + fromSvg[y][x] + " vs ascii " + ascii[y][x];
+								break;
+							}
+						}
+					}
+					const status = el("map-status");
+					status.className = "status " + (mismatch ? "bad" : "ok");
+					status.textContent = mismatch
+						? "Projections disagree at " + mismatch
+						: map.width + "×" + map.height + " cells · projections agree on all " + map.width * map.height + " cells";
+				}
+
+				// ── 2. Cell kinds ──────────────────────────────────────────────────
+				function buildLegend() {
+					const rows = P.CELL_SPECS.map(function (spec) {
+						const single = P.parseTile({ id: "k-" + spec.kind, name: spec.label, art: [spec.glyph] });
+						const swatch = spec.kind === "void" ? "<em>draws nothing</em>" : P.renderSvg(single, svgOptions({ cellSize: 34, legend: false, grid: false }));
+						return (
+							"<tr><td>" + swatch + "</td>" +
+							'<td class="glyph">' + (spec.glyph === " " ? "&nbsp;" : escapeHtml(spec.glyph)) + "</td>" +
+							"<td><code>" + spec.kind + "</code></td>" +
+							"<td>" + escapeHtml(spec.label) + "</td>" +
+							"<td>" + (spec.passable ? "walkable" : "blocked") + (spec.connects ? ", connects" : "") + "</td>" +
+							"<td>" + escapeHtml(spec.note) + "</td></tr>"
+						);
+					}).join("");
+					el("legend-table").innerHTML =
+						"<table><thead><tr><th>Drawn</th><th>Glyph</th><th>Kind</th><th>Label</th><th>Movement</th><th>Notes</th></tr></thead><tbody>" +
+						rows +
+						"</tbody></table>";
+				}
+
+				// ── 3. Tile gallery ────────────────────────────────────────────────
+				function buildGallery() {
+					el("gallery").innerHTML = tiles
+						.map(function (tile) {
+							const problems = P.standardTileProblems(tile);
+							const badge = problems.length
+								? '<span style="color:var(--warn)"> — NOT STANDARD: ' + escapeHtml(problems.join("; ")) + "</span>"
+								: "";
+							return (
+								'<div class="tile-card">' +
+								"<h4>" + escapeHtml(tile.name) + "</h4>" +
+								'<div class="meta"><code>' + tile.id + "</code> · " +
+								P.standardEdges(tile).join(", ") + badge + "</div>" +
+								'<div class="side-by-side">' +
+								"<div>" + P.renderSvg(tile, svgOptions({ legend: false })) + "</div>" +
+								"<pre>" + escapeHtml(P.renderAscii(tile)) + "</pre>" +
+								"</div></div>"
+							);
+						})
+						.join("");
+				}
+
+				// ── 4. Dice ────────────────────────────────────────────────────────
+				function buildDice() {
+					const expressions = [
+						"1d20+5",
+						"2d20kh1+7",
+						"4d6kh3",
+						"6#4d6kh3",
+						"1d8+3 # longsword",
+						"8d6 # fireball",
+						"floor((2d6+3)/2)",
+						"5d10cs>=7",
+						"1d6x",
+						"4dF",
+						"d%",
+					];
+					el("dice").innerHTML = expressions
+						.map(function (expression) {
+							try {
+								const split = P.splitRepeat(expression);
+								const lines = [];
+								for (let i = 0; i < split.times; i++) {
+									lines.push(P.formatRoll(P.roll(split.expression)));
+								}
+								return '<div class="dice-row">' + escapeHtml(lines.join("   |   ")) + "</div>";
+							} catch (error) {
+								return '<div class="dice-row" style="color:var(--warn)">' + escapeHtml(expression + " — " + error.message) + "</div>";
+							}
+						})
+						.join("");
+				}
+
+				function escapeHtml(text) {
+					return String(text).replace(/[&<>"]/g, function (c) {
+						return { "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" }[c];
+					});
+				}
+
+				function renderAll() {
+					buildMap();
+					buildLegend();
+					buildGallery();
+					buildDice();
+				}
+
+				el("reroll").addEventListener("click", function () {
+					el("seed").value = P.randomSeed();
+					buildMap();
+				});
+				["theme", "grid", "legend"].forEach(function (id) {
+					el(id).addEventListener("change", renderAll);
+				});
+				el("cell").addEventListener("input", function () {
+					el("cell-value").textContent = el("cell").value;
+					renderAll();
+				});
+				["seed", "cols", "rows", "gaps"].forEach(function (id) {
+					el(id).addEventListener("change", buildMap);
+				});
+
+				renderAll();
+			})();
+		</script>
+	</body>
+</html>

@@ -16,22 +16,27 @@
   "files": ["dist", "README.md"],
   "exports": {
     ".": {
+      "development": "./src/index.ts",
       "types": "./dist/index.d.ts",
       "default": "./dist/index.js"
     },
     "./memory": {
+      "development": "./src/adapters/memory/index.ts",
       "types": "./dist/adapters/memory/index.d.ts",
       "default": "./dist/adapters/memory/index.js"
     },
     "./node": {
+      "development": "./src/adapters/node/index.ts",
       "types": "./dist/adapters/node/index.d.ts",
       "default": "./dist/adapters/node/index.js"
     },
     "./browser": {
+      "development": "./src/adapters/browser/index.ts",
       "types": "./dist/adapters/browser/index.d.ts",
       "default": "./dist/adapters/browser/index.js"
     },
     "./testing": {
+      "development": "./src/testing/index.ts",
       "types": "./dist/testing/index.d.ts",
       "default": "./dist/testing/index.js"
     }

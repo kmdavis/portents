@@ -58,19 +58,76 @@ const tile = parseTile({
   tags: ["room", "combat"],
   note: "Good cover, broken sightlines.",
   art: [
-    "####+####",
-    "#.......#",
-    "+.O...O.+",
-    "#.......#",
-    "#########",
+    "###+###",
+    "#.....#",
+    "#.O.O.#",
+    "+.....+",
+    "#.O.O.#",
+    "#.....#",
+    "###+###",
   ],
 });
 
 renderAscii(tile);                      // the text
 renderSvg(tile, { cellSize: 32 });      // the picture, same tile
-exitsOf(tile);                          // [{x:4,y:0,edge:"north",…}, …] derived from the art
+exitsOf(tile);                          // [{x:3,y:0,edge:"north",…}, …] derived from the art
 legendOf(tile);                         // only the kinds this tile actually uses
 ```
+
+Tiles ship in [`@portent/content`](../content), not here. This package parses,
+validates and renders them.
+
+### The standard format
+
+Two rules make a tile set fit together with no matching logic:
+
+1. Every tile is `STANDARD_TILE_SIZE` square — **7×7**.
+2. Connectors sit at the **centre of an edge and nowhere else** on the boundary.
+
+Seven because it is the smallest odd number leaving a usable 5×5 interior inside
+a wall ring. Odd matters: it gives each edge exactly one centre, so a tile's east
+door at `(6,3)` is always opposite its neighbour's west door at `(0,3)`.
+
+```ts
+import { standardTileProblems, assertStandardTile, standardEdges } from "@portent/core";
+
+standardTileProblems(tile);   // [] when it conforms
+standardEdges(tile);          // ["north", "east", "south", "west"]
+```
+
+`standardTileProblems` returns every problem at once, by coordinate, rather than
+throwing on the first:
+
+```
+has a door at (1,0) on the north edge; connectors must be at the edge centre, x=3
+has a connector in the corner at (0,0); corners can never line up with a neighbour
+is 11×7, but every standard tile must be 7×7
+```
+
+### Composing a map
+
+```ts
+import { composeTiles, renderAscii, renderSvg, tileAt } from "@portent/core";
+
+const map = composeTiles([
+  [hall, corridor, room],
+  [corridor, null, stair],   // null leaves a gap, which draws nothing
+]);
+
+renderAscii(map);       // the whole dungeon as text
+renderSvg(map);         // the same dungeon as vectors
+tileAt(map, 9, 3);      // { col: 1, row: 0, id: "corridor" }
+```
+
+A composed map **is** a `Tile`, so both projections and their equivalence tests
+apply to a whole dungeon with no second set of renderers.
+
+Tiles overlap by one cell so neighbours share a wall rather than drawing two.
+Where two cells land on the same coordinate, `mergeCells` decides: identical
+kinds merge, `void` yields to anything real, two connectors merge to the more
+deliberate one, and **anything else seals to wall**. That last rule is the
+important one — a door onto a walled neighbour becomes wall, so an assembled map
+never shows an exit that goes nowhere.
 
 ### Cell kinds
 
@@ -107,6 +164,12 @@ that looks right in one editor and wrong in another defeats the whole design.
 
 Adding a cell kind: one row in `src/tiles/cells.ts`, one shape in
 `src/tiles/svg.ts`. The type checker will not let you skip the second.
+
+### Checking it by eye
+
+The tests prove the two projections describe the same grid. They cannot tell you
+whether the picture *looks* right. `pnpm manual` at the repo root builds a page
+that renders every tile both ways, side by side, plus a random composed map.
 
 ## Storage
 

@@ -8,10 +8,14 @@
  *
  * ```ts
  * import { roll, formatRoll, parseTile, renderAscii, renderSvg } from "@portent/core";
+ * import { dungeonTiles } from "@portent/content";
  *
  * formatRoll(roll("6#4d6kh3"));   // ability scores
  * renderSvg(parseTile(mySource)); // the same tile the ASCII shows
  * ```
+ *
+ * Content lives in `@portent/content`, not here. This package knows how to
+ * parse, validate and render tiles; it ships none of them.
  */
 
 // Ports: the capabilities the library needs from its host.
@@ -63,22 +67,30 @@ export {
 
 // Map tiles.
 export {
+	assertStandardTile,
 	CELL_SPECS,
 	type CellKind,
 	type CellSpec,
 	census,
+	type ComposedMap,
+	composeTiles,
+	type ComposeOptions,
+	connectorPositions,
 	connects,
+	edgeCentre,
 	type Edge,
 	edgesOf,
 	type Exit,
 	exitsOf,
 	glyphOf,
 	isPassable,
+	isStandardTile,
 	kindsIn,
 	knownGlyphs,
 	legendFor,
 	legendOf,
 	MAX_TILE_SIZE,
+	mergeCells,
 	parchmentTheme,
 	parseTile,
 	parseTileSet,
@@ -89,13 +101,16 @@ export {
 	slateTheme,
 	specOf,
 	specOfGlyph,
+	STANDARD_TILE_SIZE,
+	standardEdges,
+	type StandardTileOptions,
+	standardTileProblems,
 	type SvgOptions,
 	symbolId,
 	type Theme,
 	type Tile,
+	tileAt,
 	TileParseError,
 	type TileSource,
+	toTileSource,
 } from "./tiles/index.ts";
-
-// Bundled content.
-export { dungeonTiles } from "./content/dungeon-tiles.ts";

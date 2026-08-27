@@ -17,7 +17,6 @@
 
 import assert from "node:assert/strict";
 import { describe, it } from "node:test";
-import { dungeonTiles } from "../content/dungeon-tiles.ts";
 import { CELL_SPECS, type CellKind, glyphOf, knownGlyphs, legendFor, specOf, specOfGlyph } from "./cells.ts";
 import { readSvgCells, readSvgSymbols, renderSvg, slateTheme, symbolId } from "./svg.ts";
 import {
@@ -32,9 +31,40 @@ import {
 	renderAscii,
 	type Tile,
 	TileParseError,
+	type TileSource,
 } from "./tile.ts";
 
-const tiles = parseTileSet(dungeonTiles);
+/**
+ * Fixtures authored here rather than imported from @portent/content: the engine
+ * must be testable without any content pack, and the content pack has its own
+ * tests for its own tiles.
+ */
+const FIXTURES: readonly TileSource[] = [
+	{
+		id: "open-room",
+		name: "Open Room",
+		tags: ["room"],
+		note: "Four centred doors and an open interior.",
+		art: ["###+###", "#.....#", "#.....#", "+.....+", "#.....#", "#.....#", "###+###"],
+	},
+	{
+		id: "corridor",
+		name: "Corridor",
+		tags: ["corridor"],
+		note: "East-west passage through solid rock.",
+		art: ["#######", "#######", "#######", "+.....+", "#######", "#######", "#######"],
+	},
+	{
+		id: "every-kind",
+		name: "Every Kind",
+		tags: ["fixture"],
+		note: "Exercises one cell of every kind in the registry, void included.",
+		art: ["###+###", "#^~voS#", "#<>OTi#", "+*=...+", "#A....#", "#.....#", "## ## #"],
+	},
+];
+
+const tiles = parseTileSet(FIXTURES);
+
 
 describe("cell registry", () => {
 	it("maps glyphs to kinds bijectively", () => {
@@ -178,7 +208,7 @@ describe("ASCII projection", () => {
 	it("preserves what the author wrote, modulo trailing void", () => {
 		// Normalisation may only append trailing voids and strip blank edge rows.
 		// It may never change a character an author typed.
-		for (const source of dungeonTiles) {
+		for (const source of FIXTURES) {
 			const tile = parseTile(source);
 			const rendered = renderAscii(tile).split("\n");
 			const authored = source.art.filter(
@@ -288,7 +318,7 @@ describe("SVG projection", () => {
 	});
 
 	it("carries an accessible title", () => {
-		assert.match(renderSvg(tiles[0]), /<title>Four-Way Junction<\/title>/);
+		assert.match(renderSvg(tiles[0]), /<title>Open Room<\/title>/);
 		assert.match(renderSvg(tiles[0], { title: "Custom" }), /<title>Custom<\/title>/);
 	});
 
@@ -298,10 +328,11 @@ describe("SVG projection", () => {
 	});
 
 	it("emits an optional grid and legend without disturbing the cells", () => {
-		const plain = readSvgCells(renderSvg(tiles[4]));
-		const decorated = readSvgCells(renderSvg(tiles[4], { grid: true, legend: true }));
+		const subject = tiles[2]; // every-kind, so the legend has plenty in it
+		const plain = readSvgCells(renderSvg(subject));
+		const decorated = readSvgCells(renderSvg(subject, { grid: true, legend: true }));
 		assert.deepEqual(decorated, plain, "decoration changed the cells");
-		assert.match(renderSvg(tiles[4], { legend: true }), /data-portent="legend"/);
+		assert.match(renderSvg(subject, { legend: true }), /data-portent="legend"/);
 	});
 });
 
@@ -346,56 +377,6 @@ describe("exits", () => {
 					`${tile.id} claims edge ${edge} with no exit on it`,
 				);
 			}
-		}
-	});
-});
-
-describe("bundled tile set", () => {
-	it("parses", () => {
-		assert.ok(tiles.length >= 20, `only ${tiles.length} tiles`);
-	});
-
-	it("exercises every cell kind in the registry", () => {
-		// Otherwise a shape can be defined and never looked at by any test.
-		const used = new Set<CellKind>();
-		for (const tile of tiles) for (const kind of kindsIn(tile)) used.add(kind);
-		used.add("void");
-		const missing = CELL_SPECS.map((spec) => spec.kind).filter((kind) => !used.has(kind));
-		assert.deepEqual(missing, [], `no bundled tile uses: ${missing.join(", ")}`);
-	});
-
-	it("gives every tile a note and at least one tag", () => {
-		for (const tile of tiles) {
-			assert.ok(tile.note && tile.note.length > 10, `${tile.id} has no note`);
-			assert.ok(tile.tags.length > 0, `${tile.id} has no tags`);
-		}
-	});
-
-	it("uses kebab-case ids matching no other tile", () => {
-		const ids = tiles.map((tile) => tile.id);
-		assert.equal(new Set(ids).size, ids.length);
-		for (const id of ids) assert.match(id, /^[a-z0-9]+(-[a-z0-9]+)*$/, `${id} is not kebab-case`);
-	});
-
-	it("counts cells consistently with the grid", () => {
-		for (const tile of tiles) {
-			const total = [...census(tile).values()].reduce((a, b) => a + b, 0);
-			assert.equal(total, tile.width * tile.height, `${tile.id} census does not cover the grid`);
-		}
-	});
-
-	it("legends only what each tile contains", () => {
-		for (const tile of tiles) {
-			const present = new Set(kindsIn(tile).map((kind) => specOf(kind).glyph));
-			for (const entry of legendOf(tile)) {
-				assert.ok(present.has(entry.glyph), `${tile.id} legends ${entry.glyph}, which it does not use`);
-			}
-		}
-	});
-
-	it("has no tile made entirely of wall", () => {
-		for (const tile of tiles) {
-			assert.ok(kindsIn(tile).some((kind) => specOf(kind).passable), `${tile.id} has no walkable cell`);
 		}
 	});
 });

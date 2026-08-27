@@ -1,0 +1,36 @@
+{
+  "name": "@portent/content",
+  "version": "0.0.0",
+  "description": "Content packs for Portent: dungeon tiles, decks, and random tables. Original writing, CC0.",
+  "keywords": ["rpg", "ttrpg", "dungeon", "tiles", "tables", "content"],
+  "license": "MIT",
+  "author": "Kevan Davis",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/kmdavis/portent.git",
+    "directory": "content"
+  },
+  "type": "module",
+  "sideEffects": false,
+  "files": ["dist", "README.md"],
+  "exports": {
+    ".": {
+      "development": "./src/index.ts",
+      "types": "./dist/index.d.ts",
+      "default": "./dist/index.js"
+    }
+  },
+  "scripts": {
+    "build": "tsc -p tsconfig.build.json",
+    "typecheck": "tsc -p tsconfig.json --noEmit",
+    "test": "node --conditions=development --test 'src/**/*.test.ts'",
+    "prepublishOnly": "pnpm build"
+  },
+  "peerDependencies": {
+    "@portent/core": "workspace:^"
+  },
+  "devDependencies": {
+    "@portent/core": "workspace:*",
+    "typescript": "^5.7.0"
+  }
+}
