@@ -15,6 +15,12 @@ import {
 	census,
 	composeTiles,
 	connectorPositions,
+	describeSignature,
+	generateDungeon,
+	indexBySignature,
+	missingSignatures,
+	reachableCells,
+	tileSignature,
 	kindsIn,
 	legendOf,
 	parseTile,
@@ -145,6 +151,45 @@ describe("both projections agree about every tile in the pack", () => {
 				fromSvg[cell.y][cell.x] = specOf(cell.kind as CellKind).glyph;
 			}
 			assert.deepEqual(fromSvg, fromAscii, `${tile.id}: the picture and the text describe different tiles`);
+		}
+	});
+});
+
+describe("the pack can generate dungeons", () => {
+	it("covers all fifteen connection shapes, so no layout is unbuildable", () => {
+		// The generator carves connectivity first and then needs a tile for each
+		// required shape. A gap here means some dungeons cannot be built at all.
+		assert.deepEqual(missingSignatures(tiles), []);
+	});
+
+	it("reaches that coverage through rotation rather than 15 authored variants", () => {
+		const authored = new Set(tiles.map((tile) => describeSignature(tileSignature(tile))));
+		const withRotation = indexBySignature(tiles).size;
+		assert.ok(
+			authored.size < withRotation,
+			`authored ${authored.size} shapes and rotation yields ${withRotation}; rotation should be doing work`,
+		);
+	});
+
+	it("generates a connected dungeon reachable from its entrance", () => {
+		for (const seed of ["grimhold", "mimic", "beholder"]) {
+			const { map, entrances } = generateDungeon(tiles, { cols: 5, rows: 4, seed, loopChance: 0.2 });
+			assert.equal(entrances.length, 1);
+			const reachable = reachableCells(map, entrances[0], map.width * map.height);
+			let floors = 0;
+			let stranded = 0;
+			for (let y = 0; y < map.height; y++) {
+				for (let x = 0; x < map.width; x++) {
+					const kind = map.cells[y][x];
+					// Water and rubble are walkable; chasms and pits are not, so a tile
+					// full of them can legitimately strand its own interior.
+					if (kind !== "floor" && kind !== "door") continue;
+					floors++;
+					if (!reachable.has(y * map.width + x)) stranded++;
+				}
+			}
+			assert.ok(floors > 20, `seed ${seed} produced almost no floor`);
+			assert.equal(stranded, 0, `seed ${seed} stranded ${stranded} of ${floors} floor cells`);
 		}
 	});
 });

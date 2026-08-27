@@ -145,3 +145,57 @@ describe("standardEdges", () => {
 		assert.deepEqual(standardEdges(corridor), ["east", "west"]);
 	});
 });
+
+describe("connectors must be mutually reachable", () => {
+	it("rejects a corridor blocked in the middle", () => {
+		// The bug this check exists for: the tile declares east and west, so a
+		// generator uses it as a through-route, and the dungeon quietly splits.
+		const blocked = parseTile({
+			id: "blocked",
+			name: "Blocked",
+			art: ["#######", "#######", "#######", "+..v..+", "#######", "#######", "#######"],
+		});
+		const problems = standardTileProblems(blocked);
+		assert.equal(problems.length, 1, problems.join("; "));
+		assert.match(problems[0], /declares a west connector that cannot be walked to from the east one/);
+		assert.match(problems[0], /disconnect a generated dungeon/);
+	});
+
+	it("accepts a corridor crossable via a hazard you can step on", () => {
+		const pits = parseTile({
+			id: "pits",
+			name: "Pits",
+			art: ["#######", "#######", "#######", "+.o.o.+", "#######", "#######", "#######"],
+		});
+		assert.deepEqual(standardTileProblems(pits), []);
+	});
+
+	it("accepts a room where the route goes around an obstacle", () => {
+		const ring = parseTile({
+			id: "ring",
+			name: "Ring",
+			art: ["###+###", "#.....#", "#.vvv.#", "+.vvv.+", "#.vvv.#", "#.....#", "###+###"],
+		});
+		assert.deepEqual(standardTileProblems(ring), []);
+	});
+
+	it("says nothing about a tile with only one connector", () => {
+		const deadEnd = parseTile({
+			id: "dead",
+			name: "Dead",
+			art: ["#######", "#######", "#######", "+..####", "#######", "#######", "#######"],
+		});
+		assert.deepEqual(standardTileProblems(deadEnd), []);
+	});
+
+	it("reports each unreachable connector separately", () => {
+		const split = parseTile({
+			id: "split",
+			name: "Split",
+			art: ["###+###", "##v.v##", "##v.v##", "+vv.vv+", "##v.v##", "##v.v##", "###+###"],
+		});
+		// North and south share the central column; east and west are cut off.
+		const problems = standardTileProblems(split);
+		assert.equal(problems.length, 2, problems.join("; "));
+	});
+});

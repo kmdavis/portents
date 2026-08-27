@@ -42,6 +42,13 @@ interface CellSpecShape {
 	 * grid boundary? Drives {@link exitsOf}; never declared per tile.
 	 */
 	readonly connects: boolean;
+	/**
+	 * Does this cell block line of sight? Independent of {@link passable}: a
+	 * chasm stops movement but not vision, and a closed door stops vision but
+	 * can be opened. `void` is opaque so nothing is visible through a gap in the
+	 * map.
+	 */
+	readonly opaque: boolean;
 	/** Fill/stroke family. Resolved to actual colours by the SVG theme. */
 	readonly tone: "outside" | "solid" | "open" | "opening" | "hazard" | "feature";
 	/** One-line description, used in generated legends and documentation. */
@@ -61,6 +68,7 @@ const SPECS = [
 		label: "outside",
 		passable: false,
 		connects: false,
+		opaque: true,
 		tone: "outside",
 		note: "Not part of the tile. Draws nothing, so tiles need not be rectangular.",
 	},
@@ -70,6 +78,7 @@ const SPECS = [
 		label: "wall",
 		passable: false,
 		connects: false,
+		opaque: true,
 		tone: "solid",
 		note: "Solid rock or masonry.",
 	},
@@ -79,6 +88,7 @@ const SPECS = [
 		label: "floor",
 		passable: true,
 		connects: true,
+		opaque: false,
 		tone: "open",
 		note: "Walkable floor. On a tile boundary it is an open edge.",
 	},
@@ -88,6 +98,7 @@ const SPECS = [
 		label: "door",
 		passable: true,
 		connects: true,
+		opaque: true,
 		tone: "opening",
 		note: "A door, closed but not locked unless the tile says so.",
 	},
@@ -97,6 +108,7 @@ const SPECS = [
 		label: "secret door",
 		passable: true,
 		connects: true,
+		opaque: true,
 		tone: "opening",
 		note: "Looks like wall until found. Draw it only on the GM's copy.",
 	},
@@ -106,6 +118,7 @@ const SPECS = [
 		label: "archway",
 		passable: true,
 		connects: true,
+		opaque: false,
 		tone: "opening",
 		note: "An opening with no door in it.",
 	},
@@ -115,6 +128,7 @@ const SPECS = [
 		label: "rubble",
 		passable: true,
 		connects: false,
+		opaque: false,
 		tone: "hazard",
 		note: "Difficult terrain. Passable, slowly, and noisily.",
 	},
@@ -124,6 +138,7 @@ const SPECS = [
 		label: "water",
 		passable: true,
 		connects: false,
+		opaque: false,
 		tone: "hazard",
 		note: "Shallow water unless the tile says otherwise.",
 	},
@@ -133,6 +148,7 @@ const SPECS = [
 		label: "chasm",
 		passable: false,
 		connects: false,
+		opaque: false,
 		tone: "hazard",
 		note: "Open drop. Needs a bridge, a jump or a rope.",
 	},
@@ -142,6 +158,7 @@ const SPECS = [
 		label: "bridge",
 		passable: true,
 		connects: true,
+		opaque: false,
 		tone: "feature",
 		note: "A span across a chasm or water. Usually single file.",
 	},
@@ -149,10 +166,13 @@ const SPECS = [
 		kind: "pit",
 		glyph: "o",
 		label: "pit",
-		passable: false,
+		// Steppable, unlike a chasm: walking onto a pit square is exactly how a
+		// pit trap gets triggered. A chasm is an open gap you cannot cross at all.
+		passable: true,
 		connects: false,
+		opaque: false,
 		tone: "hazard",
-		note: "A hole in the floor, trapped or not.",
+		note: "A hole in the floor, trapped or not. You can step onto it; that may be unwise.",
 	},
 	{
 		kind: "stairs-up",
@@ -160,6 +180,7 @@ const SPECS = [
 		label: "stairs up",
 		passable: true,
 		connects: true,
+		opaque: false,
 		tone: "feature",
 		note: "Leads to the level above. Connects tiles vertically, not laterally.",
 	},
@@ -169,6 +190,7 @@ const SPECS = [
 		label: "stairs down",
 		passable: true,
 		connects: true,
+		opaque: false,
 		tone: "feature",
 		note: "Leads to the level below.",
 	},
@@ -178,6 +200,7 @@ const SPECS = [
 		label: "pillar",
 		passable: false,
 		connects: false,
+		opaque: true,
 		tone: "solid",
 		note: "Breaks line of sight and gives cover.",
 	},
@@ -187,6 +210,7 @@ const SPECS = [
 		label: "altar",
 		passable: false,
 		connects: false,
+		opaque: false,
 		tone: "feature",
 		note: "A raised block: altar, table, tomb lid or workbench.",
 	},
@@ -196,6 +220,7 @@ const SPECS = [
 		label: "statue",
 		passable: false,
 		connects: false,
+		opaque: true,
 		tone: "feature",
 		note: "A figure. Watch it.",
 	},
@@ -205,6 +230,7 @@ const SPECS = [
 		label: "brazier",
 		passable: false,
 		connects: false,
+		opaque: false,
 		tone: "feature",
 		note: "A light source, lit or long cold.",
 	},
@@ -310,6 +336,11 @@ export function isPassable(kind: CellKind): boolean {
 /** Whether the cell joins this tile to the next one when it sits on the boundary. */
 export function connects(kind: CellKind): boolean {
 	return specOf(kind).connects;
+}
+
+/** Whether the cell blocks line of sight. Drives field-of-view calculation. */
+export function isOpaque(kind: CellKind): boolean {
+	return specOf(kind).opaque;
 }
 
 /**

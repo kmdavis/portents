@@ -66,6 +66,42 @@ unchanged and the equivalence guarantee comes with them. Where one tile has a
 door and its neighbour has wall, the seam is sealed — an assembled map never
 shows an exit into solid rock.
 
+**Dungeons are generated connectivity-first.** A randomised depth-first walk
+carves a spanning tree over the lattice, so every cell is reachable before any
+tile is chosen; each cell then has a required shape and a tile is picked to match.
+Most tile generators place a tile and then hunt for neighbours that fit, which
+paints itself into corners and leaves disconnected fragments.
+
+```ts
+const { map, entrances } = generateDungeon(tiles, { cols: 5, rows: 4, seed: "grimhold" });
+```
+
+A connection shape is four bits, so there are sixteen. With rotation, one
+authored tile per shape class — dead end, straight, bend, T, cross — covers all of
+them, so a small hand-written set generates every layout.
+
+**Sight is modelled properly.** Recursive shadowcasting over eight octants, so
+you can see past a pillar on both sides but not through it, and from a doorway you
+see the room beyond but not along the wall you stand in. Opacity is separate from
+passability, because a chasm blocks movement but not sight and a closed door does
+the reverse.
+
+```ts
+let view = withActors(createView(map, { sightRadius: 8 }), party);
+view = moveActor(view, "brannoc", { x: 5, y: 12 });
+
+renderSvg(map, {
+  visibility: { visible: view.visible, explored: view.explored },
+  tokens: view.actors,
+  viewport: { x: 0, y: 0, width: 13, height: 7 },
+});
+```
+
+Three states: unknown is not drawn at all, so the players' map cannot leak the
+shape of a room they have never entered; explored is dimmed; visible is drawn with
+tokens. **Terrain is remembered, creatures are not** — a goblin does not stay where
+you last saw it.
+
 ## Getting started
 
 ```bash
@@ -117,9 +153,15 @@ Three mechanisms keep that honest rather than aspirational:
 3. Both bundled Storage adapters run the same published conformance suite, so
    they cannot drift apart.
 
-**Known gap:** the IndexedDB adapter has no automated coverage, because Node has
-no IndexedDB. It typechecks and it bundles; it has not been run. A browser test
-job is needed before anyone should trust it.
+**Known gaps.** Two things typecheck and bundle but have no automated coverage,
+because Node has neither an IndexedDB nor a canvas: the **IndexedDB storage
+adapter** and the **browser PNG rasteriser**. Both are exercised by the manual
+page; neither has been run in CI. A browser test job would close this, and until
+then they should be treated as unproven.
+
+There is **no Node PNG rasteriser**. `svgToPngBlob` throws in Node with a message
+pointing at `@resvg/resvg-js`. Adding a native binary dependency is a decision
+rather than a default, so it waits for the CLI.
 
 ## Checking it by eye
 
@@ -132,12 +174,23 @@ pnpm manual        # bundles lib + content, no build of either needed
 open manual/index.html
 ```
 
-The page renders a random composed map as SVG and as fixed-width ASCII side by
-side, a swatch and glyph for every cell kind, every tile in the pack in both
-projections, and a row of dice formats. It re-derives both projections in the
-browser and reports whether they agree, so it checks the invariant rather than
-trusting the library. If a picture and its text ever disagree there, that is a
-real bug — the test suite believes they match.
+Seven sections, each checking something a test cannot judge:
+
+1. **A generated dungeon** as SVG beside fixed-width ASCII, with seed, size, loop
+   and gap controls. It re-derives both projections in the browser and reports
+   whether they agree.
+2. **Fog of war** — **click a cell to move the party there.** This is the best way
+   to check the field of view: stand beside a pillar, stand in a doorway, walk
+   into a room and back out.
+3. **PNG**, rasterised in the browser, which should be indistinguishable from the
+   SVG above it.
+4. **A range of tiles**, cropped, for handing a player one room at a time.
+5. **Every cell kind** with its glyph, shape, and movement/sight properties.
+6. **Every tile in the pack** in both projections, with its connection shape.
+7. **Dice** formatting.
+
+If a picture and its text ever disagree there, that is a real bug — the test suite
+believes they match.
 
 ## Content and licensing
 

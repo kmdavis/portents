@@ -167,3 +167,11 @@ export class BrowserStorage implements Storage {
 		this.#connection = undefined;
 	}
 }
+
+export {
+	type RasterOptions,
+	svgDimensions,
+	svgToPngBlob,
+	svgToPngBytes,
+	svgToPngDataUrl,
+} from "./raster.ts";

@@ -21,6 +21,7 @@ const result = await esbuild.build({
 	stdin: {
 		contents: `
 			export * from "@portent/core";
+			export * from "@portent/core/browser";
 			export { dungeonTiles } from "@portent/content";
 		`,
 		resolveDir: root,

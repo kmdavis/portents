@@ -29,9 +29,8 @@
 				padding-bottom: 0.4rem;
 				border-bottom: 2px solid var(--rule);
 			}
-			h3 { font-size: 0.95rem; margin: 1.5rem 0 0.5rem; font-weight: 600; }
 			p.lede { margin: 0 0 1rem; color: #55504a; max-width: 62ch; }
-			.hint { font-size: 0.85rem; color: #6b655e; max-width: 70ch; }
+			.hint { font-size: 0.85rem; color: #6b655e; max-width: 74ch; }
 			.hint strong { color: var(--warn); }
 
 			.controls {
@@ -56,10 +55,11 @@
 				border-radius: 4px;
 				cursor: pointer;
 			}
+			button.ghost { background: transparent; color: var(--accent); border: 1px solid var(--accent); }
 			button:hover { filter: brightness(1.1); }
-			input[type="text"] { font: inherit; font-size: 0.85rem; padding: 0.3rem 0.5rem; border: 1px solid var(--rule); border-radius: 4px; width: 10rem; }
+			input[type="text"] { font: inherit; font-size: 0.85rem; padding: 0.3rem 0.5rem; border: 1px solid var(--rule); border-radius: 4px; width: 9rem; }
+			input[type="number"] { font: inherit; font-size: 0.85rem; padding: 0.3rem 0.4rem; border: 1px solid var(--rule); border-radius: 4px; width: 4rem; }
 
-			/* The core comparison: picture on the left, text on the right. */
 			.pair {
 				display: grid;
 				grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
@@ -67,7 +67,7 @@
 				align-items: start;
 				margin-bottom: 1.5rem;
 			}
-			@media (max-width: 900px) { .pair { grid-template-columns: minmax(0, 1fr); } }
+			@media (max-width: 1000px) { .pair { grid-template-columns: minmax(0, 1fr); } }
 
 			.panel {
 				background: #fffdf8;
@@ -75,6 +75,7 @@
 				border-radius: 6px;
 				padding: 0.75rem;
 				overflow: auto;
+				margin: 0;
 			}
 			.panel > figcaption {
 				font-size: 0.75rem;
@@ -83,9 +84,9 @@
 				color: #6b655e;
 				margin-bottom: 0.5rem;
 			}
-			.panel svg { display: block; max-width: 100%; height: auto; }
+			.panel svg, .panel img { display: block; max-width: 100%; height: auto; }
+			.panel svg { cursor: crosshair; }
 
-			/* Fixed width, no wrapping, no ligatures: ASCII must line up exactly. */
 			pre {
 				margin: 0;
 				font-family: ui-monospace, "SF Mono", Menlo, Consolas, "Liberation Mono", monospace;
@@ -93,7 +94,6 @@
 				line-height: 1.15;
 				font-variant-ligatures: none;
 				font-feature-settings: "liga" 0, "calt" 0;
-				tab-size: 1;
 				white-space: pre;
 				overflow-x: auto;
 			}
@@ -105,12 +105,13 @@
 			.tile-card .side-by-side { display: grid; grid-template-columns: auto auto; gap: 0.9rem; align-items: start; justify-content: start; }
 
 			table { border-collapse: collapse; font-size: 0.85rem; }
-			th, td { text-align: left; padding: 0.3rem 0.75rem 0.3rem 0; border-bottom: 1px solid var(--rule); }
+			th, td { text-align: left; padding: 0.3rem 0.75rem 0.3rem 0; border-bottom: 1px solid var(--rule); vertical-align: middle; }
 			td.glyph { font-family: ui-monospace, Menlo, monospace; font-size: 15px; }
 			.status { font-size: 0.85rem; padding: 0.5rem 0.75rem; border-radius: 4px; margin: 0.75rem 0; }
 			.status.ok { background: #eaf3ec; color: var(--ok); }
 			.status.bad { background: #fbeae7; color: var(--warn); }
 			.dice-row { font-family: ui-monospace, Menlo, monospace; font-size: 13px; padding: 0.15rem 0; }
+			.swatch svg { width: 34px; height: 34px; }
 		</style>
 	</head>
 	<body>
@@ -118,12 +119,12 @@
 		<p class="lede">
 			The things a test suite cannot judge. Automated tests already prove the SVG and the ASCII
 			describe the same grid, cell for cell. What they cannot tell you is whether the picture
-			<em>looks</em> like what the text says — whether a door reads as a door.
+			<em>looks</em> like what the text says — whether a door reads as a door, or whether a lit
+			room looks like something a person could stand in.
 		</p>
 		<p class="hint">
-			Every pair below is one tile rendered twice from one parsed grid.
-			<strong>If a picture and its text disagree, that is a bug worth reporting</strong>, because
-			the test suite believes they match.
+			<strong>If a picture and its text disagree anywhere below, that is a bug worth reporting</strong>,
+			because the test suite believes they match.
 		</p>
 
 		<div id="load-error" class="status bad" hidden>
@@ -135,50 +136,105 @@
 				<select id="theme"><option value="parchment">parchment</option><option value="slate">slate</option></select>
 			</label>
 			<label>Cell size
-				<input id="cell" type="range" min="8" max="48" value="22" />
-				<span id="cell-value">22</span>px
+				<input id="cell" type="range" min="8" max="40" value="20" />
+				<span id="cell-value">20</span>px
 			</label>
 			<label><input id="grid" type="checkbox" /> grid overlay</label>
-			<label><input id="legend" type="checkbox" /> legend in SVG</label>
 		</div>
 
-		<h2>1. A random map</h2>
+		<h2>1. A generated dungeon</h2>
 		<p class="hint">
-			Tiles laid on a lattice. Because every tile is 7×7 with centred doors, neighbours line up with
-			no matching logic. A seam where only one side has a door is sealed to wall, so
-			<strong>there should be no door anywhere that opens onto solid rock</strong>.
-		</p>
-		<p class="hint">
-			Placement is random, not edge-matched, so expect isolated rooms and stretches of blank wall.
-			That is the lattice doing what it was asked, not a bug — picking tiles whose edges agree is a
-			generator's job, and there is no generator yet.
+			Connectivity is carved first as a spanning tree, then a tile is chosen to match each cell's
+			required shape. So the dungeon is connected <em>by construction</em>, not by luck.
+			<strong>Every room should be walkable from the entrance</strong>, and no door should open
+			onto solid rock. The check below re-derives both projections and compares them.
 		</p>
 		<div class="controls">
 			<label>Seed <input id="seed" type="text" value="grimhold" /></label>
-			<label>Columns <input id="cols" type="number" min="1" max="8" value="4" style="width:4rem" /></label>
-			<label>Rows <input id="rows" type="number" min="1" max="8" value="3" style="width:4rem" /></label>
-			<label><input id="gaps" type="checkbox" checked /> allow gaps</label>
-			<button id="reroll">Reroll</button>
+			<label>Cols <input id="cols" type="number" min="1" max="10" value="4" /></label>
+			<label>Rows <input id="rows" type="number" min="1" max="10" value="3" /></label>
+			<label>Loops <input id="loops" type="range" min="0" max="100" value="20" /><span id="loops-value">0.20</span></label>
+			<label>Gaps <input id="gaps" type="range" min="0" max="60" value="0" /><span id="gaps-value">0.00</span></label>
+			<label>Ways in <input id="entrances" type="number" min="0" max="6" value="1" /></label>
+			<button id="reroll">New seed</button>
 		</div>
 		<div id="map-status"></div>
 		<div class="pair">
-			<figure class="panel"><figcaption>SVG</figcaption><div id="map-svg"></div></figure>
-			<figure class="panel"><figcaption>ASCII</figcaption><pre id="map-ascii"></pre></figure>
+			<figure class="panel"><figcaption>SVG — the GM's map</figcaption><div id="map-svg"></div></figure>
+			<figure class="panel"><figcaption>ASCII — the same grid</figcaption><pre id="map-ascii"></pre></figure>
 		</div>
 
-		<h2>2. Every cell kind</h2>
+		<h2>2. What the party can see</h2>
 		<p class="hint">
-			One cell of each kind, drawn and written. Check the glyph is a sensible mnemonic and the shape
-			is recognisable at small sizes.
+			<strong>Click a cell in the picture to move the party there.</strong> Unknown cells are not
+			drawn at all; explored-but-unseen cells are dimmed; only cells in sight right now show
+			tokens. Worth poking at: stand beside a pillar and check you can see past it on both sides;
+			stand in a doorway and check you cannot see along the wall you are standing in; walk into a
+			room and back out, and check the terrain is remembered but the goblin is not.
+		</p>
+		<div class="controls">
+			<label>Sight radius <input id="radius" type="range" min="2" max="30" value="8" /><span id="radius-value">8</span></label>
+			<label><input id="lit" type="checkbox" /> whole dungeon lit</label>
+			<button id="reset-party" class="ghost">Party back to entrance</button>
+			<button id="scatter-foes" class="ghost">Move the monsters</button>
+		</div>
+		<div id="view-status"></div>
+		<div class="pair">
+			<figure class="panel"><figcaption>SVG — click to move</figcaption><div id="view-svg"></div></figure>
+			<figure class="panel"><figcaption>ASCII — @ party, ! foes</figcaption><pre id="view-ascii"></pre></figure>
+		</div>
+
+		<h2>3. PNG</h2>
+		<p class="hint">
+			The same view, rasterised in the browser with no dependencies: SVG string to blob, blob to
+			canvas, canvas to PNG. This is the path a web front end would use to show a map as an
+			image. <strong>The PNG should be indistinguishable from the SVG above it</strong> apart from
+			being crisper or softer depending on the scale.
+		</p>
+		<div class="controls">
+			<label>Scale <input id="png-scale" type="range" min="1" max="4" step="0.5" value="2" /><span id="png-scale-value">2</span>×</label>
+			<label><input id="png-transparent" type="checkbox" /> transparent background</label>
+			<button id="png-render">Render PNG</button>
+			<a id="png-download" download="portent-map.png" hidden>Download</a>
+		</div>
+		<div id="png-status"></div>
+		<figure class="panel"><figcaption>PNG</figcaption><div id="png-out"></div></figure>
+
+		<h2>4. A range of tiles</h2>
+		<p class="hint">
+			Cropping to a rectangle of tiles, for handing a player one room at a time rather than the
+			whole map. Coordinates stay in map space, so a click on a crop still maps back to the right
+			cell. Opens on the entrance tile; move the crop somewhere the party has not been and it
+			correctly goes blank.
+		</p>
+		<div class="controls">
+			<label>From col <input id="crop-col" type="number" min="0" max="9" value="0" /></label>
+			<label>row <input id="crop-row" type="number" min="0" max="9" value="0" /></label>
+			<label>Cols <input id="crop-cols" type="number" min="1" max="10" value="2" /></label>
+			<label>Rows <input id="crop-rows" type="number" min="1" max="10" value="1" /></label>
+		</div>
+		<div class="pair">
+			<figure class="panel"><figcaption>SVG, cropped</figcaption><div id="crop-svg"></div></figure>
+			<figure class="panel"><figcaption>ASCII, cropped</figcaption><pre id="crop-ascii"></pre></figure>
+		</div>
+
+		<h2>5. Every cell kind</h2>
+		<p class="hint">
+			One cell of each kind, drawn and written. Check the glyph is a sensible mnemonic, the shape
+			is recognisable at small sizes, and the movement and sight columns match intuition — a
+			chasm should block movement but not sight, a closed door the reverse.
 		</p>
 		<div id="legend-table"></div>
 
-		<h2>3. Every tile in the pack</h2>
-		<p class="hint">Picture and text side by side, per tile. Doors should sit dead centre on each wall.</p>
+		<h2>6. Every tile in the pack</h2>
+		<p class="hint">
+			Picture and text side by side. All 7×7, doors dead centre on each wall. The shape label is
+			the tile's connection signature, which is what the generator matches on.
+		</p>
 		<div id="gallery" class="gallery"></div>
 
-		<h2>4. Dice</h2>
-		<p class="hint">Sanity check on formatting: dropped dice struck through, labels carried, totals bold.</p>
+		<h2>7. Dice</h2>
+		<p class="hint">Formatting check: dropped dice struck through, labels carried, totals bold.</p>
 		<div id="dice"></div>
 
 		<script src="./dist/portent.js" onerror="document.getElementById('load-error').hidden = false"></script>
@@ -190,88 +246,252 @@
 				}
 
 				const P = Portent;
-				const tiles = P.parseTileSet(P.dungeonTiles);
-
 				const el = (id) => document.getElementById(id);
 				const themes = { parchment: P.parchmentTheme, slate: P.slateTheme };
+				const tiles = P.parseTileSet(P.dungeonTiles);
 
-				function svgOptions(overrides) {
+				let dungeon = null;
+				let view = null;
+
+				function baseOptions(extra) {
 					return Object.assign(
 						{
 							theme: themes[el("theme").value],
 							cellSize: Number(el("cell").value),
 							grid: el("grid").checked,
-							legend: el("legend").checked,
 						},
-						overrides || {},
+						extra || {},
 					);
 				}
 
-				// ── 1. Random map ──────────────────────────────────────────────────
-				function buildMap() {
-					const seed = el("seed").value || "grimhold";
-					const rng = P.seededRandomSource(seed);
-					const cols = Math.max(1, Math.min(8, Number(el("cols").value) || 4));
-					const rows = Math.max(1, Math.min(8, Number(el("rows").value) || 3));
-					const allowGaps = el("gaps").checked;
-
-					const lattice = [];
-					for (let r = 0; r < rows; r++) {
-						const row = [];
-						for (let c = 0; c < cols; c++) {
-							row.push(allowGaps && rng.float() < 0.15 ? null : rng.pick(tiles));
-						}
-						lattice.push(row);
-					}
-
-					const map = P.composeTiles(lattice, { id: "manual-map", name: seed + " map" });
-					el("map-svg").innerHTML = P.renderSvg(map, svgOptions());
-					el("map-ascii").textContent = P.renderAscii(map);
-
-					// Independently re-derive both projections and compare, so the page
-					// checks the invariant rather than just trusting the library.
-					const ascii = P.renderAscii(map).split("\n").map((r) => Array.from(r));
-					const fromSvg = Array.from({ length: map.height }, () => Array.from({ length: map.width }, () => " "));
-					for (const cell of P.readSvgCells(P.renderSvg(map, svgOptions()))) {
-						fromSvg[cell.y][cell.x] = P.specOf(cell.kind).glyph;
-					}
-					let mismatch = null;
-					for (let y = 0; y < map.height && !mismatch; y++) {
-						for (let x = 0; x < map.width; x++) {
-							if (fromSvg[y][x] !== ascii[y][x]) {
-								mismatch = "(" + x + "," + y + "): svg " + fromSvg[y][x] + " vs ascii " + ascii[y][x];
-								break;
-							}
-						}
-					}
-					const status = el("map-status");
-					status.className = "status " + (mismatch ? "bad" : "ok");
-					status.textContent = mismatch
-						? "Projections disagree at " + mismatch
-						: map.width + "×" + map.height + " cells · projections agree on all " + map.width * map.height + " cells";
+				function escapeHtml(text) {
+					return String(text).replace(/[&<>"]/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" }[c]));
 				}
 
-				// ── 2. Cell kinds ──────────────────────────────────────────────────
+				/** Re-derive both projections and compare them, rather than trusting the library. */
+				function compareProjections(tile, svg, ascii) {
+					const rows = ascii.split("\n").map((r) => Array.from(r));
+					const grid = Array.from({ length: tile.height }, () => Array.from({ length: tile.width }, () => " "));
+					for (const cell of P.readSvgCells(svg)) grid[cell.y][cell.x] = P.specOf(cell.kind).glyph;
+					for (let y = 0; y < tile.height; y++) {
+						for (let x = 0; x < tile.width; x++) {
+							const expected = rows[y] && rows[y][x] !== undefined ? rows[y][x] : " ";
+							if (grid[y][x] !== expected) return "(" + x + "," + y + "): svg " + grid[y][x] + " vs ascii " + expected;
+						}
+					}
+					return null;
+				}
+
+				function setStatus(id, bad, text) {
+					const node = el(id);
+					node.className = "status " + (bad ? "bad" : "ok");
+					node.textContent = text;
+				}
+
+				// ── 1. Generate ────────────────────────────────────────────────────
+				function generate() {
+					const seed = el("seed").value || "grimhold";
+					try {
+						dungeon = P.generateDungeon(tiles, {
+							cols: Number(el("cols").value) || 4,
+							rows: Number(el("rows").value) || 3,
+							seed: seed,
+							loopChance: Number(el("loops").value) / 100,
+							gapChance: Number(el("gaps").value) / 100,
+							entrances: Number(el("entrances").value),
+						});
+					} catch (error) {
+						setStatus("map-status", true, error.message);
+						return;
+					}
+
+					const map = dungeon.map;
+					const svg = P.renderSvg(map, baseOptions());
+					const ascii = P.renderAscii(map, { trimTrailing: false });
+					el("map-svg").innerHTML = svg;
+					el("map-ascii").textContent = ascii;
+
+					const mismatch = compareProjections(map, svg, ascii);
+					const placed = dungeon.lattice.flat().filter(Boolean).length;
+					setStatus(
+						"map-status",
+						Boolean(mismatch),
+						mismatch
+							? "Projections disagree at " + mismatch
+							: map.width + "×" + map.height + " cells · " + placed + " tiles · " +
+								dungeon.entrances.length + " way(s) in · projections agree on all " + map.width * map.height + " cells",
+					);
+
+					// Point the crop at the entrance, or it opens on an unexplored tile and
+					// looks broken when it is merely correct.
+					const way = dungeon.entrances[0];
+					if (way) {
+						el("crop-col").value = String(way.col);
+						el("crop-row").value = String(way.row);
+					}
+
+					resetParty();
+					renderCrop();
+				}
+
+				// ── 2. Visibility ──────────────────────────────────────────────────
+				function resetParty() {
+					if (!dungeon) return;
+					const start = dungeon.entrances[0] || { x: 1, y: 1 };
+					const actors = [
+						{ id: "brannoc", name: "Brannoc", x: start.x, y: start.y, kind: "pc" },
+						{ id: "ysolde", name: "Ysolde", x: start.x, y: start.y, kind: "ally" },
+					];
+					view = P.withActors(
+						P.createView(dungeon.map, { sightRadius: Number(el("radius").value) }),
+						actors.concat(makeFoes()),
+					);
+					renderView();
+				}
+
+				function makeFoes() {
+					if (!dungeon) return [];
+					const rng = P.seededRandomSource((el("seed").value || "x") + ":foes");
+					const open = [];
+					for (let y = 0; y < dungeon.map.height; y++) {
+						for (let x = 0; x < dungeon.map.width; x++) {
+							if (dungeon.map.cells[y][x] === "floor") open.push({ x: x, y: y });
+						}
+					}
+					if (open.length === 0) return [];
+					const count = Math.min(6, Math.max(1, Math.floor(open.length / 40)));
+					const foes = [];
+					for (let i = 0; i < count; i++) {
+						const spot = rng.pick(open);
+						foes.push({ id: "foe" + i, name: "Goblin " + (i + 1), x: spot.x, y: spot.y, kind: "foe" });
+					}
+					return foes;
+				}
+
+				function renderView() {
+					if (!view) return;
+					const lit = el("lit").checked;
+					const shown = lit ? P.revealAll(view) : view;
+					const mask = { visible: shown.visible, explored: shown.explored };
+					const svg = P.renderSvg(dungeon.map, baseOptions({ visibility: mask, tokens: shown.actors }));
+					el("view-svg").innerHTML = svg;
+					el("view-ascii").textContent = P.renderAsciiView(shown, { unknownGlyph: " ", trimTrailing: false });
+
+					const drawnTokens = P.readSvgTokens(svg).length;
+					const hidden = shown.actors.length - P.visibleActors(shown).length;
+					setStatus(
+						"view-status",
+						false,
+						shown.visible.size + " cells in sight · " + shown.explored.size + " explored · " +
+							drawnTokens + " token(s) drawn · " + hidden + " creature(s) hidden",
+					);
+					wireClicks();
+					renderCrop();
+				}
+
+				/** Click a cell to move the party there. The single best FOV check. */
+				function wireClicks() {
+					const svg = el("view-svg").querySelector("svg");
+					if (!svg) return;
+					svg.addEventListener("click", function (event) {
+						const use = event.target.closest("use");
+						if (!use) return;
+						const x = Number(use.getAttribute("data-x"));
+						const y = Number(use.getAttribute("data-y"));
+						if (!Number.isFinite(x) || !Number.isFinite(y)) return;
+						try {
+							view = P.moveActor(view, "brannoc", { x: x, y: y });
+							view = P.moveActor(view, "ysolde", { x: x, y: y });
+						} catch (error) {
+							setStatus("view-status", true, error.message);
+							return;
+						}
+						renderView();
+					});
+				}
+
+				// ── 3. PNG ─────────────────────────────────────────────────────────
+				async function renderPng() {
+					if (!view) return;
+					const shown = el("lit").checked ? P.revealAll(view) : view;
+					const svg = P.renderSvg(
+						dungeon.map,
+						baseOptions({ visibility: { visible: shown.visible, explored: shown.explored }, tokens: shown.actors }),
+					);
+					setStatus("png-status", false, "rendering…");
+					try {
+						const options = { scale: Number(el("png-scale").value) };
+						if (!el("png-transparent").checked) options.background = themes[el("theme").value].background;
+						const bytes = await P.svgToPngBytes(svg, options);
+						const url = await P.svgToPngDataUrl(svg, options);
+						const size = P.svgDimensions(svg);
+						el("png-out").innerHTML = '<img alt="Generated dungeon, rasterised" src="' + url + '" />';
+						const link = el("png-download");
+						link.href = url;
+						link.hidden = false;
+						setStatus(
+							"png-status",
+							false,
+							"PNG " + Math.round(size.width * options.scale) + "×" + Math.round(size.height * options.scale) +
+								" px · " + (bytes.length / 1024).toFixed(1) + " kB",
+						);
+					} catch (error) {
+						setStatus("png-status", true, "PNG failed: " + error.message);
+					}
+				}
+
+				// ── 4. Crop ────────────────────────────────────────────────────────
+				function renderCrop() {
+					if (!dungeon || !view) return;
+					const size = P.STANDARD_TILE_SIZE;
+					const stride = size - 1;
+					const viewport = {
+						x: Number(el("crop-col").value) * stride,
+						y: Number(el("crop-row").value) * stride,
+						width: Number(el("crop-cols").value) * stride + 1,
+						height: Number(el("crop-rows").value) * stride + 1,
+					};
+					const lit = el("lit").checked;
+					const shown = lit ? P.revealAll(view) : view;
+					el("crop-svg").innerHTML = P.renderSvg(
+						dungeon.map,
+						baseOptions({
+							viewport: viewport,
+							visibility: { visible: shown.visible, explored: shown.explored },
+							tokens: shown.actors,
+						}),
+					);
+					el("crop-ascii").textContent = P.renderAsciiView(shown, { viewport: viewport, trimTrailing: false });
+				}
+
+				// ── 5. Cell kinds ──────────────────────────────────────────────────
 				function buildLegend() {
 					const rows = P.CELL_SPECS.map(function (spec) {
-						const single = P.parseTile({ id: "k-" + spec.kind, name: spec.label, art: [spec.glyph] });
-						const swatch = spec.kind === "void" ? "<em>draws nothing</em>" : P.renderSvg(single, svgOptions({ cellSize: 34, legend: false, grid: false }));
+						const swatch =
+							spec.kind === "void"
+								? "<em>draws nothing</em>"
+								: P.renderSvg(P.parseTile({ id: "k-" + spec.kind, name: spec.label, art: [spec.glyph] }), {
+										theme: themes[el("theme").value],
+										cellSize: 34,
+									});
 						return (
-							"<tr><td>" + swatch + "</td>" +
+							'<tr><td class="swatch">' + swatch + "</td>" +
 							'<td class="glyph">' + (spec.glyph === " " ? "&nbsp;" : escapeHtml(spec.glyph)) + "</td>" +
 							"<td><code>" + spec.kind + "</code></td>" +
 							"<td>" + escapeHtml(spec.label) + "</td>" +
-							"<td>" + (spec.passable ? "walkable" : "blocked") + (spec.connects ? ", connects" : "") + "</td>" +
+							"<td>" + (spec.passable ? "walkable" : "blocked") + "</td>" +
+							"<td>" + (spec.opaque ? "blocks sight" : "see-through") + "</td>" +
+							"<td>" + (spec.connects ? "connects" : "—") + "</td>" +
 							"<td>" + escapeHtml(spec.note) + "</td></tr>"
 						);
 					}).join("");
 					el("legend-table").innerHTML =
-						"<table><thead><tr><th>Drawn</th><th>Glyph</th><th>Kind</th><th>Label</th><th>Movement</th><th>Notes</th></tr></thead><tbody>" +
-						rows +
-						"</tbody></table>";
+						"<table><thead><tr><th>Drawn</th><th>Glyph</th><th>Kind</th><th>Label</th>" +
+						"<th>Movement</th><th>Sight</th><th>Edges</th><th>Notes</th></tr></thead><tbody>" +
+						rows + "</tbody></table>";
 				}
 
-				// ── 3. Tile gallery ────────────────────────────────────────────────
+				// ── 6. Tile gallery ────────────────────────────────────────────────
 				function buildGallery() {
 					el("gallery").innerHTML = tiles
 						.map(function (tile) {
@@ -282,74 +502,85 @@
 							return (
 								'<div class="tile-card">' +
 								"<h4>" + escapeHtml(tile.name) + "</h4>" +
-								'<div class="meta"><code>' + tile.id + "</code> · " +
-								P.standardEdges(tile).join(", ") + badge + "</div>" +
+								'<div class="meta"><code>' + tile.id + "</code> · shape " +
+								P.describeSignature(P.tileSignature(tile)) + badge + "</div>" +
 								'<div class="side-by-side">' +
-								"<div>" + P.renderSvg(tile, svgOptions({ legend: false })) + "</div>" +
-								"<pre>" + escapeHtml(P.renderAscii(tile)) + "</pre>" +
+								"<div>" + P.renderSvg(tile, baseOptions()) + "</div>" +
+								"<pre>" + escapeHtml(P.renderAscii(tile, { trimTrailing: false })) + "</pre>" +
 								"</div></div>"
 							);
 						})
 						.join("");
 				}
 
-				// ── 4. Dice ────────────────────────────────────────────────────────
+				// ── 7. Dice ────────────────────────────────────────────────────────
 				function buildDice() {
 					const expressions = [
-						"1d20+5",
-						"2d20kh1+7",
-						"4d6kh3",
-						"6#4d6kh3",
-						"1d8+3 # longsword",
-						"8d6 # fireball",
-						"floor((2d6+3)/2)",
-						"5d10cs>=7",
-						"1d6x",
-						"4dF",
-						"d%",
+						"1d20+5", "2d20kh1+7", "4d6kh3", "6#4d6kh3", "1d8+3 # longsword",
+						"8d6 # fireball", "floor((2d6+3)/2)", "5d10cs>=7", "1d6x", "4dF", "d%",
 					];
 					el("dice").innerHTML = expressions
 						.map(function (expression) {
 							try {
 								const split = P.splitRepeat(expression);
 								const lines = [];
-								for (let i = 0; i < split.times; i++) {
-									lines.push(P.formatRoll(P.roll(split.expression)));
-								}
+								for (let i = 0; i < split.times; i++) lines.push(P.formatRoll(P.roll(split.expression)));
 								return '<div class="dice-row">' + escapeHtml(lines.join("   |   ")) + "</div>";
 							} catch (error) {
-								return '<div class="dice-row" style="color:var(--warn)">' + escapeHtml(expression + " — " + error.message) + "</div>";
+								return '<div class="dice-row" style="color:var(--warn)">' +
+									escapeHtml(expression + " — " + error.message) + "</div>";
 							}
 						})
 						.join("");
 				}
 
-				function escapeHtml(text) {
-					return String(text).replace(/[&<>"]/g, function (c) {
-						return { "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" }[c];
-					});
-				}
-
 				function renderAll() {
-					buildMap();
+					generate();
 					buildLegend();
 					buildGallery();
 					buildDice();
 				}
 
+				// ── Wiring ─────────────────────────────────────────────────────────
 				el("reroll").addEventListener("click", function () {
 					el("seed").value = P.randomSeed();
-					buildMap();
+					generate();
 				});
-				["theme", "grid", "legend"].forEach(function (id) {
-					el(id).addEventListener("change", renderAll);
+				["seed", "cols", "rows", "entrances"].forEach((id) => el(id).addEventListener("change", generate));
+				el("loops").addEventListener("input", function () {
+					el("loops-value").textContent = (Number(el("loops").value) / 100).toFixed(2);
+					generate();
 				});
+				el("gaps").addEventListener("input", function () {
+					el("gaps-value").textContent = (Number(el("gaps").value) / 100).toFixed(2);
+					generate();
+				});
+				el("radius").addEventListener("input", function () {
+					el("radius-value").textContent = el("radius").value;
+					if (view) {
+						view = P.withActors({ ...view, sightRadius: Number(el("radius").value) }, view.actors);
+						renderView();
+					}
+				});
+				el("lit").addEventListener("change", renderView);
+				el("reset-party").addEventListener("click", resetParty);
+				el("scatter-foes").addEventListener("click", function () {
+					if (!view) return;
+					const party = view.actors.filter((a) => a.kind === "pc" || a.kind === "ally");
+					view = P.withActors(view, party.concat(makeFoes()));
+					renderView();
+				});
+				el("png-render").addEventListener("click", renderPng);
+				el("png-scale").addEventListener("input", function () {
+					el("png-scale-value").textContent = el("png-scale").value;
+				});
+				["crop-col", "crop-row", "crop-cols", "crop-rows"].forEach((id) =>
+					el(id).addEventListener("change", renderCrop),
+				);
+				["theme", "grid"].forEach((id) => el(id).addEventListener("change", renderAll));
 				el("cell").addEventListener("input", function () {
 					el("cell-value").textContent = el("cell").value;
 					renderAll();
-				});
-				["seed", "cols", "rows", "gaps"].forEach(function (id) {
-					el(id).addEventListener("change", buildMap);
 				});
 
 				renderAll();

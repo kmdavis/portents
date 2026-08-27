@@ -14,12 +14,18 @@
  * room to move around it. Five is too cramped for anything but a corridor; nine
  * makes a nine-tile map 25 columns wider than a terminal likes.
  *
+ * There is a third rule, learned the hard way: **a tile's connectors must be
+ * reachable from one another inside the tile.** A corridor tile whose middle is
+ * blocked still declares east and west connectors, so a generator will happily
+ * use it as a through-route and silently disconnect the dungeon. That is a lie
+ * the tile tells about itself, and it is checked here too.
+ *
  * Authoring by hand and hoping is not a plan, so {@link standardTileProblems}
- * checks a tile against the rules and the content package asserts it returns
- * nothing for every bundled tile.
+ * checks a tile against all three rules, and the content package asserts it
+ * returns nothing for every bundled tile.
  */
 
-import { connects } from "./cells.ts";
+import { connects, isPassable } from "./cells.ts";
 import { type Edge, exitsOf, type Tile } from "./tile.ts";
 
 export const STANDARD_TILE_SIZE = 7;
@@ -93,6 +99,13 @@ export function standardTileProblems(tile: Tile, options: StandardTileOptions = 
 		problems.push("has no exits, so it can never be placed");
 	}
 
+	for (const orphan of unreachableConnectors(tile, size)) {
+		problems.push(
+			`declares a ${orphan.edge} connector that cannot be walked to from the ${orphan.from} one; ` +
+				"a tile that blocks its own through-route will disconnect a generated dungeon",
+		);
+	}
+
 	// A corner is on two edges at once and can never be an edge centre, so it can
 	// never legally connect. Called out separately because it is the easiest
 	// mistake to make and the most confusing to debug.
@@ -108,6 +121,53 @@ export function standardTileProblems(tile: Tile, options: StandardTileOptions = 
 	}
 
 	return problems;
+}
+
+const ALL_EDGES: readonly Edge[] = ["north", "east", "south", "west"];
+
+/**
+ * Connectors that cannot be walked to from the first open one.
+ *
+ * A local flood fill rather than a call into the map module: `map` depends on
+ * `tiles`, and importing back the other way would make the two mutually
+ * dependent for the sake of twenty lines.
+ */
+function unreachableConnectors(tile: Tile, size: number): Array<{ edge: Edge; from: Edge }> {
+	const positions = connectorPositions(size);
+	const open = ALL_EDGES.filter((edge) => {
+		const [x, y] = positions[edge];
+		return connects(tile.cells[y][x]);
+	});
+	if (open.length < 2) return [];
+
+	const from = open[0];
+	const [startX, startY] = positions[from];
+	const seen = new Set<number>([startY * tile.width + startX]);
+	const queue: Array<[number, number]> = [[startX, startY]];
+
+	while (queue.length > 0) {
+		const [x, y] = queue.pop()!;
+		for (const [dx, dy] of [
+			[0, -1],
+			[0, 1],
+			[-1, 0],
+			[1, 0],
+		]) {
+			const nx = x + dx;
+			const ny = y + dy;
+			if (nx < 0 || ny < 0 || nx >= tile.width || ny >= tile.height) continue;
+			const key = ny * tile.width + nx;
+			if (seen.has(key)) continue;
+			if (!isPassable(tile.cells[ny][nx])) continue;
+			seen.add(key);
+			queue.push([nx, ny]);
+		}
+	}
+
+	return open.slice(1).flatMap((edge) => {
+		const [x, y] = positions[edge];
+		return seen.has(y * tile.width + x) ? [] : [{ edge, from }];
+	});
 }
 
 /** Whether a tile conforms to the standard format. */

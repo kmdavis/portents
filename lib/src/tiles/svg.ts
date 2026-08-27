@@ -142,6 +142,48 @@ const SHAPES: Record<CellKind, CellShape> = {
 		`<path d="M50 20 q 14 18 0 32 q -14 -14 0 -32 Z" fill="${p.stroke}" opacity="0.75"/>`,
 };
 
+/** A rectangle of cells. Used to crop a large map to what is being looked at. */
+export interface Viewport {
+	readonly x: number;
+	readonly y: number;
+	readonly width: number;
+	readonly height: number;
+}
+
+/**
+ * What the viewer knows, as cell-key sets. Supply this to draw fog of war.
+ *
+ * Omit it and everything is drawn, which is the GM's view and the default.
+ */
+export interface VisibilityMask {
+	/** Cells in sight now: drawn fully, with tokens. */
+	readonly visible: ReadonlySet<number>;
+	/** Cells seen before: drawn dimmed, without tokens. */
+	readonly explored: ReadonlySet<number>;
+}
+
+/**
+ * A token to draw on the map. Structurally the library's `Actor`, so an actor
+ * can be passed straight in.
+ *
+ * The label defaults to the initial of `name`, because that is the convention on
+ * a battle map: `B` for Brannoc, `G` for the goblin. The ASCII view instead
+ * defaults to a glyph per kind (`@` for a party member, `!` for a foe), because
+ * text needs one column and a stable symbol. Two media, two conventions. Pass
+ * `glyph` explicitly to override either — `actorGlyph(actor)` gives the ASCII
+ * symbol if you want it on the picture too.
+ */
+export interface TokenLike {
+	readonly id: string;
+	readonly name: string;
+	readonly x: number;
+	readonly y: number;
+	readonly kind: string;
+	readonly colour?: string;
+	/** Label drawn in the token. Defaults to the initial of `name`. */
+	readonly glyph?: string;
+}
+
 export interface SvgOptions {
 	/** Pixel size of one cell. Default 24. */
 	readonly cellSize?: number;
@@ -152,7 +194,27 @@ export interface SvgOptions {
 	readonly title?: string;
 	/** Emit a legend below the grid. Default false. */
 	readonly legend?: boolean;
+	/**
+	 * Crop to a rectangle of cells. Coordinates stay in map space, so a cell's
+	 * `data-x` is its position on the map, not within the crop.
+	 */
+	readonly viewport?: Viewport;
+	/** Draw fog of war. Omit to draw everything. */
+	readonly visibility?: VisibilityMask;
+	/** Tokens to draw. Only those on visible cells are drawn when fog is on. */
+	readonly tokens?: readonly TokenLike[];
+	/** Opacity of explored-but-unseen cells. Default 0.42. */
+	readonly exploredOpacity?: number;
 }
+
+/** Token colours by kind, overridable per token. */
+const TOKEN_COLOURS: Record<string, string> = {
+	pc: "#2f6b3a",
+	ally: "#3a5f8a",
+	neutral: "#7a6a3a",
+	foe: "#a3341f",
+	object: "#6b655e",
+};
 
 function escapeXml(text: string): string {
 	return text
@@ -176,15 +238,60 @@ export function symbolId(kind: CellKind): string {
 export function renderSvg(tile: Tile, opts: SvgOptions = {}): string {
 	const cell = Math.max(4, Math.round(opts.cellSize ?? 24));
 	const theme = opts.theme ?? parchmentTheme;
-	const present = kindsIn(tile);
 	const legend = opts.legend ? legendOf(tile) : [];
 	const legendHeight = legend.length > 0 ? 18 + legend.length * 16 : 0;
+	const exploredOpacity = opts.exploredOpacity ?? 0.42;
 
-	const gridWidth = tile.width * cell;
-	const gridHeight = tile.height * cell;
+	// Clamp the viewport to the map, so an over-wide crop is harmless.
+	const crop = opts.viewport
+		? {
+				x: Math.max(0, Math.min(opts.viewport.x, tile.width - 1)),
+				y: Math.max(0, Math.min(opts.viewport.y, tile.height - 1)),
+				width: Math.max(1, opts.viewport.width),
+				height: Math.max(1, opts.viewport.height),
+			}
+		: { x: 0, y: 0, width: tile.width, height: tile.height };
+	const endX = Math.min(tile.width, crop.x + crop.width);
+	const endY = Math.min(tile.height, crop.y + crop.height);
+	const cols = endX - crop.x;
+	const rows = endY - crop.y;
+
+	const gridWidth = cols * cell;
+	const gridHeight = rows * cell;
 	const totalHeight = gridHeight + legendHeight;
 
-	const defs = present
+	const state = (x: number, y: number): "unknown" | "explored" | "visible" => {
+		if (!opts.visibility) return "visible";
+		const key = y * tile.width + x;
+		if (opts.visibility.visible.has(key)) return "visible";
+		if (opts.visibility.explored.has(key)) return "explored";
+		return "unknown";
+	};
+
+	const uses: string[] = [];
+	const drawn = new Set<CellKind>();
+	for (let y = crop.y; y < endY; y++) {
+		for (let x = crop.x; x < endX; x++) {
+			const kind = tile.cells[y][x];
+			// Void draws nothing, which is what lets tiles be non-rectangular.
+			if (kind === "void") continue;
+			const cellState = state(x, y);
+			// Unknown cells are not drawn at all, rather than drawn dark: the players'
+			// map should not leak the shape of a room they have never entered.
+			if (cellState === "unknown") continue;
+			drawn.add(kind);
+			const dim = cellState === "explored" ? ` opacity="${exploredOpacity}"` : "";
+			uses.push(
+				`<use href="#${symbolId(kind)}" x="${(x - crop.x) * cell}" y="${(y - crop.y) * cell}" ` +
+					`width="${cell}" height="${cell}" data-x="${x}" data-y="${y}" data-kind="${kind}"` +
+					`${dim} data-state="${cellState}"/>`,
+			);
+		}
+	}
+
+	// Only define symbols actually drawn, so a fogged or cropped map stays small.
+	const defs = kindsIn(tile)
+		.filter((kind) => drawn.has(kind))
 		.map((kind) => {
 			const spec = specOf(kind);
 			const paint = { ...theme.tones[spec.tone], ink: theme.ink };
@@ -195,27 +302,43 @@ export function renderSvg(tile: Tile, opts: SvgOptions = {}): string {
 		})
 		.join("");
 
-	const uses: string[] = [];
-	for (let y = 0; y < tile.height; y++) {
-		for (let x = 0; x < tile.width; x++) {
-			const kind = tile.cells[y][x];
-			// Void draws nothing, which is what lets tiles be non-rectangular.
-			if (kind === "void") continue;
-			uses.push(
-				`<use href="#${symbolId(kind)}" x="${x * cell}" y="${y * cell}" width="${cell}" height="${cell}" ` +
-					`data-x="${x}" data-y="${y}" data-kind="${kind}"/>`,
-			);
-		}
-	}
+	const tokens = (opts.tokens ?? []).filter((token) => {
+		if (token.x < crop.x || token.x >= endX || token.y < crop.y || token.y >= endY) return false;
+		// A creature is only drawn where it can be seen. Terrain is remembered;
+		// creatures are not.
+		return state(token.x, token.y) === "visible";
+	});
+
+	const tokenMarkup =
+		tokens.length > 0
+			? `<g data-portent="tokens">${tokens
+					.map((token) => {
+						const colour = token.colour ?? TOKEN_COLOURS[token.kind] ?? theme.ink;
+						const cx = (token.x - crop.x) * cell + cell / 2;
+						const cy = (token.y - crop.y) * cell + cell / 2;
+						const r = cell * 0.34;
+						const label = escapeXml(token.glyph ?? token.name.slice(0, 1).toUpperCase());
+						return (
+							`<g data-token="${escapeXml(token.id)}" data-x="${token.x}" data-y="${token.y}" ` +
+							`data-kind="${escapeXml(token.kind)}">` +
+							`<title>${escapeXml(token.name)}</title>` +
+							`<circle cx="${cx}" cy="${cy}" r="${r}" fill="${colour}" stroke="${theme.background}" stroke-width="${Math.max(1, cell * 0.06)}"/>` +
+							`<text x="${cx}" y="${cy + r * 0.42}" font-size="${r * 1.15}" font-family="monospace" ` +
+							`text-anchor="middle" fill="${theme.background}">${label}</text>` +
+							"</g>"
+						);
+					})
+					.join("")}</g>`
+			: "";
 
 	const gridLines = opts.grid
 		? `<g stroke="${theme.ink}" stroke-width="0.5" opacity="0.18">${[
 				...Array.from(
-					{ length: tile.width + 1 },
+					{ length: cols + 1 },
 					(_, i) => `<line x1="${i * cell}" y1="0" x2="${i * cell}" y2="${gridHeight}"/>`,
 				),
 				...Array.from(
-					{ length: tile.height + 1 },
+					{ length: rows + 1 },
 					(_, i) => `<line x1="0" y1="${i * cell}" x2="${gridWidth}" y2="${i * cell}"/>`,
 				),
 			].join("")}</g>`
@@ -235,11 +358,14 @@ export function renderSvg(tile: Tile, opts: SvgOptions = {}): string {
 	return (
 		`<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 ${gridWidth} ${totalHeight}" ` +
 		`width="${gridWidth}" height="${totalHeight}" role="img" ` +
-		`data-portent-tile="${escapeXml(tile.id)}" data-width="${tile.width}" data-height="${tile.height}">` +
+		`data-portent-tile="${escapeXml(tile.id)}" data-width="${tile.width}" data-height="${tile.height}" ` +
+		`data-crop-x="${crop.x}" data-crop-y="${crop.y}" data-cols="${cols}" data-rows="${rows}" ` +
+		`data-cell-size="${cell}">` +
 		`<title>${escapeXml(opts.title ?? tile.name)}</title>` +
 		`<defs>${defs}</defs>` +
 		`<rect width="${gridWidth}" height="${totalHeight}" fill="${theme.background}"/>` +
 		`<g data-portent="cells">${uses.join("")}</g>` +
+		tokenMarkup +
 		gridLines +
 		legendMarkup +
 		`</svg>`
@@ -254,19 +380,32 @@ export function renderSvg(tile: Tile, opts: SvgOptions = {}): string {
  * this, and compares against the grid. It is a deliberately dumb scan, not an
  * XML parser, so it cannot accidentally repair malformed output.
  */
-export function readSvgCells(svg: string): Array<{ x: number; y: number; kind: string; href: string }> {
-	const out: Array<{ x: number; y: number; kind: string; href: string }> = [];
-	const pattern =
-		/<use\s+href="([^"]+)"[^>]*?data-x="(\d+)"\s+data-y="(\d+)"\s+data-kind="([^"]+)"\s*\/>/g;
+export function readSvgCells(
+	svg: string,
+): Array<{ x: number; y: number; kind: string; href: string; state: string }> {
+	const out: Array<{ x: number; y: number; kind: string; href: string; state: string }> = [];
+	const pattern = /<use\s+href="([^"]+)"[^>]*?data-x="(\d+)"\s+data-y="(\d+)"\s+data-kind="([^"]+)"([^>]*)\/>/g;
 	for (const match of svg.matchAll(pattern)) {
 		out.push({
 			href: match[1],
 			x: Number.parseInt(match[2], 10),
 			y: Number.parseInt(match[3], 10),
 			kind: match[4],
+			state: /data-state="([a-z]+)"/.exec(match[5])?.[1] ?? "visible",
 		});
 	}
 	return out;
+}
+
+/** The tokens a document draws. */
+export function readSvgTokens(svg: string): Array<{ id: string; x: number; y: number; kind: string }> {
+	const pattern = /<g data-token="([^"]+)" data-x="(\d+)" data-y="(\d+)" data-kind="([^"]+)">/g;
+	return [...svg.matchAll(pattern)].map((match) => ({
+		id: match[1],
+		x: Number.parseInt(match[2], 10),
+		y: Number.parseInt(match[3], 10),
+		kind: match[4],
+	}));
 }
 
 /** The symbol ids a document defines. */

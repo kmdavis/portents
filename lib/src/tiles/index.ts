@@ -32,12 +32,24 @@ export {
 	parchmentTheme,
 	readSvgCells,
 	readSvgSymbols,
+	readSvgTokens,
 	renderSvg,
 	slateTheme,
 	symbolId,
 	type SvgOptions,
 	type Theme,
+	type TokenLike,
+	type Viewport,
+	type VisibilityMask,
 } from "./svg.ts";
+export {
+	mirrorTile,
+	type QuarterTurns,
+	rotatePoint,
+	rotateTile,
+	rotations,
+	withRotations,
+} from "./transform.ts";
 export {
 	census,
 	type Edge,

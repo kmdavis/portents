@@ -104,6 +104,21 @@ has a connector in the corner at (0,0); corners can never line up with a neighbo
 is 11×7, but every standard tile must be 7×7
 ```
 
+### Rotation
+
+```ts
+import { rotateTile, rotations, withRotations } from "@portent/core";
+
+rotateTile(bend, 1);      // 90° clockwise, id becomes "bend@90"
+rotations(bend);          // all four orientations
+rotations(fourWayHall);   // one — symmetric tiles are deduplicated
+withRotations(tileSet);   // every orientation of every tile
+```
+
+A square tile with centred connectors maps onto itself under a quarter turn, so a
+rotated standard tile is still standard. That is why one authored bend covers all
+four orientations, and it is what makes generation possible from a small set.
+
 ### Composing a map
 
 ```ts
@@ -128,6 +143,155 @@ kinds merge, `void` yields to anything real, two connectors merge to the more
 deliberate one, and **anything else seals to wall**. That last rule is the
 important one — a door onto a walled neighbour becomes wall, so an assembled map
 never shows an exit that goes nowhere.
+
+## Generating a dungeon
+
+```ts
+import { generateDungeon, missingSignatures } from "@portent/core";
+import { dungeonTiles } from "@portent/content";
+
+const tiles = parseTileSet(dungeonTiles);
+missingSignatures(tiles);   // [] — the set can build any layout
+
+const { map, entrances, seed } = generateDungeon(tiles, {
+  cols: 5, rows: 4,
+  seed: "grimhold",   // same seed, same dungeon, forever
+  loopChance: 0.2,    // 0 gives a pure tree of dead ends
+  gapChance: 0.1,     // ragged outline; the remainder stays connected
+  entrances: 1,
+});
+```
+
+**Connectivity first, tiles second.** A randomised depth-first walk carves a
+spanning tree over the lattice, so every cell is reachable from every other
+*before* any tile is chosen. Each cell then has a required signature — the exact
+set of edges that must be open — and a tile is picked to match it.
+
+Most tile generators do the opposite, placing a tile and then hunting for
+neighbours that fit. That paints itself into corners and produces disconnected
+fragments. Doing it this way, the dungeon is connected by construction.
+
+A signature is four bits, so there are sixteen. With rotation, one authored tile
+per shape class — dead end, straight, bend, T, cross — covers all of them.
+`missingSignatures` tells you what a set cannot build, and generation fails with
+the specific missing shape rather than a vague error.
+
+`entrances` matters more than it looks: without one, a single-cell lattice would
+require a tile with no exits at all, which cannot exist under the standard
+format. Each entrance is returned with its map coordinate, so it is where you put
+the party.
+
+## Field of view
+
+```ts
+import { computeFov, hasLineOfSight, reachableCells } from "@portent/core";
+
+computeFov(map, [{ x: 12, y: 5 }], { radius: 8 });   // Set of cell keys
+computeFov(map, party.map(p => ({ x: p.x, y: p.y }))); // union of the party's sight
+hasLineOfSight(map, archer, target);
+reachableCells(map, { x: 3, y: 3 }, 6);              // movement, not sight
+```
+
+Recursive shadowcasting over eight octants, so pillars, doorways and corners
+behave the way a player expects: you can see past a pillar on both sides but not
+through it, and standing in a doorway you see the room beyond but not along the
+wall you are standing in. Chosen over ray casting because ray casting misses
+cells no ray happens to hit, which shows up as speckled holes in a lit room.
+
+Opacity is a property of the cell, separate from passability, because the two
+genuinely differ:
+
+| | walkable | see-through |
+| --- | --- | --- |
+| floor, bridge, stairs | yes | yes |
+| chasm | **no** | **yes** |
+| closed door, secret door | **yes** | **no** |
+| water, rubble, pit | yes | yes |
+| wall, pillar, statue | no | no |
+
+A radius lights a disc rather than a square. Pass `isOpaqueAt` to answer "what
+if this door were open?" without changing the map.
+
+## What the party knows
+
+```ts
+import { createView, withActors, moveActor, revealTile, renderAsciiView } from "@portent/core";
+
+let view = withActors(createView(map, { sightRadius: 8 }), [
+  { id: "brannoc", name: "Brannoc", x: 3, y: 18, kind: "pc" },
+  { id: "goblin", name: "Goblin", x: 20, y: 4, kind: "foe" },
+]);
+
+view = moveActor(view, "brannoc", { x: 5, y: 12 });  // sight recomputed
+cellState(view, 3, 18);                              // "explored"
+visibleActors(view);                                 // the goblin is not in it
+```
+
+Three states, which is what a table actually needs:
+
+- **unknown** — never seen. The GM's map has the room; the players' does not.
+- **explored** — seen before, not in sight now. Terrain is remembered.
+- **visible** — in someone's field of view right now.
+
+**Terrain is remembered; creatures are not.** A goblin does not stay where you
+last saw it, so `visibleActors` and both renderers only show a creature on a
+currently visible cell. Party members are always included — you know where your
+own people are.
+
+Every mutation returns a new view, because play is full of "what would they see
+from over here?" and answering that should not disturb the real state.
+
+`revealTile(view, col, row)` opens up one tile of a composed map without anyone
+standing in it — the party walked into room 4, so room 4 is on their map now.
+
+## Rendering a view
+
+```ts
+renderSvg(map, {
+  viewport: { x: 0, y: 0, width: 13, height: 7 },   // crop, in cells
+  visibility: { visible: view.visible, explored: view.explored },
+  tokens: view.actors,
+  exploredOpacity: 0.42,
+});
+
+renderAsciiView(view, { unknownGlyph: " ", viewport });
+```
+
+- **Unknown cells are not drawn at all**, rather than drawn dark, so the players'
+  map does not leak the shape of a room they have never entered.
+- Explored cells are dimmed and carry `data-state="explored"`.
+- Tokens are drawn only on visible cells.
+- Coordinates stay in **map space** under a crop, so a click maps back to the
+  right cell without the caller knowing the crop. The document also carries
+  `data-crop-x`, `data-crop-y`, `data-cols`, `data-rows` and `data-cell-size`.
+- Only symbols actually drawn are defined, so a fogged or cropped map stays small.
+
+The SVG labels a token with the initial of its name, battle-map style; the ASCII
+view uses a fixed glyph per kind (`@` party, `&` ally, `!` foe) because text needs
+one column and a stable symbol. Pass `glyph` to override either.
+
+`renderAsciiView` output is **display only and must not be parsed back** — a token
+glyph sits on top of the terrain, so the character no longer says what the
+terrain is. `renderAscii(tile)` remains the round-trippable projection.
+
+## PNG
+
+The core produces SVG and nothing else, because that is the one thing both
+runtimes can do with no dependency. Rasterising needs a platform.
+
+```ts
+import { svgToPngBytes, svgToPngDataUrl, svgDimensions } from "@portent/core/browser";
+
+const url = await svgToPngDataUrl(svg, { scale: 2, background: "#f4ecd8" });
+```
+
+SVG string to blob, blob to canvas, canvas to PNG. No dependencies, works in a
+window or a worker. Size follows `scale`, or an explicit `width`/`height`.
+
+**In Node there is no rasteriser yet.** `svgToPngBlob` throws with a message
+pointing at `@resvg/resvg-js`, which is the intended route once the CLI exists.
+That is a deliberate gap, not an oversight: adding a native binary dependency is
+a decision, not a default.
 
 ### Cell kinds
 
