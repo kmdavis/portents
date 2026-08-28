@@ -12,8 +12,6 @@
     "check:browser": "pnpm --filter @portent/core check:browser",
     "check": "pnpm typecheck && pnpm test && pnpm check:browser",
     "manual": "node manual/build.mjs",
-    "preinstall": "node scripts/unlink-pi.mjs",
-    "link-pi": "pnpm --filter @portent/pi link-pi",
     "build:guidance": "node scripts/build-guidance.mjs"
   },
   "devDependencies": {

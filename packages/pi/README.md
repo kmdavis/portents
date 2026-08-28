@@ -30,20 +30,21 @@ pnpm test             # hold this package against the fixtures
 prototype present. `capture-parity` and `check-parity` need `PROTOTYPE` to point
 at a prototype checkout, and default to `~/.pi/agent/extensions/dnd`.
 
-## Typechecking needs pi
+## Development
 
-`@earendil-works/pi-coding-agent` and `pi-ai` are not on a registry this machine
-can reach, so they are symlinked from an installed pi:
+pi's own packages are ordinary dev dependencies, from npm:
 
 ```sh
-pnpm --filter @portent/pi link-pi          # finds pi under ~/.pi/pkg
-PI_HOME=/path/to/pi pnpm --filter @portent/pi link-pi
+pnpm install
+pnpm typecheck
+pnpm test
 ```
 
-`pnpm typecheck` checks for them first and says exactly this if they are missing,
-rather than emitting a wall of unresolved-module errors that point at the wrong
-problem.
+They used to be symlinked out of an installed pi, on the belief that they were not
+published anywhere reachable. That belief was wrong -- `@earendil-works/pi-coding-agent`
+and `pi-ai` are on the public registry -- and the workaround cost two failure modes
+before it was removed: `pnpm install` hit EPERM chmodding pi's read-only bin scripts,
+and pnpm pruned the links it did not know about.
 
-**Without pi, the adapter suite does not run.** It reports that it was skipped
-instead of vanishing, because a suite that contributes zero tests and exits 0
-looks identical to one that passed.
+The pinned version is what the extension typechecks against. It is not necessarily the
+pi you run it in; bump it when pi's extension API moves.

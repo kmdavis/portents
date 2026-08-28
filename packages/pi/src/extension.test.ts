@@ -136,70 +136,26 @@ function makeCtx(h: Harness, overrides: Record<string, unknown> = {}) {
 }
 
 /**
- * Is pi itself available?
+ * pi is an ordinary devDependency, so this suite simply runs.
  *
- * Probed by resolving the package rather than by catching an import error,
- * because the old catch swallowed *any* "Cannot find module" -- including
- * `@portent/core` being broken. On a machine without pi the whole suite then
- * contributed `tests 0, pass 0, fail 0, skipped 0` and reported success, so a
- * real breakage inside the extension looked exactly like a missing dependency.
- */
-const piState = await (async () => {
-	const { existsSync } = await import("node:fs");
-	const vendored = new URL("../node_modules/@earendil-works/pi-coding-agent", import.meta.url).pathname;
-	const present = existsSync(vendored);
-	try {
-		await import("@earendil-works/pi-coding-agent");
-		return { usable: true as const };
-	} catch (error) {
-		// Three states, not two. "Absent" is an environment fact and skips. "Present
-		// but unimportable" is a broken vendoring and must fail: copying pi instead
-		// of symlinking it orphaned its own dependency on chalk, and the suite
-		// quietly dropped 38 tests while still exiting 0.
-		return { usable: false as const, present, reason: (error as Error).message.split("\n")[0] };
-	}
-})();
-
-const piAvailable = piState.usable;
-
-/**
- * Loaded only when pi is present, and any failure now throws.
+ * It did not used to be. `@earendil-works/pi-coding-agent` and `pi-ai` were
+ * symlinked out of an installed pi, on the belief that they were not on any registry
+ * this machine could reach -- a belief that was wrong, and that cost two failure
+ * modes: `pnpm install` hit EPERM chmodding pi's read-only bin scripts, and pnpm
+ * pruned the links it did not know about. Roughly two hundred lines of linking,
+ * unlinking and self-healing hooks were replaced by two lines in `devDependencies`.
  *
- * A missing pi is an environment fact and skips visibly below. Anything else is
- * a bug and must fail loudly.
+ * The three-state detection that lived here went with them. It existed to tell "pi
+ * absent" from "pi present but unimportable", because a dereferenced copy could not
+ * resolve its own `chalk` and this suite silently dropped 38 tests while exiting 0.
+ * A normal dependency cannot be half-installed, so that distinction has no subject:
+ * if the import fails now, the suite fails, which is correct.
  */
-const loaded = piAvailable
-	? ((await import("./index.ts")).default as (pi: unknown) => void)
-	: undefined;
+const loaded = (await import("./index.ts")).default as (pi: unknown) => void;
 
-describe("test environment", () => {
-	// Always runs, so "the adapter was not tested" is visible in the output
-	// instead of being indistinguishable from "the adapter passed".
-	it(piAvailable ? "has pi linked, so the adapter suite runs" : "reports that the adapter suite was skipped", () => {
-		if (piAvailable) return;
-		if (piState.present) {
-			assert.fail(
-				`pi is vendored at packages/pi/node_modules but cannot be imported: ${piState.reason}\n` +
-					"  That is a broken vendoring, not a missing dependency, so the adapter\n" +
-					"  suite is being skipped for the wrong reason. Re-run `pnpm link-pi`.",
-			);
-		}
-		console.error(
-			"\n  NOTE: pi is not linked, so the adapter suite did not run.\n" +
-				"  Run `pnpm link-pi` to exercise it.\n" +
-				"  The parity suite below does not need pi.\n",
-		);
-	});
-});
-
-after(() => rmSync(home, { recursive: true, force: true }));
-
-describe(
-	"extension",
-	{ skip: loaded ? false : "pi is not linked; run `pnpm --filter @portent/pi link-pi`" },
-	async () => {
+describe("extension", async () => {
 		const { pi, h } = makeHarness();
-		loaded!(pi);
+		loaded(pi);
 		const ctx = makeCtx(h);
 
 		async function call(name: string, params: Record<string, unknown> = {}, useCtx: unknown = ctx) {
@@ -603,7 +559,7 @@ describe(
 				// tools. Everything is registered so pi can defer-load it; almost nothing
 				// is active.
 				const { pi: freshPi, h: fresh } = makeHarness();
-				loaded!(freshPi);
+				loaded(freshPi);
 				await fresh.handlers.get("session_start")![0]({}, makeCtx(fresh));
 
 				const portentActive = fresh.activeTools.filter((name) => name.startsWith("portent_")).sort();
@@ -627,7 +583,7 @@ describe(
 
 			it("activates the rest when a campaign starts", async () => {
 				const { pi: freshPi, h: fresh } = makeHarness();
-				loaded!(freshPi);
+				loaded(freshPi);
 				const freshCtx = makeCtx(fresh);
 				await fresh.handlers.get("session_start")![0]({}, freshCtx);
 
@@ -645,7 +601,7 @@ describe(
 				// subtraction at startup is deliberate and free (no request has been made
 				// yet); every call after it must be a superset of the one before.
 				const { pi: freshPi, h: fresh } = makeHarness();
-				loaded!(freshPi);
+				loaded(freshPi);
 				const freshCtx = makeCtx(fresh);
 				await fresh.handlers.get("session_start")![0]({}, freshCtx);
 				await fresh.tools
@@ -663,7 +619,7 @@ describe(
 
 			it("re-activates on a resumed session without starting a game again", async () => {
 				const { pi: freshPi, h: fresh } = makeHarness();
-				loaded!(freshPi);
+				loaded(freshPi);
 				fresh.entries.push({ customType: "portent-active-campaign", data: { slug: "harness-test" } });
 				await fresh.handlers.get("session_start")![0]({}, makeCtx(fresh));
 				assert.ok(fresh.activeTools.includes("portent_sheet"), "a resumed game came back without its tools");
