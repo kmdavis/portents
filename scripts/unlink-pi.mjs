@@ -7,8 +7,10 @@
  * package it finds there, and pi's store is read-only, so an install with the
  * links present fails with EPERM.
  *
- * They are not lost: `pnpm typecheck` re-creates them via `require-pi.mjs`, so
- * the cycle is self-healing and nobody has to remember a step.
+ * They are not lost: `pretest` re-creates them for the tests that need them, and
+ * `typecheck` refuses to run without them and says how to fix it. This hook only
+ * reduces the chance of pnpm meeting them mid-install; it is not load-bearing,
+ * because pnpm prunes them anyway.
  */
 
 import { existsSync, rmSync } from "node:fs";

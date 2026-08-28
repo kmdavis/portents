@@ -11,7 +11,8 @@
     "typecheck": "node scripts/require-pi.mjs && tsc -p tsconfig.json --noEmit",
     "capture-parity": "node scripts/capture-parity.mjs",
     "check-parity": "node scripts/capture-parity.mjs --check",
-    "link-pi": "node scripts/link-pi.mjs"
+    "link-pi": "node scripts/link-pi.mjs",
+    "pretest": "node scripts/link-pi.mjs > /dev/null 2>&1 || true"
   },
   "peerDependencies": {
     "@portent/core": "workspace:*",
