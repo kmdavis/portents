@@ -278,3 +278,29 @@ export {
 	stringifySheet,
 	syncGeneratedSections,
 } from "./sheets/index.ts";
+
+// The roll ledger: an append-only record that makes solo play auditable.
+export {
+	type AppendInput,
+	describeVerifyResult,
+	EVENT_KINDS,
+	type EventKind,
+	formatId,
+	isEventKind,
+	isSecretKind,
+	kindLabel,
+	Ledger,
+	type LedgerEntry,
+	LedgerError,
+	type LedgerOptions,
+	ledgerProblems,
+	nextSequence,
+	type ParsedId,
+	parseId,
+	parseLedger,
+	SECRET_KINDS,
+	sequenceOf,
+	serialiseEntry,
+	type VerifyResult,
+	verifyId,
+} from "./ledger/index.ts";

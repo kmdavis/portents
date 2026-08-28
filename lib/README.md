@@ -419,6 +419,93 @@ and lets a test supply three fake tables instead of the whole corpus. Duplicate
 ids throw unless `allowOverride` is set, because a silent override is how someone
 wonders why their custom table is being ignored.
 
+## The roll ledger
+
+What makes solo play honest. A GM that invents a die result is indistinguishable
+from one that rolls, unless the roll leaves a trace someone can look up
+afterwards.
+
+```ts
+import { Ledger } from "@portent/core";
+import { openHomeStorage } from "@portent/core/adapters/node";
+
+const ledger = await Ledger.open({
+  storage: openHomeStorage(),
+  key: "campaigns/wrenfield/rolls.jsonl",
+  clock: systemClock,
+});
+
+const hit = await ledger.append({
+  kind: "hit", actor: "goblin archer", reason: "shortbow",
+  result: "12 + 4 = 16", dc: 15, outcome: "success",
+});
+hit.id; // "h-1", cited in the transcript
+
+ledger.describe("h-1");
+// h-1: attack roll by goblin archer for shortbow — 12 + 4 = 16 (DC 15: success) at ...
+```
+
+### Ids
+
+`{kind}-{sequence}{writer?}` — `h-42`, `d-43`, `k-44`, one counter per campaign.
+
+The sequence is a plain counter, so there is nothing to collide. Four random hex
+digits would have given **even odds of a duplicate at only ~301 rolls**, and a
+duplicate is worse here than in an ordinary log: auditing a cited id would return
+the wrong entry and quietly defeat the one guarantee the ledger provides. The
+counter is derived from the log itself, so no state file can desynchronise it.
+
+| | | | |
+|---|---|---|---|
+| `h-` | to hit | `c-` | card draw |
+| `d-` | damage | `t-` | table roll |
+| `s-` | skill or ability check | `o-` | oracle |
+| `v-` | saving throw | `m-` | map seed |
+| `k-` | death save | `z-` | shuffle |
+| `i-` | initiative | `r-` | generic |
+
+**The prefix is a checksum, not decoration.** The kind is stored in the entry and
+encoded in the id, so lookup goes by number and a citation with the wrong prefix
+still resolves — with a warning:
+
+```
+ledger.describe("h-4");
+// t-4: table roll — a dripping ceiling at ...
+//   Warning: cited as attack roll but recorded as table roll; the real id is t-4.
+```
+
+That catches a model inventing a plausible citation. A made-up `h-4` does not
+merely fail, it resolves to something of the wrong kind and says so — which
+separates "this roll never happened" from "a real roll was labelled wrongly".
+
+The left-hand column is citable to the player, who watched it land on their own
+character. The right-hand column is GM-facing: `isSecretKind` makes the rule
+mechanical rather than only written down, because a player told the scene was
+"skewed" cannot un-know it.
+
+### Multiplayer, unpaid for
+
+Sequential ids are safe exactly when writes have a single serialisation point.
+One process has that; so does a server owning the ledger for players taking
+turns. Clients writing locally and syncing later do not, and that case breaks any
+coordination-free scheme except randomness.
+
+So the grammar **reserves** a trailing writer letter, omitted for the sole
+writer. Every id today is `h-42`. If concurrent writers arrive, the second gets
+`h-42b` and `h-42` is understood as `h-42a`. Nothing existing changes and the
+parser already accepts it.
+
+### When it is damaged
+
+Restored backups and hand-edits happen, so nothing is repaired automatically —
+ids are cited in journal prose and in a model's context, and renumbering would
+break references already written down.
+
+- A duplicate sequence reports **`ambiguous`** rather than returning the first
+  match. Silently picking one is how a ledger lies to the person auditing it.
+- A corrupt line is **skipped, not thrown**: one bad line must not make the rest
+  unauditable. `ledgerProblems()` names the line number.
+
 ## Character sheets
 
 One markdown file that is both machine-readable and human-readable, because it
