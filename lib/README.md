@@ -335,6 +335,90 @@ The tests prove the two projections describe the same grid. They cannot tell you
 whether the picture *looks* right. `pnpm manual` at the repo root builds a page
 that renders every tile both ways, side by side, plus a random composed map.
 
+## Decks
+
+```ts
+import { createPile, drawFromPile, formatCard } from "@portent/core";
+
+let pile = createPile(deck);                       // shuffled, all cards in
+const { cards, pile: next, reshuffled } = drawFromPile(deck, pile);
+pile = next;                                       // you own the pile
+```
+
+A drawn card stays gone until the deck is reshuffled, which is the point for
+decks where depletion matters: a tile deck that runs out gives a dungeon a
+natural size, and a crit deck that cannot repeat itself stops the third critical
+hit of the session feeling like the first.
+
+**The pile is plain data the caller owns**, and every operation returns a new one.
+An earlier version reached into campaign state and mutated it, which meant
+drawing a card needed a filesystem. Persistence belongs to whoever owns the
+campaign.
+
+`drawEphemeral` draws without a pile, for one-off inspiration where depletion
+would be meaningless. `pileMatchesDeck` catches a saved pile whose deck has since
+been edited, rather than silently drawing the wrong cards.
+
+## Random tables
+
+```ts
+import { rollTableById, tableProblems } from "@portent/core";
+
+rollTableById("encounters-dungeon", { registry }).text;
+tableProblems(table);   // [] when the ranges are contiguous and cover the dice
+```
+
+Dice-keyed (`dice: "1d20"` plus a `range` per entry) or weighted. Entry text
+composes recursively:
+
+```
+{{table:names-dwarf}}      roll another table
+{{roll:2d6}}               inline dice
+{{pick:north|south}}       inline choice
+{{deck:npc-sparks}}        draw a card's name
+```
+
+So one roll on an encounter table can name the NPC, roll their numbers and pick
+their attitude. A broken reference is left **visible** in the output rather than
+dropped, because a GM reading `[table:foo failed: Unknown table "foo"]` knows to
+fix their pack, whereas a hole in a sentence just looks like a bug.
+
+## The oracle
+
+```ts
+import { yesNo, sceneCheck, gmMove, meaning, reaction } from "@portent/core";
+
+yesNo("Is the gate still guarded?", "likely", { registry });
+sceneCheck({ registry });   // as expected, skewed, or interrupted
+```
+
+This is what makes solo play work. At a table the GM is surprised too; alone, the
+temptation is to decide whatever suits the story, and then nobody is playing.
+
+The likelihood ladder runs certain / very likely / likely / even / unlikely / very
+unlikely / impossible. Roll in the bottom fifth of the yes band for an emphatic
+yes, the far edge for a qualified one. Doubles on the d100 mean something else is
+also happening and pull a complication.
+
+The **mechanism** is here; the **words** are in a content pack. `ORACLE_TABLES`
+names the six tables the oracle needs and `missingOracleTables(registry)` says
+which a pack lacks, so a fork knows exactly what to supply.
+
+## Content packs
+
+```ts
+import { createRegistry } from "@portent/core";
+import { portentContent } from "@portent/content";
+
+const registry = createRegistry([portentContent, myPack], { allowOverride: true });
+```
+
+Lookups go through an injected registry rather than a module-level cache read from
+disk. That is what lets the same code run in a browser, lets a caller mix packs,
+and lets a test supply three fake tables instead of the whole corpus. Duplicate
+ids throw unless `allowOverride` is set, because a silent override is how someone
+wonders why their custom table is being ignored.
+
 ## Storage
 
 The engine is synchronous. Persistence is the one async seam, behind a port:

@@ -171,3 +171,73 @@ export {
 	visibleActors,
 	withActors,
 } from "./map/index.ts";
+
+// Content packs: the model content is written against.
+export {
+	type ContentPack,
+	type ContentRegistry,
+	createRegistry,
+	DuplicateContentError,
+	emptyRegistry,
+	type Provenance,
+	type RegistryOptions,
+	UnknownContentError,
+} from "./packs/index.ts";
+
+// Decks, with piles the caller owns and persists.
+export {
+	type Card,
+	createPile,
+	type Deck,
+	DeckError,
+	deckProblems,
+	deckSize,
+	drawEphemeral,
+	drawFromPile,
+	type DrawnCard,
+	type DrawOptions,
+	type DrawResult,
+	expandDeck,
+	formatCard,
+	peekPile,
+	type Pile,
+	pileMatchesDeck,
+	type PileOptions,
+	pileStatus,
+	type PileStatus,
+	recentlyDrawn,
+	returnToTop,
+} from "./decks/index.ts";
+
+// Random tables, with recursive composition.
+export {
+	formatTableResult,
+	rollTable,
+	rollTableById,
+	type RollTableOptions,
+	type Table,
+	TableError,
+	type TableEntry,
+	tableProblems,
+	tableReferences,
+	type TableResult,
+} from "./tables/index.ts";
+
+// The oracle: mechanism here, words in a content pack.
+export {
+	formatYesNo,
+	gmMove,
+	howMany,
+	type Likelihood,
+	LIKELIHOODS,
+	meaning,
+	missingOracleTables,
+	ORACLE_TABLES,
+	type OracleDetail,
+	type OracleOptions,
+	reaction,
+	sceneCheck,
+	yesNo,
+	type YesNoAnswer,
+	type YesNoResult,
+} from "./oracle/index.ts";

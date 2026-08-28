@@ -9,15 +9,16 @@ that came from a tool can be logged, cited and audited, and a roll that did not
 can be spotted.
 
 > **Status: early.** The library is being extracted from a working pi extension.
-> Dice and map tiles have landed. Decks, tables, oracles, character sheets and
-> campaign state are next.
+> Dice, map tiles, dungeon generation, visibility, decks, tables and the oracle
+> have landed. Character sheets and campaign state are next, then the pi
+> extension and the CLI.
 
 ## Packages
 
 | Package | Directory | What it is |
 | --- | --- | --- |
 | `@portent/core` | [`lib/`](lib) | The engine. Runs in Node and the browser. |
-| `@portent/content` | [`content/`](content) | Tiles, decks and tables. Data only, no behaviour. |
+| `@portent/content` | [`content/`](content) | 27 tiles, 6 decks, 23 tables. Data only, no behaviour. |
 | `@portent/cli` | `cli/` | `portent roll 6#4d6kh3` and friends. Not written yet. |
 | `@portent/pi` | `extensions/pi/` | Extension for the [pi](https://pi.dev) coding agent. Not ported yet. |
 | `@portent/web` | `web/` | Browser wrapper. Not written yet. |
@@ -127,6 +128,30 @@ exitsOf(tile);      // derived from the art, never declared
 Dice notation follows Foundry VTT: `4d6kh3`, `2d20kl1`, `1d6x`, `4d6r1`,
 `1d20min10`, `5d10cs>=7`, `d%`, `4dF`, `floor((2d6+3)/2)*2`, `8d6 # fireball`,
 and a leading `6#` to repeat. Full table in [`lib/README.md`](lib/README.md).
+
+## Playing with it
+
+```ts
+import { createRegistry, rollTableById, yesNo, sceneCheck, createPile, drawFromPile } from "@portent/core";
+import { portentContent } from "@portent/content";
+
+const registry = createRegistry([portentContent]);
+
+sceneCheck({ registry });                        // as expected, skewed, or interrupted
+rollTableById("encounters-dungeon", { registry });
+yesNo("Is the portcullis still up?", "unlikely", { registry });
+
+let pile = createPile(registry.requireDeck("crit-hits"));
+const { cards, pile: next } = drawFromPile(deck, pile);   // the pile is yours to persist
+```
+
+Table entries compose, so one roll can do a lot of work:
+`{{table:names-dwarf}}`, `{{roll:2d6}}`, `{{pick:north|south}}`, `{{deck:npc-sparks}}`.
+
+The oracle is the part that makes solo play work. At a table the GM is surprised
+too; alone, the temptation is to decide whatever suits the story, and then nobody
+is playing. The likelihood ladder and the doubles-mean-a-twist rule are original
+arithmetic, not a reproduction of any published solo system.
 
 ## How it stays portable
 

@@ -1,0 +1,17 @@
+export {
+	formatYesNo,
+	gmMove,
+	howMany,
+	type Likelihood,
+	LIKELIHOODS,
+	meaning,
+	missingOracleTables,
+	ORACLE_TABLES,
+	type OracleDetail,
+	type OracleOptions,
+	reaction,
+	sceneCheck,
+	yesNo,
+	type YesNoAnswer,
+	type YesNoResult,
+} from "./oracle.ts";

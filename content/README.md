@@ -69,6 +69,35 @@ legend is generated from it, so it can never describe a character the parser
 rejects. Adding a new kind of cell is a change to the engine, not to this
 package.
 
+## Decks and tables
+
+Six decks and 23 tables, all original writing except the standard 54-card French
+deck, which is public domain.
+
+```ts
+import { createRegistry, rollTableById, yesNo } from "@portent/core";
+import { portentContent } from "@portent/content";
+
+const registry = createRegistry([portentContent]);
+rollTableById("encounters-dungeon", { registry });
+yesNo("Is the gate still guarded?", "likely", { registry });
+```
+
+**Decks:** `crit-hits`, `crit-fumbles`, `npc-sparks`, `monster-tactics`,
+`wild-magic`, `playing-cards`.
+
+**Tables:** encounters (dungeon/wilderness/urban), weather, rumours, quest hooks,
+dungeon room purpose, dungeon dressing, traps, minor treasure, NPC mannerisms,
+GM moves, names (common/bynames/dwarf/elf/place), tavern names, and the five
+`oracle-*` tables the oracle needs.
+
+Entries compose: `{{table:id}}`, `{{roll:2d6}}`, `{{pick:a|b}}`, `{{deck:id}}`.
+
+Every deck and table is checked by `pnpm test`: dice-keyed ranges must be
+contiguous and cover their dice, every reference must resolve, every entry must
+render without leaving a failure marker, and the six tables the oracle requires
+must be present.
+
 ## Licensing
 
 All original writing, CC0. Nothing is reproduced from a published rulebook, solo
