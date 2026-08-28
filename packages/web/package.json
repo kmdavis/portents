@@ -36,11 +36,13 @@
   },
   "peerDependencies": {
     "@portents/content": "workspace:*",
-    "@portents/core": "workspace:*"
+    "@portents/core": "workspace:*",
+    "@portents/guidance": "workspace:*"
   },
   "devDependencies": {
     "@portents/content": "workspace:*",
     "@portents/core": "workspace:*",
-    "fake-indexeddb": "^6.2.5"
+    "fake-indexeddb": "^6.2.5",
+    "@portents/guidance": "workspace:*"
   }
 }

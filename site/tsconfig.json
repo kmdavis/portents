@@ -1,0 +1,11 @@
+{
+	"extends": "../tsconfig.base.json",
+	"compilerOptions": {
+		"noEmit": true,
+		"customConditions": ["development"],
+		"lib": ["ES2023", "DOM", "DOM.Iterable"],
+		"types": []
+	},
+	"include": ["src/**/*.ts"],
+	"exclude": ["src/**/*.test.ts"]
+}

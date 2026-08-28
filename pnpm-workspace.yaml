@@ -1,6 +1,8 @@
 packages:
   - packages/*
   - manual
+  - site
+
 onlyBuiltDependencies:
   - esbuild
   - "@resvg/resvg-js"

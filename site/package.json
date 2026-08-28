@@ -1,0 +1,26 @@
+{
+  "name": "@portents/site",
+  "version": "0.0.0",
+  "private": true,
+  "description": "The docs site and playable demo at kmdavis.github.io/portents. Builds into ../docs.",
+  "type": "module",
+  "scripts": {
+    "build": "node build.mjs",
+    "dev": "node build.mjs --watch --serve",
+    "test": "node --conditions=development --test 'src/**/*.test.ts'",
+    "typecheck": "tsc -p tsconfig.json --noEmit && tsc -p tsconfig.test.json --noEmit"
+  },
+  "dependencies": {
+    "@portents/content": "workspace:*",
+    "@portents/core": "workspace:*",
+    "@portents/guidance": "workspace:*",
+    "@portents/web": "workspace:*",
+    "ai": "^7.0.74",
+    "@ai-sdk/openai": "^4.0.45",
+    "@ai-sdk/anthropic": "^4.0.40"
+  },
+  "devDependencies": {
+    "esbuild": "^0.25.0",
+    "typescript": "^5.9.2"
+  }
+}

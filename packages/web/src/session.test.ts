@@ -246,6 +246,28 @@ describe("storage is the caller's choice", () => {
 	});
 });
 
+describe("oracle likelihood", () => {
+	it("actually uses the likelihood it is given", async () => {
+		// Regression: the parameter was accepted and silently ignored, so every question
+		// got even odds however the GM framed it. An oracle that ignores likelihood is
+		// worse than no oracle, because the GM believes they set it.
+		const certain = new WebSession({ storage: freshStorage(), seed: "s" });
+		const impossible = new WebSession({ storage: freshStorage(), seed: "s" });
+
+		const yes = await certain.oracle("yes_no", "is the gate guarded?", "certain");
+		const no = await impossible.oracle("yes_no", "is the gate guarded?", "impossible");
+
+		assert.notEqual(yes, no, "likelihood made no difference to the answer");
+		assert.match(yes, /yes/i);
+		assert.match(no, /no/i);
+	});
+
+	it("defaults to even when none is given", async () => {
+		const session = new WebSession({ storage: freshStorage(), seed: "s" });
+		assert.ok((await session.oracle("yes_no", "q")).length > 0);
+	});
+});
+
 describe("maps", () => {
 	const session = new WebSession({ storage: freshStorage() });
 

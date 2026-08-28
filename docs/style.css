@@ -1,0 +1,90 @@
+/* Deliberately small and hand-written: a docs site that ships a framework to render
+   nine paragraphs is its own argument against the project's claims about restraint. */
+:root {
+	--ink: #1a1a1f;
+	--paper: #faf8f4;
+	--muted: #5c5c68;
+	--rule: #dcd7cd;
+	--accent: #6d3fa0;
+	--accent-ink: #fff;
+	--code-bg: #f2eee7;
+}
+
+@media (prefers-color-scheme: dark) {
+	:root {
+		--ink: #e8e6e1;
+		--paper: #17171b;
+		--muted: #a2a0a8;
+		--rule: #33333c;
+		--accent: #b08ee0;
+		--accent-ink: #17171b;
+		--code-bg: #21212a;
+	}
+}
+
+* { box-sizing: border-box; }
+
+body {
+	margin: 0 auto;
+	max-width: 46rem;
+	padding: 2rem 1.25rem 4rem;
+	background: var(--paper);
+	color: var(--ink);
+	font: 16px/1.65 ui-serif, Georgia, "Times New Roman", serif;
+}
+
+h1 {
+	font-size: clamp(2.5rem, 9vw, 4rem);
+	margin: 0;
+	letter-spacing: -0.02em;
+}
+
+h2 {
+	margin-top: 3rem;
+	font-size: 1.4rem;
+	border-bottom: 1px solid var(--rule);
+	padding-bottom: 0.3rem;
+}
+
+.tagline { font-size: 1.15rem; color: var(--muted); margin: 0.25rem 0 1.25rem; }
+.lede { font-size: 1.1rem; }
+
+nav { margin: 1.5rem 0 0; display: flex; gap: 0.75rem; flex-wrap: wrap; }
+
+.button {
+	display: inline-block;
+	padding: 0.5rem 1.1rem;
+	background: var(--accent);
+	color: var(--accent-ink);
+	text-decoration: none;
+	border-radius: 3px;
+	font-family: ui-sans-serif, system-ui, sans-serif;
+	font-size: 0.95rem;
+}
+
+.button.secondary { background: transparent; color: var(--accent); border: 1px solid var(--accent); }
+.button:hover { filter: brightness(1.1); }
+
+a { color: var(--accent); }
+
+pre {
+	background: var(--code-bg);
+	padding: 0.9rem 1rem;
+	overflow-x: auto;
+	border-radius: 3px;
+	border: 1px solid var(--rule);
+}
+
+code {
+	font-family: ui-monospace, "SF Mono", Menlo, monospace;
+	font-size: 0.875em;
+}
+
+pre code b { color: var(--accent); font-weight: 600; }
+
+table { width: 100%; border-collapse: collapse; margin: 1rem 0; font-size: 0.95rem; }
+th, td { text-align: left; padding: 0.5rem 0.6rem; border-bottom: 1px solid var(--rule); vertical-align: top; }
+th { font-family: ui-sans-serif, system-ui, sans-serif; font-size: 0.85rem; text-transform: uppercase; letter-spacing: 0.04em; color: var(--muted); }
+td code { white-space: nowrap; }
+
+footer { margin-top: 4rem; padding-top: 1rem; border-top: 1px solid var(--rule); color: var(--muted); font-size: 0.9rem; }

@@ -43,10 +43,12 @@ import {
 	seededRandomSource,
 	splitRepeat,
 	systemClock,
+	type Likelihood,
 	type Table,
 } from "@portents/core";
 import { BrowserStorage } from "@portents/core/browser";
 import { commonContent, dungeonTiles } from "@portents/content";
+import { GUIDANCE_TOPICS, guidanceTopic } from "@portents/guidance";
 
 export interface SessionOptions {
 	/**
@@ -141,7 +143,7 @@ export class WebSession {
 	 * The ids come back so a caller can show them: a number with no id is exactly
 	 * the thing the ledger exists to make impossible, wherever it runs.
 	 */
-	async roll(input: string, options: { dc?: number } = {}): Promise<RollOutcome> {
+	async roll(input: string, options: { dc?: number; reason?: string } = {}): Promise<RollOutcome> {
 		const { times, expression } = splitRepeat(input);
 		const lines: string[] = [];
 		const totals: number[] = [];
@@ -156,6 +158,7 @@ export class WebSession {
 				const entry = await this.#campaign.ledger.append({
 					kind: "roll",
 					request: expression,
+					...(options.reason ? { reason: options.reason } : {}),
 					result: formatRoll(result),
 					total: result.total,
 					...(options.dc === undefined ? {} : { dc: options.dc }),
@@ -210,10 +213,11 @@ export class WebSession {
 		return text;
 	}
 
-	async oracle(kind: OracleKind, question?: string): Promise<string> {
+	async oracle(kind: OracleKind, question?: string, likelihood?: Likelihood): Promise<string> {
 		const answer = oracleAnswer({
 			kind,
 			question,
+			...(likelihood ? { likelihood } : {}),
 			rng: this.#deps.random,
 			registry: this.registry,
 		});
@@ -228,11 +232,44 @@ export class WebSession {
 		return answer.text;
 	}
 
+	/** Deck ids available, sorted. For a harness that lists them to a model. */
+	deckIds(): string[] {
+		return this.registry.deckIds();
+	}
+
+	/** Table ids available, sorted. */
+	tableIds(): string[] {
+		return this.registry.tableIds();
+	}
+
+	/**
+	 * Deep GM guidance on one topic.
+	 *
+	 * Comes from `@portents/guidance`, the same prose the pi extension uses, which is
+	 * why that package had to stop reading its markdown off disk.
+	 */
+	guidance(topic: string): string {
+		return guidanceTopic(topic) ?? `No guidance ships under "${topic}". Available: ${GUIDANCE_TOPICS.join(", ")}.`;
+	}
+
+	/**
+	 * Look up a ledger id.
+	 *
+	 * The audit trail is the point of the ledger, so a player who asks "did that 19
+	 * really happen" gets a real answer rather than reassurance.
+	 */
+	verify(id: string): string {
+		if (!this.#campaign) return "No campaign is open, so nothing has been recorded yet.";
+		// `describe` already distinguishes "never rolled" from "mislabelled", which the
+		// ledger's prefix-as-checksum design exists to make possible.
+		return this.#campaign.ledger.describe(id);
+	}
+
 	/**
 	 * A dungeon, as both text and vector.
 	 *
-	 * Both come from the library's own renderers, which the tile suite proves
-	 * describe the same tile, so the picture cannot disagree with the grid.
+	 * Both come from the library's own renderers, which the tile suite proves describe
+	 * the same tile, so the picture cannot disagree with the grid.
 	 */
 	map(options: { rooms?: number; seed?: string } = {}): MapOutcome {
 		const seed = options.seed ?? Math.random().toString(36).slice(2, 10);

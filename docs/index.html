@@ -1,0 +1,91 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Portents — a solo tabletop RPG engine</title>
+<meta name="description" content="A solo tabletop RPG engine for AI agents and humans. Verifiable dice, oracles, procedural dungeons, campaign state as markdown.">
+<link rel="stylesheet" href="style.css">
+</head>
+<body>
+<header>
+  <h1>Portents</h1>
+  <p class="tagline">A solo tabletop RPG engine for AI agents and humans.</p>
+  <p class="lede">
+    An AI game master that <strong>cannot fudge the dice</strong>. Every roll, card and
+    oracle answer lands in an append-only ledger with a citable id, so a number you were
+    told is a number you can audit.
+  </p>
+  <nav>
+    <a class="button" href="https://github.com/kmdavis/portents">Source</a>
+  </nav>
+</header>
+
+<main>
+<section>
+  <h2>Why a ledger</h2>
+  <p>
+    Ask a language model to run a game and it will happily tell you that you rolled a 17.
+    Nothing rolled. The number was chosen because it suited the story, which is the one
+    thing a game master must not do — and you cannot tell from the outside.
+  </p>
+  <p>
+    Portents makes the dice real and the record checkable. Rolls the player's character
+    makes are cited inline, so you can look them up:
+  </p>
+  <pre><code>The bugbear's axe comes down hard — 19 to hit <b>h-42</b>, and 13 damage <b>h-43</b>.
+You are at 9 of 26.</code></pre>
+  <p>
+    World-generation randomness works the other way. Oracle answers, scene checks, table
+    rolls and card draws are the GM's private scaffolding: they are recorded, but never
+    cited, because knowing which parts of the world the dice decided is knowledge you
+    cannot un-learn.
+  </p>
+</section>
+
+<section>
+  <h2>The packages</h2>
+  <table>
+    <thead><tr><th>Package</th><th>What it is</th></tr></thead>
+    <tbody>
+      <tr><td><code>@portents/core</code></td><td>The engine. Dice, tiles, maps, decks, tables, oracles, sheets, ledger, campaign state. Runs in Node and browsers.</td></tr>
+      <tr><td><code>@portents/cli</code></td><td><code>portents roll</code>, <code>map</code>, <code>odds</code>, <code>table</code>, <code>deck</code>, <code>oracle</code>.</td></tr>
+      <tr><td><code>@portents/pi</code></td><td>Runs a game inside the pi coding agent.</td></tr>
+      <tr><td><code>@portents/web</code></td><td>Browser session facade. Storage injected, IndexedDB by default.</td></tr>
+      <tr><td><code>@portents/guidance</code></td><td>How to run a solo session, as prose. Harness-neutral.</td></tr>
+      <tr><td><code>@portents/content</code></td><td>Everything below, bundled.</td></tr>
+      <tr><td><code>@portents/content-generic</code></td><td>Original CC0 tiles, decks and tables. The fallback everything else overrides.</td></tr>
+      <tr><td><code>@portents/content-dnd</code></td><td>Fifth edition, both printings. SRD material under CC-BY-4.0.</td></tr>
+      <tr><td><code>@portents/content-pf</code></td><td>Pathfinder-style systems, three printings. Original writing.</td></tr>
+    </tbody>
+  </table>
+</section>
+
+<section>
+  <h2>A browser demo is coming</h2>
+  <p>
+    It will run the whole engine in your browser and play a game with a model of your
+    choosing. You bring an API key; it stays in your browser and goes only to the provider
+    you pointed it at. There is no server in the middle, because there is no server at all
+    — this is a static page.
+  </p>
+</section>
+
+<section>
+  <h2>Or install it</h2>
+  <pre><code>npm install -g portents
+portents roll 2d20kh1+5 --dc 15
+portents map --rooms 9 --seed grimhold
+portents oracle yes_no "is the gate still guarded?" --likelihood unlikely</code></pre>
+  <p>Full documentation is coming; for now the <a href="https://github.com/kmdavis/portents">README</a> and each package's own README cover the API.</p>
+</section>
+</main>
+
+<footer>
+  <p>
+    Code under MIT. Original content under CC0-1.0. SRD-derived content under CC-BY-4.0 —
+    see the <code>NOTICE.md</code> in each content package.
+  </p>
+</footer>
+</body>
+</html>
