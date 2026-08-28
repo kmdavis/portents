@@ -5,18 +5,19 @@
  * facade over the engine that persists through whatever `Storage` it is handed.
  * A UI imports it; it imports no UI.
  *
- * **Storage is the caller's choice.** An IndexedDB adapter ships with the
- * library and is one option, not the option -- a hosted UI backed by a key-value
- * service passes an adapter for that instead, and the session cannot tell the
- * difference. Nothing here reaches for a platform.
+ * **Storage defaults to IndexedDB and can be replaced.** A browser gets the right
+ * thing with no ceremony; anywhere else supplies its own adapter and the session
+ * cannot tell the difference.
  *
  * ```ts
  * import { WebSession } from "@portent/web";
- * import { BrowserStorage } from "@portent/core/browser";   // in a browser
- * // import { QuickStorage } from "./quick-storage.ts";     // or anywhere else
  *
- * const session = new WebSession({ storage: new BrowserStorage({ database: "portent" }) });
+ * // In a browser: IndexedDB, no arguments needed.
+ * const session = new WebSession();
  * const rolled = await session.roll("2d20kh1+5", { dc: 15 });
+ *
+ * // Anywhere else: bring your own.
+ * const hosted = new WebSession({ storage: new MyKeyValueStorage() });
  * ```
  */
 

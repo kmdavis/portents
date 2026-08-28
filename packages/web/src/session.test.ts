@@ -212,10 +212,37 @@ describe("storage is the caller's choice", () => {
 		assert.deepEqual(await run(new FakeKeyValueService()), await run(freshStorage()));
 	});
 
-	it("requires a storage rather than defaulting to one", () => {
-		// A default would quietly bind this package to one platform.
-		// @ts-expect-error storage is required, and that is the assertion
-		assert.throws(() => new WebSession({}), /storage|undefined/i);
+	it("defaults to IndexedDB with no arguments at all", async () => {
+		// The common case, and the reason the package exists. fake-indexeddb has
+		// installed the globals, so this is the real default path.
+		const session = new WebSession();
+		const campaign = await session.createCampaign("Default Storage", "generic");
+		assert.equal(campaign.slug, "default-storage");
+		assert.ok((await session.listCampaigns()).some((entry) => entry.slug === "default-storage"));
+	});
+
+	it("takes a database name for the default adapter", async () => {
+		const a = new WebSession({ database: `named-a-${counter++}` });
+		const b = new WebSession({ database: `named-b-${counter++}` });
+		await a.createCampaign("Only In A", "generic");
+		assert.deepEqual(await b.listCampaigns(), [], "two databases shared state");
+	});
+
+	it("works with no IndexedDB at all when storage is supplied", async () => {
+		// Named for what it checks. It does not prove the default is constructed
+		// lazily -- BrowserStorage's constructor is inert, so that is unobservable --
+		// it proves a supplied adapter is genuinely used and nothing reaches for a
+		// browser global on the way.
+		const original = globalThis.indexedDB;
+		// @ts-expect-error removing a global for the duration of this assertion
+		delete globalThis.indexedDB;
+		try {
+			const session = new WebSession({ storage: new FakeKeyValueService(), seed: "no-idb" });
+			const campaign = await session.createCampaign("No IndexedDB", "generic");
+			assert.equal(campaign.slug, "no-indexeddb");
+		} finally {
+			globalThis.indexedDB = original;
+		}
 	});
 });
 

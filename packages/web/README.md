@@ -7,23 +7,28 @@ nothing, and holds no opinion about how anything looks.
 
 ```ts
 import { WebSession } from "@portent/web";
-import { BrowserStorage } from "@portent/core/browser";
 
-const session = new WebSession({ storage: new BrowserStorage({ database: "portent" }) });
+const session = new WebSession();                 // IndexedDB, no arguments
 
-await session.roll("2d20kh1+5", { dc: 15 });   // ledger ids when a campaign is open
+await session.roll("2d20kh1+5", { dc: 15 });      // ledger ids when a campaign is open
 await session.oracle("yes_no", "is the gate still guarded?");
-session.map({ rooms: 9, seed: "grimhold" });   // { ascii, svg, seed }
+session.map({ rooms: 9, seed: "grimhold" });      // { ascii, svg, seed }
 ```
 
-## Storage is the caller's choice
+## Storage defaults to IndexedDB, and can be replaced
 
-`storage` is **required and has no default**, deliberately. A default would
-quietly bind this package to one platform, and it is not bound to any:
+A browser gets the right thing with no ceremony, because that is what this package
+is for. Anywhere else supplies its own adapter and the session cannot tell:
+
+```ts
+new WebSession();                                  // IndexedDB, database "portent"
+new WebSession({ database: "my-campaign" });       // IndexedDB, named
+new WebSession({ storage: new MyKeyValueStore() }); // anything else
+```
 
 | Host | Adapter |
 |---|---|
-| A browser | `BrowserStorage` from `@portent/core/browser` (IndexedDB) |
+| A browser | the default — IndexedDB |
 | A hosted page with a key-value service | your own adapter over that service |
 | Node, a worker, a test | `NodeStorage`, `MemoryStorage` |
 

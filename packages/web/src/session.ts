@@ -5,10 +5,12 @@
  * returns values, so it can be driven by a browser, a hosted page, a worker, or
  * a test, and the tests assert on results rather than on pixels.
  *
- * **Storage is injected and nothing here knows what it is.** IndexedDB is one
- * option; a hosted UI backed by a key-value service passes an adapter for that
- * and the session cannot tell. The only requirement is the `Storage` contract,
- * which the published conformance suite lets any adapter prove it satisfies.
+ * **Storage defaults to IndexedDB and can be replaced.** This package is for
+ * browsers, and IndexedDB is what a browser has, so requiring it explicitly was
+ * friction for the common case. Pass `storage` to override -- a hosted UI backed
+ * by a key-value service supplies an adapter for that and the session cannot tell
+ * the difference. The only requirement is the `Storage` contract, which the
+ * published conformance suite lets any adapter prove it satisfies.
  *
  * It also gives the IndexedDB adapter a consumer to be tested through, closing a
  * gap the library's README admitted: Node has no IndexedDB, so `BrowserStorage`
@@ -43,16 +45,20 @@ import {
 	systemClock,
 	type Table,
 } from "@portent/core";
+import { BrowserStorage } from "@portent/core/browser";
 import { commonContent, dungeonTiles } from "@portent/content";
 
 export interface SessionOptions {
 	/**
 	 * Where state goes. Any adapter satisfying the `Storage` contract.
 	 *
-	 * Required, with no default, on purpose: a default would quietly bind this
-	 * package to one platform, and the whole point is that it is not bound to any.
+	 * Defaults to IndexedDB via {@link BrowserStorage}, which is the right answer
+	 * in a browser and the reason this package exists. Override it for anywhere
+	 * else: a hosted page backed by a key-value service, a worker, a test.
 	 */
-	readonly storage: Storage;
+	readonly storage?: Storage;
+	/** IndexedDB database name for the default adapter. Ignored if `storage` is given. */
+	readonly database?: string;
 	/** Fixed seed for reproducible output. Omit for real randomness. */
 	readonly seed?: string;
 }
@@ -81,19 +87,14 @@ export class WebSession {
 	readonly #deps: CampaignDeps;
 	#campaign: Campaign | undefined;
 
-	constructor(options: SessionOptions) {
-		// Checked here rather than left to fail on the first read. A caller that
-		// forgot storage should learn it at construction, with the reason, instead of
-		// meeting an undefined method call several steps later.
-		if (!options?.storage) {
-			throw new TypeError(
-				"WebSession needs a storage adapter, and has no default on purpose: a default would bind this " +
-					"package to one platform. Pass BrowserStorage in a browser, MemoryStorage in a test, or your " +
-					"own adapter over whatever service is hosting you.",
-			);
-		}
+	constructor(options: SessionOptions = {}) {
 		this.#deps = {
-			storage: options.storage,
+			// `??` avoids building an adapter nobody will use. It is not what makes
+			// this work off a browser: BrowserStorage's constructor is inert and only
+			// throws when read from, so eager construction would be harmless too. An
+			// earlier comment here claimed the laziness was load-bearing, and a
+			// mutation test showed it was not.
+			storage: options.storage ?? new BrowserStorage({ database: options.database ?? "portent" }),
 			clock: systemClock,
 			random: options.seed === undefined ? undefined : seededRandomSource(options.seed),
 			registry: this.registry,
