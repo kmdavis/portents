@@ -8,7 +8,7 @@
   "type": "module",
   "scripts": {
     "test": "node --conditions=development --test 'src/**/*.test.ts'",
-    "typecheck": "node scripts/link-pi.mjs >/dev/null 2>&1; tsc -p tsconfig.json --noEmit",
+    "typecheck": "node scripts/require-pi.mjs && tsc -p tsconfig.json --noEmit",
     "capture-parity": "node scripts/capture-parity.mjs",
     "check-parity": "node scripts/capture-parity.mjs --check",
     "link-pi": "node scripts/link-pi.mjs"

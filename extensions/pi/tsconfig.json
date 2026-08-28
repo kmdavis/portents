@@ -2,7 +2,11 @@
 	"extends": "../../tsconfig.base.json",
 	"compilerOptions": {
 		"rootDir": "src",
-		"noEmit": true
+		"noEmit": true,
+		// Resolve @portent/* to their sources, the same "development" export
+		// condition the test runner uses. Without this, typecheck needs lib to have
+		// been built first, so a clean checkout fails on missing dist/*.d.ts.
+		"customConditions": ["development"]
 	},
 	"include": ["src/**/*.ts"]
 }

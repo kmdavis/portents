@@ -103,21 +103,55 @@ function makeCtx(h: Harness, overrides: Record<string, unknown> = {}) {
 	};
 }
 
-const loaded = await (async () => {
+/**
+ * Is pi itself available?
+ *
+ * Probed by resolving the package rather than by catching an import error,
+ * because the old catch swallowed *any* "Cannot find module" -- including
+ * `@portent/core` being broken. On a machine without pi the whole suite then
+ * contributed `tests 0, pass 0, fail 0, skipped 0` and reported success, so a
+ * real breakage inside the extension looked exactly like a missing dependency.
+ */
+const piAvailable = await (async () => {
 	try {
-		return (await import("./index.ts")).default as (pi: unknown) => void;
-	} catch (error) {
-		const message = (error as Error).message;
-		if (/Cannot find (module|package)/.test(message)) return undefined;
-		throw error;
+		await import.meta.resolve?.("@earendil-works/pi-coding-agent");
+		await import("@earendil-works/pi-coding-agent");
+		return true;
+	} catch {
+		return false;
 	}
 })();
+
+/**
+ * Loaded only when pi is present, and any failure now throws.
+ *
+ * A missing pi is an environment fact and skips visibly below. Anything else is
+ * a bug and must fail loudly.
+ */
+const loaded = piAvailable
+	? ((await import("./index.ts")).default as (pi: unknown) => void)
+	: undefined;
+
+describe("test environment", () => {
+	// Always runs, so "the adapter was not tested" is visible in the output
+	// instead of being indistinguishable from "the adapter passed".
+	it(piAvailable ? "has pi linked, so the adapter suite runs" : "reports that the adapter suite was skipped", () => {
+		if (!piAvailable) {
+			console.error(
+				"\n  NOTE: pi is not linked, so the adapter suite did not run.\n" +
+					"  Run `pnpm --filter @portent/pi link-pi` to exercise it.\n" +
+					"  The parity suite below does not need pi.\n",
+			);
+		}
+		assert.equal(typeof piAvailable, "boolean");
+	});
+});
 
 after(() => rmSync(home, { recursive: true, force: true }));
 
 describe(
 	"extension",
-	{ skip: loaded ? false : "pi packages not linked; run `pnpm link-pi`" },
+	{ skip: loaded ? false : "pi is not linked; run `pnpm --filter @portent/pi link-pi`" },
 	async () => {
 		const { pi, h } = makeHarness();
 		loaded!(pi);
@@ -241,6 +275,36 @@ describe(
 				h.confirmAnswer = true;
 			});
 
+			it("clears the request when the expression cannot be rolled", async () => {
+				// Otherwise the player's next unrelated /roll answers a request nobody
+				// could have rolled.
+				h.confirmAnswer = true;
+				const out = await call("portent_ask_roll", { expression: "not dice", reason: "nonsense" });
+				assert.match(out, /Could not roll/);
+				h.messages.length = 0;
+				await h.commands.get("roll")!.handler("1d6", ctx);
+				assert.notEqual(
+					h.messages[0].options?.triggerTurn,
+					true,
+					"a later roll was treated as answering the failed request",
+				);
+			});
+
+			it("files an answered request under the kind the GM asked for", async () => {
+				await call(
+					"portent_ask_roll",
+					{ expression: "1d20", reason: "a save", kind: "save", dc: 12 },
+					makeCtx(h, { hasUI: false }),
+				);
+				h.messages.length = 0;
+				await h.commands.get("roll")!.handler("1d20", ctx);
+				assert.match(
+					h.messages[0].message.content as string,
+					/`v-\d+`/,
+					"an answered save should get the save prefix, not the generic one",
+				);
+			});
+
 			it("falls back to a pending /roll with no UI", async () => {
 				const out = await call(
 					"portent_ask_roll",
@@ -304,6 +368,21 @@ describe(
 				assert.match(first, /left\._$/m);
 				const status = await call("portent_deck", { action: "status", deck: "crit-hits" });
 				assert.match(status, /of \d+ left/);
+			});
+
+			it("refuses status and shuffle without a campaign instead of drawing a card", async () => {
+				// These used to fall through to an ephemeral draw, handing back a random
+				// card that the GM would then narrate as a real result.
+				const { pi: pi2, h: h2 } = makeHarness();
+				loaded!(pi2);
+				const tool = h2.tools.get("portent_deck")!;
+				for (const action of ["status", "shuffle", "recent"]) {
+					await assert.rejects(
+						() => tool.execute("t", { action, deck: "crit-hits" }, undefined, undefined, makeCtx(h2)),
+						/needs a loaded campaign/,
+						`${action} did not refuse`,
+					);
+				}
 			});
 
 			it("says which decks exist when asked for one that does not", async () => {
@@ -399,6 +478,18 @@ describe(
 				const entry = h.entries.find((e) => e.customType === "portent-status");
 				assert.ok(entry, "no status entry appended");
 				assert.match((entry.data as { text: string }).text, /Harness Test/);
+			});
+
+			it("/draw writes a ledger entry, like the tool does", async () => {
+				// The command bypassed the tool's append, so a card the player drew
+				// themselves never reached the audit log and the counter ran ahead.
+				const before = (await call("portent_deck", { action: "recent", deck: "npc-sparks" })).length;
+				await h.commands.get("draw")!.handler("npc-sparks", ctx);
+				h.entries.length = 0;
+				await h.commands.get("portent-status")!.handler("", ctx);
+				const status = (h.entries.find((e) => e.customType === "portent-status")!.data as { text: string }).text;
+				assert.match(status, /`c-\d+`/, `no card entry in the ledger:\n${status}`);
+				void before;
 			});
 
 			it("/draw completes deck ids", () => {

@@ -219,6 +219,33 @@ describe("opening and listing", () => {
 	});
 });
 
+describe("changing the system after creation", () => {
+	it("leaves exactly one rules line, not a stale one plus a new one", async () => {
+		// Checked against the whole file, not just the Rules section: the stale line
+		// lived under the h1, so a section-only assertion passed while campaign.md
+		// still contradicted itself. That weaker test survived the bug's reversion.
+		const { d, campaign } = await fresh();
+		await campaign.setSystem("pf2e (remaster)");
+		const file = (await d.storage.read(campaign.keys.overview))!;
+		assert.match(file, /remaster/);
+		assert.doesNotMatch(file, /Fifth-edition/, "the old rules line survived somewhere in campaign.md");
+		assert.equal((file.match(/d20 fantasy/g) ?? []).length, 1, `more than one rules line:\n${file}`);
+		assert.equal(campaign.systemLine, "pf2e (remaster)");
+	});
+
+	it("validates the new printing the same way creation does", async () => {
+		const { campaign } = await fresh();
+		await assert.rejects(() => campaign.setSystem("5e (2025)"), /Unknown printing/);
+		assert.equal(campaign.systemLine, "5e (2024)", "a rejected change must not be written");
+	});
+
+	it("keeps a pending roll's kind, so answering it files the right prefix", async () => {
+		const { campaign } = await fresh();
+		await campaign.setPendingRoll({ expression: "1d20", reason: "Stealth", kind: "skill" });
+		assert.equal(campaign.pendingRoll?.kind, "skill");
+	});
+});
+
 describe("the scene", () => {
 	it("is projected into marked prose from the frontmatter", async () => {
 		const { d, campaign } = await fresh();

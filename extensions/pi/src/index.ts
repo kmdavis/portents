@@ -24,6 +24,7 @@ import type { ExtensionAPI, ExtensionContext } from "@earendil-works/pi-coding-a
 import { Type } from "typebox";
 import {
 	analyze,
+	appendToSection,
 	Campaign,
 	type CampaignDeps,
 	chanceOf,
@@ -54,6 +55,7 @@ import {
 	renderAsciiView,
 	roll,
 	rollTable,
+	setSection,
 	splitRepeat,
 	statusDigest,
 	seededRandomSource,
@@ -151,6 +153,22 @@ export default function activate(pi: ExtensionAPI): void {
 		await active.bumpCounter("rolls");
 		const verdict = outcome ? ` — **${outcome}** vs DC ${options.dc}` : "";
 		return { text: `\`${entry.id}\` ${formatRoll(result)}${verdict}`, id: entry.id, total: result.total };
+	}
+
+	/**
+	 * Draw and record in one step, so no caller can produce a card the ledger
+	 * never saw. `/draw` used to bypass the tool's append and left the draw
+	 * counter ahead of the ledger.
+	 */
+	async function drawAndRecord(active: Campaign, deck: Parameters<Campaign["draw"]>[0], count: number) {
+		const result = await active.draw(deck, count);
+		const entry = await active.ledger.append({
+			kind: "card",
+			request: deck.id,
+			result: result.cards.map((card) => card.name).join(", "),
+			data: { deck: deck.id, cards: result.cards.map((card) => card.name) },
+		});
+		return { result, entry };
 	}
 
 	/** Roll a repeat expression, recording each one. */
@@ -335,7 +353,12 @@ export default function activate(pi: ExtensionAPI): void {
 
 			// Recorded before asking, so a crash mid-dialog leaves the request
 			// recoverable rather than lost.
-			await active.setPendingRoll({ expression: params.expression, reason: params.reason, dc: params.dc });
+			await active.setPendingRoll({
+				expression: params.expression,
+				reason: params.reason,
+				kind,
+				dc: params.dc,
+			});
 			await showStatus(ctx);
 
 			if (!ctx.hasUI) {
@@ -374,6 +397,10 @@ export default function activate(pi: ExtensionAPI): void {
 					dc: params.dc,
 				}));
 			} catch (error) {
+				// Clear it: a request nobody can answer would otherwise be resolved by
+				// the player's next unrelated /roll.
+				await active.setPendingRoll(undefined);
+				await showStatus(ctx);
 				return text(
 					`Could not roll \`${params.expression}\`: ${(error as Error).message}. Fix the expression and ask again.`,
 					{ error: true },
@@ -456,9 +483,17 @@ export default function activate(pi: ExtensionAPI): void {
 			}
 			const active = campaign;
 
-			if (params.ephemeral || !active) {
+			// Only a draw may fall back to an ephemeral draw. Asking for status or a
+			// shuffle used to hand back a random card, which reads as a real result.
+			if (params.action === "draw" && (params.ephemeral || !active)) {
 				const cards = drawEphemeral(deck, { count: params.count ?? 1, rng: deps.random });
 				return text(cards.map((card) => formatCard(card)).join("\n\n"));
+			}
+			if (!active) {
+				throw new Error(
+					`"${params.action}" needs a loaded campaign, because the draw pile belongs to the campaign. ` +
+						'Load one, or use action "draw" with ephemeral: true.',
+				);
 			}
 
 			switch (params.action) {
@@ -484,13 +519,7 @@ export default function activate(pi: ExtensionAPI): void {
 					);
 				}
 				default: {
-					const result = await active.draw(deck, params.count ?? 1);
-					const entry = await active.ledger.append({
-						kind: "card",
-						request: deck.id,
-						result: result.cards.map((card) => card.name).join(", "),
-						data: { deck: deck.id, cards: result.cards.map((card) => card.name) },
-					});
+					const { result, entry } = await drawAndRecord(active, deck, params.count ?? 1);
 					const note = result.reshuffled ? "\n\n_The deck ran out and was reshuffled._" : "";
 					const remaining = `\n\n_${result.remaining} of ${result.total} left._`;
 					return text(
@@ -833,7 +862,6 @@ export default function activate(pi: ExtensionAPI): void {
 				default: {
 					if (!params.section) throw new Error("That action needs a `section`");
 					if (params.body === undefined) throw new Error("That action needs a `body`");
-					const { appendToSection, setSection } = await import("@portent/core");
 					const next =
 						params.action === "set_section"
 							? setSection(sheet, params.section, params.body)
@@ -873,6 +901,7 @@ export default function activate(pi: ExtensionAPI): void {
 			let body: string;
 			try {
 				({ body } = await rollBatch(input, {
+					kind: pending?.kind as EventKind | undefined,
 					actor: active.activeCharacter ?? "player",
 					reason: pending?.reason,
 					dc: pending?.dc,
@@ -1008,7 +1037,7 @@ export default function activate(pi: ExtensionAPI): void {
 				return;
 			}
 			const cards = campaign
-				? (await campaign.draw(deck, 1)).cards
+				? (await drawAndRecord(campaign, deck, 1)).result.cards
 				: drawEphemeral(deck, { count: 1, rng: deps.random });
 			pi.sendMessage(
 				{

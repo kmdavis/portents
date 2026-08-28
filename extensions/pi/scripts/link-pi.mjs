@@ -59,3 +59,5 @@ for (const bare of ["typebox"]) {
 }
 
 console.log(`Linked ${linked} packages from ${piRoot.replace(homedir(), "~")}`);
+
+export default true;

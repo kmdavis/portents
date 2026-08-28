@@ -137,6 +137,8 @@ export interface CampaignClock {
 export interface PendingRoll {
 	readonly expression: string;
 	readonly reason: string;
+	/** What sort of roll, so answering it later files the entry under the right prefix. */
+	readonly kind?: string;
 	readonly dc?: number;
 	readonly requestedAt: string;
 }
@@ -254,7 +256,11 @@ export class Campaign {
 		const body = [
 			`# ${input.name.trim()}`,
 			"",
-			`_${describeRules(system, edition)}_`,
+			"## Rules",
+			"",
+			"<!-- portent:generated system -->",
+			"",
+			describeRules(system, edition),
 			"",
 			"## Premise",
 			"",
@@ -419,6 +425,7 @@ export class Campaign {
 		return {
 			expression: String(stored.expression),
 			reason: String(stored.reason ?? ""),
+			...(stored.kind ? { kind: String(stored.kind) } : {}),
 			...(stored.dc === undefined ? {} : { dc: Number(stored.dc) }),
 			requestedAt: String(stored.requestedAt ?? ""),
 		};
@@ -534,6 +541,7 @@ export class Campaign {
 				? {
 						expression: pending.expression,
 						reason: pending.reason,
+						...(pending.kind ? { kind: pending.kind } : {}),
 						...(pending.dc === undefined ? {} : { dc: pending.dc }),
 						requestedAt: this.#deps.clock.iso(),
 					}
