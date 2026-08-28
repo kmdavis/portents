@@ -419,6 +419,99 @@ and lets a test supply three fake tables instead of the whole corpus. Duplicate
 ids throw unless `allowOverride` is set, because a silent override is how someone
 wonders why their custom table is being ignored.
 
+## Campaigns
+
+Everything a person would read is markdown they can open, edit and put in git.
+**There is no `state.json`:** volatile state lives in `campaign.md`'s frontmatter,
+with the parts worth reading projected into prose beneath it, exactly as
+character sheets work. One rule for the whole project is easier to hold than one
+per file type.
+
+```
+campaigns/<slug>/
+  campaign.md          state in frontmatter, premise and agreements in prose
+  journal.md           append-only, one ## section per scene
+  world.md             NPCs, Places, Threads, Factions
+  rolls.jsonl          the ledger
+  characters/<name>.md character sheets
+  maps/<name>.txt      saved maps
+  piles.json           deck draw piles
+```
+
+`piles.json` is the one file that is not markdown, deliberately: a list of card
+indices has no reader, and a page of numbers nobody can check is worse than
+admitting it is machine state.
+
+```ts
+const campaign = await Campaign.create({ storage, clock, random }, {
+  name: "The Bell of Wrenfield",
+  system: "5e",                      // edition defaults to 2024
+  premise: "A drowned village rings its bell at midnight.",
+});
+
+await campaign.setScene({ summary: "At the causeway.", location: "Wrenfield", tension: "tense" });
+await campaign.setClock("The tide returns", 2, 6, "then the causeway floods");
+await campaign.journal("The causeway", "They crossed at low tide.");
+await campaign.addToWorld("NPCs", "**Nesta.** Keeps the shrine.");
+await campaign.patchCharacter("Brannoc", { HP: "-7" });
+```
+
+Which produces a file that reads like this:
+
+```markdown
+---
+name: The Bell of Wrenfield
+system: 5e
+edition: "2024"
+scene:
+  summary: At the causeway.
+  location: Wrenfield
+clocks:
+  The tide returns: 2/6 then the causeway floods
+---
+
+## Clocks
+
+<!-- portent:generated clocks -->
+
+- **The tide returns** ▰▰▱▱▱▱ 2/6 — then the causeway floods
+```
+
+A clock is one line, so a person can advance one in a text editor without
+counting commas. Hand-edit it and the library reads it back.
+
+### Every change is written through
+
+A session ends when a laptop shuts, not when someone types "goodbye", so nothing
+is batched for later. The cost is more small writes; the benefit is that the file
+on disk is always the truth.
+
+### The resume brief
+
+The most important method here. A solo game lives or dies on whether the GM can
+recover its state after a break or a context compaction, and a GM that quietly
+forgets the scene invents a different one -- which the player experiences as the
+world changing behind their back.
+
+```ts
+await campaign.brief();
+```
+
+Returns scene, active character with status, clocks, any outstanding player roll,
+recent journal scenes, recent ledger ids, and anything inconsistent. With no
+scene recorded it says so explicitly, and tells the GM to **ask** rather than
+invent.
+
+### Which printing of the rules
+
+Both major systems have had a revision that changed character creation, so a GM
+that guesses wrong hands the player rules they never agreed to. `5e` defaults to
+`2024` and `pf2e` to the `remaster`: **the newer printing always wins**, since
+someone who wants the older one knows they want it.
+
+Asking for a printing that belongs to the other system is an **error, not a
+fallback** -- a silent fallback would leave the player unable to notice.
+
 ## The roll ledger
 
 What makes solo play honest. A GM that invents a die result is indistinguishable

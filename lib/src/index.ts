@@ -304,3 +304,48 @@ export {
 	type VerifyResult,
 	verifyId,
 } from "./ledger/index.ts";
+
+// Markdown section manipulation, shared by sheets and campaign notes.
+export {
+	appendToSectionBody,
+	hasSection,
+	lastSections,
+	removeSection,
+	type Section,
+	sectionBody,
+	sectionHeadings,
+	sections,
+	setSectionBody,
+} from "./markdown/index.ts";
+
+// A campaign on disk: state in frontmatter, everything readable as markdown.
+export {
+	CAMPAIGN_ROOT,
+	Campaign,
+	type CampaignClock,
+	type CampaignDeps,
+	CampaignError,
+	campaignKeys,
+	type CampaignSummary,
+	type CreateCampaignInput,
+	defaultEdition,
+	describeRules,
+	type Edition,
+	EDITIONS,
+	editionLabel,
+	editionNote,
+	editionsFor,
+	isEdition,
+	isEditionOf,
+	isRulesSystem,
+	type PendingRoll,
+	resolveEdition,
+	RULES_SYSTEMS,
+	type RulesSystem,
+	type Scene,
+	slugify,
+	SYSTEMS,
+	systemLabel,
+	WORLD_SECTIONS,
+	type WorldSection,
+} from "./campaign/index.ts";

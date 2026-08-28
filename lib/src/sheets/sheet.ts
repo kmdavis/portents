@@ -44,6 +44,12 @@
  */
 
 import {
+	appendToSectionBody,
+	sectionBody,
+	sectionHeadings,
+	setSectionBody,
+} from "../markdown/sections.ts";
+import {
 	type Frontmatter,
 	type MarkdownDocument,
 	parseDocument,
@@ -79,59 +85,24 @@ export class SheetError extends Error {
 }
 
 // ── Sections ─────────────────────────────────────────────────────────────────
-
-interface SectionSpan {
-	readonly heading: string;
-	readonly start: number;
-	readonly end: number;
-	readonly body: string;
-}
-
-function sectionSpans(body: string): SectionSpan[] {
-	const lines = body.split("\n");
-	const out: Array<{ heading: string; start: number }> = [];
-	lines.forEach((line, index) => {
-		const match = line.match(/^##\s+(.*?)\s*$/);
-		if (match) out.push({ heading: match[1], start: index });
-	});
-	return out.map((section, i) => {
-		const end = i + 1 < out.length ? out[i + 1].start : lines.length;
-		return {
-			heading: section.heading,
-			start: section.start,
-			end,
-			body: lines
-				.slice(section.start + 1, end)
-				.join("\n")
-				.trim(),
-		};
-	});
-}
+//
+// Delegated to markdown/sections.ts, which campaign world notes use too.
 
 export function listSections(sheet: Sheet): string[] {
-	return sectionSpans(sheet.body).map((section) => section.heading);
+	return sectionHeadings(sheet.body);
 }
 
 export function getSection(sheet: Sheet, heading: string): string | undefined {
-	return sectionSpans(sheet.body).find((section) => section.heading.toLowerCase() === heading.toLowerCase())?.body;
+	return sectionBody(sheet.body, heading);
 }
 
 /** Replace a section's body, or append the section if it is absent. */
 export function setSection(sheet: Sheet, heading: string, body: string): Sheet {
-	const span = sectionSpans(sheet.body).find((s) => s.heading.toLowerCase() === heading.toLowerCase());
-	if (!span) {
-		const trimmed = sheet.body.replace(/\n+$/, "");
-		return { ...sheet, body: `${trimmed}\n\n## ${heading}\n\n${body.trim()}\n` };
-	}
-	const lines = sheet.body.split("\n");
-	const next = [...lines.slice(0, span.start + 1), "", body.trim(), "", ...lines.slice(span.end)];
-	return { ...sheet, body: `${next.join("\n").replace(/\n{3,}/g, "\n\n").replace(/\n+$/, "")}\n` };
+	return { ...sheet, body: setSectionBody(sheet.body, heading, body) };
 }
 
 export function appendToSection(sheet: Sheet, heading: string, body: string): Sheet {
-	const existing = getSection(sheet, heading);
-	const base = existing && existing !== "_TBD_" ? `${existing}\n` : "";
-	return setSection(sheet, heading, `${base}${body.trim()}`);
+	return { ...sheet, body: appendToSectionBody(sheet.body, heading, body) };
 }
 
 /** Whether a section is one the tools generate and own. */
