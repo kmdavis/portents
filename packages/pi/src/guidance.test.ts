@@ -13,41 +13,56 @@
 import assert from "node:assert/strict";
 import { describe, it } from "node:test";
 
-import { GUIDANCE_TOPICS, guidanceTopic, sessionGuidance, systemGuidanceId } from "./guidance.ts";
+import { commonContent } from "@portent/content";
+import { createRegistry } from "@portent/core";
+
+import { availableSystems, GUIDANCE_TOPICS, guidanceTopic, sessionGuidance } from "./guidance.ts";
+
+/** The real bundled registry, so this tests what a session actually gets. */
+const registry = createRegistry(commonContent);
+const guidanceFor = (system: string, edition?: string) => sessionGuidance(registry, system, edition);
 
 describe("guidance selection", () => {
 	const cases: Array<{ system: string; edition?: string; id: string }> = [
-		{ system: "5e", id: "5e-2024" },
-		{ system: "5e", edition: "2024", id: "5e-2024" },
-		{ system: "5e", edition: "2014", id: "5e-2014" },
-		{ system: "D&D", id: "5e-2024" },
-		{ system: "dnd5e", edition: "2014", id: "5e-2014" },
+		{ system: "5e", id: "dnd-5e-2024" },
+		{ system: "5e", edition: "2024", id: "dnd-5e-2024" },
+		{ system: "5e", edition: "2014", id: "dnd-5e-2014" },
+		{ system: "d&d 5e", id: "dnd-5e-2024" },
+		{ system: "dnd 5e", edition: "2014", id: "dnd-5e-2014" },
 		{ system: "pf2e", id: "pf2e-remaster" },
 		{ system: "pf2e", edition: "remaster", id: "pf2e-remaster" },
 		{ system: "pf2e", edition: "legacy", id: "pf2e-legacy" },
 		{ system: "Pathfinder 2E", edition: "legacy", id: "pf2e-legacy" },
 		{ system: "pf1e", id: "pf1e" },
 		{ system: "generic", id: "generic" },
-		{ system: "Troika", id: "generic" },
-		{ system: "Call of Cthulhu", id: "generic" },
+		{ system: "Troika", id: "none" },
+		{ system: "Call of Cthulhu", id: "none" },
 	];
 
 	for (const { system, edition, id } of cases) {
 		it(`maps ${JSON.stringify(system)}${edition ? ` (${edition})` : ""} to ${id}`, () => {
-			assert.equal(systemGuidanceId(system, edition), id);
+			const line = edition ? `${system} (${edition})` : system;
+			const found = registry.guidanceFor(line) ?? registry.guidanceFor(system);
+			if (id === "none") {
+				assert.equal(found, undefined, `${line} matched ${found?.id}, but nothing should claim it`);
+			} else {
+				assert.equal(found?.id, id);
+			}
 		});
 	}
 
 	it("defaults to the newer printing, never the older one", () => {
 		// The rule the prose states, asserted rather than trusted.
-		assert.equal(systemGuidanceId("5e"), "5e-2024");
-		assert.equal(systemGuidanceId("pf2e"), "pf2e-remaster");
+		assert.equal(registry.guidanceFor("5e")?.id, "dnd-5e-2024");
+		assert.equal(registry.guidanceFor("pf2e")?.id, "pf2e-remaster");
 	});
 
-	it("gives an unknown system generic guidance, not 5E's", () => {
-		// Inventing rules for someone else's system is worse than admitting there are none.
-		const text = sessionGuidance("Call of Cthulhu");
-		assert.match(text, /System guidance: generic/);
+	it("says so when nothing claims the system, rather than serving 5E's", () => {
+		// Inventing rules for someone else's system is worse than admitting there are
+		// none, and quietly serving 5E's would be worst of all.
+		const text = guidanceFor("Call of Cthulhu");
+		assert.match(text, /none loaded for "Call of Cthulhu"/);
+		assert.match(text, /say plainly that they are rulings/);
 		assert.doesNotMatch(text, /weapon mastery/i);
 		assert.doesNotMatch(text, /force barrage/i);
 	});
@@ -55,9 +70,9 @@ describe("guidance selection", () => {
 
 describe("guidance content", () => {
 	it("serves each system its own printing and not the other", () => {
-		const five = sessionGuidance("5e", "2024");
-		const legacy = sessionGuidance("pf2e", "legacy");
-		const remaster = sessionGuidance("pf2e", "remaster");
+		const five = guidanceFor("5e", "2024");
+		const legacy = guidanceFor("pf2e", "legacy");
+		const remaster = guidanceFor("pf2e", "remaster");
 
 		assert.match(five, /weapon mastery/i);
 		assert.doesNotMatch(five, /force barrage/i);
@@ -70,14 +85,14 @@ describe("guidance content", () => {
 
 	it("always includes the core loop", () => {
 		for (const system of ["5e", "pf2e", "pf1e", "generic", "Some Homebrew"]) {
-			const text = sessionGuidance(system);
+			const text = guidanceFor(system);
 			assert.match(text, /The scene loop/, `${system} lost the core guidance`);
 			assert.match(text, /portent_oracle/, `${system} lost the oracle instruction`);
 		}
 	});
 
 	it("names the deep topics without inlining them", () => {
-		const text = sessionGuidance("5e");
+		const text = guidanceFor("5e");
 		for (const topic of GUIDANCE_TOPICS) {
 			assert.ok(text.includes(topic), `${topic} is not offered`);
 		}
@@ -92,9 +107,32 @@ describe("guidance content", () => {
 		}
 	});
 
+	it("keeps system rules out of the harness guidance", () => {
+		// The boundary this refactor exists to create: core.md describes how to run a
+		// session, the content packs describe the rules. A rule that drifts back in here
+		// is a rule that then disagrees with the pack shipping the sheet scaffold.
+		const core = guidanceFor("generic").split("---")[0];
+		for (const term of [/\b5E\b/i, /\bPF2E\b/i, /\b2024\b/, /\b2014\b/, /remaster/i, /Pathfinder/i, /advantage/i]) {
+			assert.doesNotMatch(core, term, `system-specific material is back in core.md: ${term}`);
+		}
+	});
+
+	it("offers the systems the registry actually has", () => {
+		// Derived, not hardcoded: installing a pack for another system should make it
+		// offerable without editing this package.
+		const systems = availableSystems(registry);
+		assert.ok(systems.length >= 6, `only ${systems.length} systems offered`);
+		assert.ok(
+			systems.some((entry) => entry.includes("5e")),
+			`no fifth-edition entry in: ${systems.join(", ")}`,
+		);
+		assert.ok(systems.some((entry) => entry.includes("pf2e")));
+		assert.ok(systems.some((entry) => entry.includes("generic")));
+	});
+
 	it("is deterministic, which is what keeps the prompt cached", () => {
 		// The standing briefing goes in the system prompt. If it varied at all, the
 		// provider's cached prefix would break on every turn.
-		assert.equal(sessionGuidance("5e", "2024"), sessionGuidance("5e", "2024"));
+		assert.equal(guidanceFor("5e", "2024"), guidanceFor("5e", "2024"));
 	});
 });

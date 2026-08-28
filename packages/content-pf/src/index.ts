@@ -30,6 +30,7 @@
 
 import type { ContentPack } from "@portent/core";
 import { critFumbles, critHits } from "./crits.ts";
+import { guidance } from "./guidance.generated.ts";
 import { sheetFirstEdition, sheetLegacy, sheetRemaster } from "./sheets.ts";
 
 export { critFumbles, critHits } from "./crits.ts";
@@ -40,6 +41,7 @@ const provenance = { source: "original writing for Portent", license: "CC0-1.0" 
 /** The remaster: the current printing, and the default for `pf2e`. */
 export const pf2eContent: ContentPack = {
 	id: "pf2e-remaster",
+	guidance: guidance.filter((entry) => entry.id === "pf2e-remaster"),
 	name: "Second edition, remaster",
 	decks: [critHits, critFumbles],
 	sheets: [sheetRemaster],
@@ -55,6 +57,7 @@ export const pf2eContent: ContentPack = {
 /** The legacy printing, before the terminology and spell rework. */
 export const pf2eLegacyContent: ContentPack = {
 	id: "pf2e-legacy",
+	guidance: guidance.filter((entry) => entry.id === "pf2e-legacy"),
 	name: "Second edition, legacy printing",
 	sheets: [sheetLegacy],
 	provenance,
@@ -63,6 +66,7 @@ export const pf2eLegacyContent: ContentPack = {
 /** First edition: a different game, sharing only its ancestry. */
 export const pf1eContent: ContentPack = {
 	id: "pf1e",
+	guidance: guidance.filter((entry) => entry.id === "pf1e"),
 	name: "First edition",
 	sheets: [sheetFirstEdition],
 	provenance,

@@ -23,7 +23,8 @@
   "files": [
     "dist",
     "README.md",
-    "NOTICE.md"
+    "NOTICE.md",
+    "guidance"
   ],
   "exports": {
     ".": {

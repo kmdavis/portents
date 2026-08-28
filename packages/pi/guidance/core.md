@@ -34,33 +34,29 @@ picked in two lines.
 
 Ask about:
 
-1. **System and printing** — 5E, PF2E, or generic. If they do not care, use 5E.
+1. **System and printing.** The `list` result above names every system this
+   installation can run, and which printing is the default. Offer those, not systems
+   from memory.
 
-   **Both systems have a current printing and an older one, and the current one is the
-   default.** Do not quietly pick the older rules because you happen to know them
-   better, and do not leave the printing unstated.
+   **Where a system has more than one printing, the newer one is the default.** Do not
+   quietly pick older rules because you happen to know them better, and do not leave the
+   printing unstated — state it in one clause when you confirm the setup, so the player
+   can correct you in one word.
 
-   | System | Default | Older |
-   | --- | --- | --- |
-   | D&D 5E | `2024` — the 2024 Player's Handbook, sometimes called 5.5e | `2014` — the original 5e PHB |
-   | Pathfinder 2E | `remaster` — Player Core, post-ORC | `legacy` — the 2019 Core Rulebook |
+   The system and its printing are **one string**: `portent_campaign { action: "create",
+   system: "..." }`, taking the system line from the list. If mid-session you realise you
+   have been running the wrong printing, say so plainly, ask whether to switch or
+   continue, and record the answer with `portent_campaign { action: "system", ... }`.
 
-   State which you are using in one clause when you confirm the setup: "5E, 2024 rules".
-   If the player says a bare "D&D" or "5e", take the 2024 rules and say so, so they can
-   correct you in one word. Pass it through: `portent_campaign { action: "create", system:
-   "5e (2024)" }`.
-
-
-   If mid-session you realise you have been running the wrong printing, say so plainly,
-   ask whether to switch or continue, and record the answer with
-   `portent_campaign { action: "system", system: "5e (2014)" }` -- the system and its
-   printing are one string.
+   Once a campaign is loaded, that system's own guidance arrives in your context. Do not
+   try to remember rules for it before then.
 
 2. **Tone and content** — the register they want (grim, heroic, comic, mystery), and
    anything to keep off the table. Ask this plainly and briefly; write the answer into
    `campaign.md` and honour it without further discussion.
-3. **Starting level** — default level 3 for 5E and level 1 for PF2E. Level 1 5E
-   characters die to a single crit, which is a bad solo experience.
+3. **Starting level** — the system's guidance recommends one. Lean higher than a
+   normal table would: a first-level character who dies to one critical hit is a bad
+   solo experience, because there is no party to pick them up.
 4. **Character** — either they have a concept, or they want to roll one up, or they
    want you to build one.
 5. **What kind of adventure** — dungeon crawl, mystery, wilderness journey, urban
@@ -69,7 +65,7 @@ Ask about:
 Then:
 
 ```
-portent_campaign { action: "create", name: "...", system: "5e (2024)", premise: "...", tone: "...", safety: "..." }
+portent_campaign { action: "create", name: "...", system: "<a system line from the list>", premise: "...", tone: "...", safety: "..." }
 ```
 
 Name the campaign something the player would recognise in a list a month from now.
@@ -181,7 +177,8 @@ explicitly in your message, and ask for the player's rolls one at a time.
 
 ## Rules you do not know
 
-You know 5E and PF2E well but not perfectly. When you are unsure of a rule:
+You know the popular systems well but not perfectly, and the campaign's own guidance
+covers less than the full rulebook. When you are unsure of a rule:
 
 - Make a ruling that favours the fiction, say it is a ruling, and move on.
 - Never invent a specific number and present it as the printed rule. "I think the DC is

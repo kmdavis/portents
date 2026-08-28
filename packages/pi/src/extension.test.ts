@@ -682,7 +682,7 @@ describe(
 				const handler = h.handlers.get("before_agent_start")![0];
 				const { systemPrompt } = (await handler({ systemPrompt: "" }, ctx)) as { systemPrompt: string };
 				// The harness campaign is 5e (2024).
-				assert.match(systemPrompt, /System guidance: 5e-2024/);
+				assert.match(systemPrompt, /System guidance: dnd-5e-2024/);
 				assert.match(systemPrompt, /[Ww]eapon mastery/);
 				assert.doesNotMatch(systemPrompt, /force barrage/, "PF2E guidance leaked into a 5E game");
 			});
@@ -720,7 +720,13 @@ describe(
 				}
 			};
 			walk(skillRoot);
-			assert.ok(files.length >= 8, `only ${files.length} guidance files found`);
+			// core.md plus the topics. System guidance lives in the content packages now,
+			// so it is not counted here — and must not drift back.
+			assert.ok(files.length >= 4, `only ${files.length} guidance files found`);
+			assert.ok(
+				!files.some((file) => file.includes("systems")),
+				"system guidance came back into the pi package; it belongs to the content packs",
+			);
 
 			const referenced = new Set<string>();
 			for (const file of files) {

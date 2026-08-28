@@ -7,6 +7,12 @@
  * trigger text lives on `portent_campaign`, and this content is injected once a game
  * actually starts.
  *
+ * System guidance is **not here**. It lives in the content packages, because it
+ * answers a question about the system and every consumer needs the same answer --
+ * this extension injects it into a prompt, a browser UI can show it in a panel. What
+ * is left in this package is the part that is genuinely about *this harness*: which
+ * tool to call, and how the session loop works.
+ *
  * Two tiers, for the same reason the skill had references:
  *
  * - {@link sessionGuidance} is the standing part -- the core loop plus the printing in
@@ -21,6 +27,8 @@
 
 import { readFileSync } from "node:fs";
 import { fileURLToPath } from "node:url";
+
+import type { ContentRegistry } from "@portent/core";
 
 /**
  * Resolve a file next to the package's `guidance/` directory.
@@ -59,36 +67,33 @@ export function guidanceTopic(topic: GuidanceTopic): string | undefined {
 }
 
 /**
- * Map a campaign's system and printing onto a guidance file id.
+ * The standing briefing: core loop plus the system in play.
  *
- * Falls back along a deliberate chain: exact printing, then the system's default
- * printing, then generic. An unknown system gets generic guidance rather than
- * silently getting 5E's, because inventing rules for someone else's system is worse
- * than admitting there are none.
- */
-export function systemGuidanceId(system: string, edition?: string): string {
-	const base = system.trim().toLowerCase().replace(/&/g, "n").replace(/[^a-z0-9]+/g, "");
-	const printing = edition?.trim().toLowerCase();
-	if (base === "5e" || base === "dnd5e" || base === "dnd") {
-		return printing === "2014" ? "5e-2014" : "5e-2024";
-	}
-	if (base === "pf2e" || base === "pathfinder2e") {
-		return printing === "legacy" ? "pf2e-legacy" : "pf2e-remaster";
-	}
-	if (base === "pf1e" || base === "pathfinder1e") return "pf1e";
-	return "generic";
-}
-
-/**
- * The standing briefing: core loop plus the printing in play.
+ * Deterministic for a given campaign and registry, which is what keeps the prompt
+ * prefix cached.
  *
- * Deterministic for a given campaign, which is what keeps the prompt prefix cached.
+ * When no pack claims the system, this says so rather than substituting another
+ * system's rules. A GM told "there is no guidance for Troika, make rulings and say
+ * they are rulings" behaves better than one silently handed 5E's.
  */
-export function sessionGuidance(system: string, edition?: string): string {
+export function sessionGuidance(registry: ContentRegistry, system: string, edition?: string): string {
 	const parts = [read("core.md")];
-	const id = systemGuidanceId(system, edition);
-	const specifics = read(`systems/${id}.md`) ?? read("systems/generic.md");
-	if (specifics) parts.push(`# System guidance: ${id}\n\n${specifics}`);
+
+	const line = edition ? `${system} (${edition})` : system;
+	const found = registry.guidanceFor(line) ?? registry.guidanceFor(system);
+	parts.push(
+		found
+			? `# System guidance: ${found.id}\n\n${found.body}`
+			: [
+					`# System guidance: none loaded for ${JSON.stringify(line)}`,
+					"",
+					"No content pack claims this system, so there are no printed rules to be faithful to.",
+					"Make rulings that favour the fiction, say plainly that they are rulings rather than rules,",
+					"and write recurring ones into `campaign.md` so the next session matches this one.",
+					"Do not import another system's specifics without saying that is what you are doing.",
+				].join("\n"),
+	);
+
 	parts.push(
 		[
 			"## Deeper guidance, on demand",
@@ -98,4 +103,23 @@ export function sessionGuidance(system: string, edition?: string): string {
 		].join("\n"),
 	);
 	return parts.filter(Boolean).join("\n\n---\n\n");
+}
+
+/**
+ * The systems this installation can actually run, newest printing first.
+ *
+ * Derived from loaded guidance rather than a hardcoded list, so installing a content
+ * pack for another system makes it offerable at session zero without touching this
+ * package. That is the payoff for moving system guidance into the content packs.
+ */
+export function availableSystems(registry: ContentRegistry): string[] {
+	const ids = registry.guidanceIds();
+	const label = (id: string) => {
+		const found = registry.guidanceFor(id);
+		// The first alias is the canonical system line; the id is a fallback.
+		const canonical = found?.aliases[0] ?? id;
+		const heading = found?.body.match(/^#\s+(.+)$/m)?.[1];
+		return heading ? `\`${canonical}\` — ${heading}` : `\`${canonical}\``;
+	};
+	return ids.map(label).sort();
 }

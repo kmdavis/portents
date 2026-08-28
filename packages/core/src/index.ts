@@ -197,6 +197,7 @@ export {
 	type AppliedOverride,
 	type ContentKind,
 	type ContentOverride,
+	type SystemGuidance,
 	UnknownContentError,
 	UnusedOverrideError,
 } from "./packs/index.ts";

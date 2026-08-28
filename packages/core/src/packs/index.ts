@@ -2,6 +2,7 @@ export {
 	type AppliedOverride,
 	type ContentKind,
 	type ContentOverride,
+	type SystemGuidance,
 	UnusedOverrideError,
 	type ContentPack,
 	type ContentRegistry,

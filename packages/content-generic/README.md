@@ -104,3 +104,21 @@ All original writing, CC0. Nothing is reproduced from a published rulebook, solo
 system or commercial deck.
 
 Package code is MIT, like the rest of the repo.
+
+## GM guidance
+
+`guidance/*.md` is the GM guidance for the generic fallback: what is specific to each printing, and
+how it plays at the table. It ships as `src/guidance.generated.ts`, because a content
+pack must stay pure data to work in a browser — the markdown is the source, the module
+is the artifact.
+
+After editing the prose:
+
+```sh
+pnpm build:guidance          # regenerate
+pnpm build:guidance --check  # what CI and the tests run
+```
+
+**Guidance must not name any harness's tools.** A pack is consumed by more than one
+consumer and cannot know what they call things. Describe the mechanic and who rolls it;
+let the harness say which tool to call. The generator refuses to build otherwise.

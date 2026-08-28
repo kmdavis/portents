@@ -23,7 +23,7 @@ import { StringEnum } from "@earendil-works/pi-ai";
 import type { ExtensionAPI, ExtensionContext } from "@earendil-works/pi-coding-agent";
 import { Type } from "typebox";
 
-import { GUIDANCE_TOPICS, type GuidanceTopic, guidanceTopic, sessionGuidance } from "./guidance.ts";
+import { availableSystems as listSystems, GUIDANCE_TOPICS, type GuidanceTopic, guidanceTopic, sessionGuidance } from "./guidance.ts";
 import {
 	analyze,
 	appendToSection,
@@ -311,7 +311,7 @@ export default function activate(pi: ExtensionAPI): void {
 			"",
 			"---",
 			"",
-			sessionGuidance(active.system, active.edition),
+			sessionGuidance(registry, active.system, active.edition),
 		].join("\n");
 	}
 
@@ -855,7 +855,21 @@ export default function activate(pi: ExtensionAPI): void {
 			switch (params.action) {
 				case "list": {
 					const list = await Campaign.list(deps);
-					if (list.length === 0) return text(`No campaigns yet under \`${portentHome()}\`.`);
+					// The systems on offer come with the list, because session zero happens
+					// before a campaign exists and therefore before any system guidance is
+					// loaded. Generated from the registry, so a content pack someone installs
+					// later shows up here without this file changing.
+					const systems = [
+						"",
+						"Systems available in this installation:",
+						...listSystems(registry).map((entry) => `- ${entry}`),
+						"",
+						"Where a system has more than one printing the newer one is the default. Take it unless",
+						"the player asks for the older, state which you are using in one clause, and record it.",
+					];
+					if (list.length === 0) {
+						return text([`No campaigns yet under \`${portentHome()}\`.`, ...systems].join("\n"));
+					}
 					return text(
 						[
 							"Campaigns:",
@@ -864,6 +878,7 @@ export default function activate(pi: ExtensionAPI): void {
 									`- \`${entry.slug}\` — ${entry.name} (${entry.systemLine ?? entry.system})` +
 									`${entry.scene ? ` · ${entry.scene}` : ""}`,
 							),
+							...systems,
 						].join("\n"),
 					);
 				}

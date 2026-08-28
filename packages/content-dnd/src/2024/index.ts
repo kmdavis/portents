@@ -13,6 +13,7 @@
 import type { ContentPack } from "@portent/core";
 import { sheet2024 } from "../sheets.ts";
 import { SRD_5_2_1 } from "../srd.ts";
+import { guidance } from "../guidance.generated.ts";
 import { traps } from "./traps.ts";
 
 export { traps } from "./traps.ts";
@@ -20,6 +21,7 @@ export { sheet2024 } from "../sheets.ts";
 
 export const dnd2024Content: ContentPack = {
 	id: "dnd-5e-2024",
+	guidance: guidance.filter((entry) => entry.id === "dnd-5e-2024"),
 	name: "Fifth edition, 2024 printing",
 	tables: [traps],
 	sheets: [sheet2024],

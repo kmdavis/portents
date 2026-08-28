@@ -100,18 +100,37 @@ export function matchSheet(
 	templates: readonly SheetTemplate[],
 	system: string,
 ): SheetTemplate | undefined {
+	return matchBySystemAlias(
+		templates.filter((template) => !template.generic),
+		system,
+	);
+}
+
+/**
+ * Alias matching for anything keyed by system and printing.
+ *
+ * Extracted from {@link matchSheet} when guidance needed the same rule. Sharing it
+ * matters: a sheet scaffold and the GM guidance for the same system must agree on
+ * what "5e (2024)" means, and two copies of this logic would eventually disagree.
+ *
+ * Alias-only, never similarity. A system nobody claimed gets nothing back rather
+ * than a guess.
+ */
+export function matchBySystemAlias<T extends { readonly aliases: readonly string[] }>(
+	candidates: readonly T[],
+	system: string,
+): T | undefined {
 	const full = normaliseSystem(system);
 	if (!full) return undefined;
-	// "5e 2024" -> also try "5e", so a system-level template catches a printing
-	// nobody wrote a template for.
-	const candidates = [full];
+	// "5e 2024" -> also try "5e", so a system-level entry catches a printing nobody
+	// wrote one for.
+	const tries = [full];
 	const withoutTail = full.split(" ").slice(0, -1).join(" ");
-	if (withoutTail) candidates.push(withoutTail);
+	if (withoutTail) tries.push(withoutTail);
 
-	for (const candidate of candidates) {
-		for (const template of templates) {
-			if (template.generic) continue;
-			if (template.aliases.some((alias) => normaliseSystem(alias) === candidate)) return template;
+	for (const attempt of tries) {
+		for (const candidate of candidates) {
+			if (candidate.aliases.some((alias) => normaliseSystem(alias) === attempt)) return candidate;
 		}
 	}
 	return undefined;

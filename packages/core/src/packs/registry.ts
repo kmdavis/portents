@@ -14,7 +14,7 @@
 import type { Deck } from "../decks/deck.ts";
 export type { Provenance } from "./attribution.ts";
 import type { Provenance } from "./attribution.ts";
-import { matchSheet, type SheetTemplate } from "../sheets/template.ts";
+import { matchBySystemAlias, matchSheet, type SheetTemplate } from "../sheets/template.ts";
 import type { Table } from "../tables/table.ts";
 
 /** Anything a pack can contribute. */
@@ -25,6 +25,8 @@ export interface ContentPack {
 	readonly tables?: readonly Table[];
 	/** Sheet scaffolds this pack offers. See {@link SheetTemplate}. */
 	readonly sheets?: readonly SheetTemplate[];
+	/** GM guidance for the systems this pack covers. See {@link SystemGuidance}. */
+	readonly guidance?: readonly SystemGuidance[];
 	readonly provenance?: Provenance;
 	/**
 	 * Content ids this pack deliberately replaces.
@@ -41,9 +43,36 @@ export interface ContentPack {
 	readonly overrides?: readonly ContentOverride[];
 }
 
+/**
+ * How to run a game in one system, as markdown.
+ *
+ * Guidance lives with the content rather than with a harness because it answers a
+ * question about the *system*, and every consumer needs the same answer -- the pi
+ * extension injects it into a prompt, a browser UI can show it in a panel. It used
+ * to sit in the pi package, which meant a rules change touched two packages: the
+ * sheet scaffold declaring `Hero Points` here, and the prose explaining hero points
+ * over there.
+ *
+ * **Say nothing about tools.** A pack cannot know what its consumer calls things.
+ * Describe the mechanic and who rolls it; let the harness say which tool to use.
+ * A test enforces this.
+ */
+export interface SystemGuidance {
+	readonly id: string;
+	/**
+	 * System lines this guidance answers to, e.g. `["5e (2024)", "dnd 5e 2024"]`.
+	 *
+	 * Matched with the same alias rule as sheet scaffolds, so the two cannot disagree
+	 * about what a system line means.
+	 */
+	readonly aliases: readonly string[];
+	/** Markdown. Headings start at `#`; the consumer re-levels if it needs to. */
+	readonly body: string;
+}
+
 /** One deliberate replacement of another pack's entry. */
 export interface ContentOverride {
-	readonly kind: "deck" | "table" | "sheet";
+	readonly kind: "deck" | "table" | "sheet" | "guidance";
 	readonly id: string;
 	/** Why, in a few words. Shows up in the registry report a user can print. */
 	readonly reason?: string;
@@ -92,7 +121,7 @@ export class UnusedOverrideError extends Error {
 	}
 }
 
-export type ContentKind = "deck" | "table" | "sheet";
+export type ContentKind = "deck" | "table" | "sheet" | "guidance";
 
 /** What replaced what, so a user can print the answer to "why am I getting this?". */
 export interface AppliedOverride extends ContentOverride {
@@ -119,6 +148,17 @@ export interface ContentRegistry {
 	 * player hand-edits and then lives there.
 	 */
 	sheetFor(system: string): SheetTemplate | undefined;
+	/** Every guidance id loaded, sorted. */
+	guidanceIds(): string[];
+	/**
+	 * GM guidance for a system line, or `undefined`.
+	 *
+	 * Same alias-only matching as {@link ContentRegistry.sheetFor}, and the same
+	 * refusal to guess: a system nobody wrote guidance for gets nothing, so the
+	 * caller can say it is falling back instead of silently serving another
+	 * system's rules.
+	 */
+	guidanceFor(system: string): SystemGuidance | undefined;
 	/** Every override that actually fired, in application order. */
 	appliedOverrides(): readonly AppliedOverride[];
 }
@@ -156,6 +196,7 @@ export function createRegistry(
 	const decks = new Map<string, Deck>();
 	const tables = new Map<string, Table>();
 	const sheets = new Map<string, SheetTemplate>();
+	const guidance = new Map<string, SystemGuidance>();
 	const owners = new Map<string, string>();
 	const applied: AppliedOverride[] = [];
 
@@ -191,6 +232,7 @@ export function createRegistry(
 		for (const deck of pack.decks ?? []) store("deck", decks, pack, deck);
 		for (const table of pack.tables ?? []) store("table", tables, pack, table);
 		for (const sheet of pack.sheets ?? []) store("sheet", sheets, pack, sheet);
+		for (const entry of pack.guidance ?? []) store("guidance", guidance, pack, entry);
 	}
 
 	return {
@@ -209,6 +251,9 @@ export function createRegistry(
 		},
 		deckIds: () => [...decks.keys()].sort(),
 		tableIds: () => [...tables.keys()].sort(),
+		guidanceIds: () => [...guidance.keys()].sort(),
+		// Later packs first, so a system pack's guidance beats a generic fallback.
+		guidanceFor: (system) => matchBySystemAlias([...guidance.values()].reverse(), system),
 		sheetIds: () => [...sheets.keys()].sort(),
 		// Later packs are checked first, so a system template beats the generic one.
 		sheetFor: (system) => matchSheet([...sheets.values()].reverse(), system),

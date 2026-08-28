@@ -21,6 +21,9 @@ jobs:
           cache: pnpm
 
       - run: pnpm install --frozen-lockfile
+      - name: Check generated guidance is current
+        run: node scripts/build-guidance.mjs --check
+
 
       - name: Typecheck
         run: pnpm typecheck

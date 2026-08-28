@@ -25,6 +25,7 @@
 import type { ContentPack } from "@portent/core";
 import { sheets } from "./sheets.ts";
 import { decks } from "./decks/index.ts";
+import { guidance } from "./guidance.generated.ts";
 import { tables } from "./tables/index.ts";
 
 export { dungeonTiles } from "./dungeon-tiles.ts";
@@ -42,6 +43,7 @@ export { decks, tables };
  */
 export const genericContent: ContentPack = {
 	id: "generic",
+	guidance: guidance.filter((entry) => entry.id === "generic"),
 	name: "Generic fantasy content",
 	decks,
 	tables,
