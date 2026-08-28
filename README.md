@@ -24,7 +24,7 @@ can be spotted.
 | `@portent/pi` | [`packages/pi/`](packages/pi) | Runs a game inside the pi coding agent. |
 | `@portent/content-dnd` | [`packages/content-dnd/`](packages/content-dnd) | Fifth edition, both printings. SRD material under CC-BY-4.0. |
 | `@portent/content-pf` | [`packages/content-pf/`](packages/content-pf) | Pathfinder-style systems, three printings. Original writing. |
-| `@portent/web` | [`packages/web/`](packages/web) | Browser app. State in IndexedDB. Not published. |
+| `@portent/web` | [`packages/web/`](packages/web) | Browser/edge session facade. Storage injected. No UI. |
 
 Content is a separate package from the engine because content is the part people
 will want to fork, extend and version independently. The engine knows how to

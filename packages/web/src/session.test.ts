@@ -18,6 +18,7 @@ import assert from "node:assert/strict";
 import { after, before, describe, it } from "node:test";
 import { BrowserStorage } from "@portent/core/browser";
 import { storageConformanceCases } from "@portent/core/testing";
+import type { Storage } from "@portent/core";
 import { WebSession } from "./session.ts";
 
 let counter = 0;
@@ -159,7 +160,66 @@ describe("the session with a campaign", () => {
 	});
 });
 
-describe("maps in the browser", () => {
+describe("storage is the caller's choice", () => {
+	/**
+	 * A minimal adapter standing in for a hosted key-value service.
+	 *
+	 * Written by hand rather than reusing MemoryStorage, because the point is that
+	 * something with no relationship to this repo satisfies the contract. A hosted
+	 * UI backed by a key-value store passes one of these and nothing else changes.
+	 */
+	class FakeKeyValueService implements Storage {
+		#entries = new Map<string, string>();
+		async read(key: string) {
+			return this.#entries.get(key);
+		}
+		async write(key: string, contents: string) {
+			this.#entries.set(key, contents);
+		}
+		async append(key: string, contents: string) {
+			this.#entries.set(key, (this.#entries.get(key) ?? "") + contents);
+		}
+		async exists(key: string) {
+			return this.#entries.has(key);
+		}
+		async list(prefix: string) {
+			return [...this.#entries.keys()].filter((key) => key.startsWith(prefix)).sort();
+		}
+		async remove(key: string) {
+			this.#entries.delete(key);
+		}
+	}
+
+	it("runs a whole campaign through an adapter that is not IndexedDB", async () => {
+		// The requirement: nothing in this package may assume IndexedDB.
+		const session = new WebSession({ storage: new FakeKeyValueService(), seed: "kv" });
+		const campaign = await session.createCampaign("Hosted Test", "pf2e");
+		const rolled = await session.roll("1d20");
+
+		assert.equal(campaign.slug, "hosted-test");
+		assert.match(rolled.ids[0], /^r-\d+$/, "the ledger did not work on a foreign adapter");
+		assert.equal(campaign.sheetTemplate()?.id, "pf2e-remaster", "content did not reach a foreign adapter");
+		assert.ok((await session.listCampaigns()).some((entry) => entry.slug === "hosted-test"));
+	});
+
+	it("gives identical results across adapters for the same seed", async () => {
+		// If a result depended on the adapter, something is reaching past the port.
+		const run = async (storage: Storage) => {
+			const session = new WebSession({ storage, seed: "same" });
+			await session.createCampaign("Parity", "generic");
+			return (await session.roll("4#1d20")).totals;
+		};
+		assert.deepEqual(await run(new FakeKeyValueService()), await run(freshStorage()));
+	});
+
+	it("requires a storage rather than defaulting to one", () => {
+		// A default would quietly bind this package to one platform.
+		// @ts-expect-error storage is required, and that is the assertion
+		assert.throws(() => new WebSession({}), /storage|undefined/i);
+	});
+});
+
+describe("maps", () => {
 	const session = new WebSession({ storage: freshStorage() });
 
 	it("renders the same dungeon as text and as vector", () => {

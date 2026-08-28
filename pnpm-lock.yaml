@@ -65,12 +65,6 @@ importers:
         specifier: workspace:*
         version: link:../core
 
-  packages/content-dnd-personal:
-    devDependencies:
-      '@portent/core':
-        specifier: workspace:*
-        version: link:../core
-
   packages/content-generic:
     devDependencies:
       '@portent/core':
@@ -108,17 +102,13 @@ importers:
         version: link:../core
 
   packages/web:
-    dependencies:
+    devDependencies:
       '@portent/content':
         specifier: workspace:*
         version: link:../content
       '@portent/core':
         specifier: workspace:*
         version: link:../core
-    devDependencies:
-      esbuild:
-        specifier: ^0.25.0
-        version: 0.25.12
       fake-indexeddb:
         specifier: ^6.2.5
         version: 6.2.5

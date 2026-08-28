@@ -1,44 +1,56 @@
 # @portent/web
 
-Portent in a browser. Dice, oracles, decks, tables and dungeon maps, with
-campaign state in IndexedDB. Nothing leaves the machine.
+Browser and edge integration for Portent: a session facade over the engine.
 
-```sh
-pnpm --filter @portent/web dev     # esbuild watch + local server
-pnpm --filter @portent/web build   # dist/
+**No UI, and no agent.** This is the seam a UI sits on. It imports no UI, renders
+nothing, and holds no opinion about how anything looks.
+
+```ts
+import { WebSession } from "@portent/web";
+import { BrowserStorage } from "@portent/core/browser";
+
+const session = new WebSession({ storage: new BrowserStorage({ database: "portent" }) });
+
+await session.roll("2d20kh1+5", { dc: 15 });   // ledger ids when a campaign is open
+await session.oracle("yes_no", "is the gate still guarded?");
+session.map({ rooms: 9, seed: "grimhold" });   // { ascii, svg, seed }
 ```
 
-Not published: it is an application, not a library.
+## Storage is the caller's choice
 
-## What it is really for
+`storage` is **required and has no default**, deliberately. A default would
+quietly bind this package to one platform, and it is not bound to any:
 
-Two things, and the second matters more than the first.
+| Host | Adapter |
+|---|---|
+| A browser | `BrowserStorage` from `@portent/core/browser` (IndexedDB) |
+| A hosted page with a key-value service | your own adapter over that service |
+| Node, a worker, a test | `NodeStorage`, `MemoryStorage` |
 
-**It is a usable app.** With a campaign open, every roll gets a ledger id and
-decks stay depleted between visits, because the same `Campaign` and `Ledger` the
-pi extension uses are running here unchanged.
+The only requirement is the `Storage` contract, and the **published conformance
+suite** lets any adapter prove it satisfies the same contract the bundled ones do:
 
-**It closes a gap the library admitted.** `BrowserStorage` typechecked and
-bundled but had no automated coverage, because Node has no IndexedDB. This
-package supplies one with `fake-indexeddb` and runs the library's **own published
-conformance suite** against it -- the same 22 cases the Node and memory adapters
-pass, not a rewrite of them. Breaking `BrowserStorage.append` fails them.
+```ts
+import { storageConformanceCases } from "@portent/core/testing";
 
-The polyfill is a dev dependency here rather than in `@portent/core`, so the
-library ships nothing to make its own test possible.
+for (const c of storageConformanceCases(() => new MyStorage())) it(c.name, c.run);
+```
 
-## Shape
+Write the adapter, run the suite, pass it to `WebSession`. Nothing else changes.
 
-`session.ts` holds all the behaviour and takes its storage as an argument.
-`main.ts` is the DOM layer and nothing else. That split is why the interesting
-half is tested by assertions rather than by clicking.
+## It also closes a gap
 
-The app's `tsconfig.json` deliberately has **no Node types at all**, so a stray
-`node:` import fails typecheck rather than surviving to the bundle. Tests use a
-second config that adds them.
+`BrowserStorage` typechecked and bundled but had no automated coverage, because
+Node has no IndexedDB — the library's README called it unproven. This package
+supplies one with `fake-indexeddb` and runs the library's **own** conformance
+suite against it: the same 22 cases, not a rewrite. Breaking
+`BrowserStorage.append` fails them.
+
+The polyfill is a dev dependency here, not in `@portent/core`, so the library
+ships nothing to make its own test possible.
 
 ## Still unproven
 
-`svgToPngBlob` needs a canvas, which `fake-indexeddb` does not provide and Node
-does not have. The map's vector view is exercised; rasterising to PNG in a browser
-is not. The CLI's PNG path uses `@resvg/resvg-js` and is tested.
+`svgToPngBlob` needs a canvas, which neither Node nor `fake-indexeddb` provides.
+The vector output is exercised; rasterising to PNG in a browser is not. The CLI's
+PNG path goes through `@resvg/resvg-js` and is tested.

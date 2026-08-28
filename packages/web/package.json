@@ -1,23 +1,46 @@
 {
   "name": "@portent/web",
   "version": "0.0.0",
-  "private": true,
+  "description": "Browser and edge integration for Portent: a storage-agnostic session facade over the engine. No UI.",
+  "keywords": [
+    "rpg",
+    "ttrpg",
+    "solo",
+    "browser"
+  ],
   "license": "MIT",
-  "description": "Portent in a browser: dice, oracles, decks, tables and dungeon maps, with campaign state in IndexedDB.",
   "author": "Kevan Davis",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/kmdavis/portent.git",
+    "directory": "packages/web"
+  },
+  "homepage": "https://github.com/kmdavis/portent/tree/main/packages/web#readme",
   "type": "module",
+  "sideEffects": false,
+  "files": [
+    "dist",
+    "README.md"
+  ],
+  "exports": {
+    ".": {
+      "development": "./src/index.ts",
+      "types": "./dist/index.d.ts",
+      "default": "./dist/index.js"
+    }
+  },
   "scripts": {
-    "build": "node scripts/build.mjs",
-    "dev": "node scripts/build.mjs --watch",
+    "build": "tsc -p tsconfig.build.json",
     "test": "node --conditions=development --test 'src/**/*.test.ts'",
     "typecheck": "tsc -p tsconfig.json --noEmit && tsc -p tsconfig.test.json --noEmit"
   },
-  "dependencies": {
+  "peerDependencies": {
     "@portent/content": "workspace:*",
     "@portent/core": "workspace:*"
   },
   "devDependencies": {
-    "esbuild": "^0.25.0",
+    "@portent/content": "workspace:*",
+    "@portent/core": "workspace:*",
     "fake-indexeddb": "^6.2.5"
   }
 }

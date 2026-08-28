@@ -268,7 +268,7 @@ describe("content nobody may redistribute", () => {
 	it("is never listed in a NOTICE", () => {
 		// A NOTICE is a document you ship. This content is not shipped.
 		assert.equal(
-			renderNotice("@portent/content-dnd-personal", [
+			renderNotice("a local-only pack", [
 				{ id: "a", provenance: { ...personal, license: "UNLICENSED" } },
 			]),
 			undefined,

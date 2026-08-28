@@ -1,15 +1,18 @@
 /**
- * The browser session: everything the app can do, with no DOM in sight.
+ * A session facade over the engine, with no DOM in it.
  *
- * Separated from `main.ts` on purpose. The interesting claim this package makes
- * is that the whole library runs unchanged in a browser -- and a claim tested
- * only by clicking around is not tested. This module holds the behaviour and
- * takes its storage as an argument, so the tests drive it against a real
- * IndexedDB implementation and assert on results rather than on pixels.
+ * This is what a UI sits on, and deliberately not a UI itself. Everything here
+ * returns values, so it can be driven by a browser, a hosted page, a worker, or
+ * a test, and the tests assert on results rather than on pixels.
  *
- * It also closes a gap the library's README admitted: `BrowserStorage` had no
- * automated coverage, because Node has no IndexedDB. The conformance suite runs
- * against it here.
+ * **Storage is injected and nothing here knows what it is.** IndexedDB is one
+ * option; a hosted UI backed by a key-value service passes an adapter for that
+ * and the session cannot tell. The only requirement is the `Storage` contract,
+ * which the published conformance suite lets any adapter prove it satisfies.
+ *
+ * It also gives the IndexedDB adapter a consumer to be tested through, closing a
+ * gap the library's README admitted: Node has no IndexedDB, so `BrowserStorage`
+ * typechecked and bundled with nothing proving it worked.
  */
 
 import {
@@ -43,6 +46,12 @@ import {
 import { commonContent, dungeonTiles } from "@portent/content";
 
 export interface SessionOptions {
+	/**
+	 * Where state goes. Any adapter satisfying the `Storage` contract.
+	 *
+	 * Required, with no default, on purpose: a default would quietly bind this
+	 * package to one platform, and the whole point is that it is not bound to any.
+	 */
 	readonly storage: Storage;
 	/** Fixed seed for reproducible output. Omit for real randomness. */
 	readonly seed?: string;
@@ -61,11 +70,11 @@ export interface MapOutcome {
 }
 
 /**
- * One browser session.
+ * One session.
  *
- * Holds an optional campaign, so the app works with or without one: someone who
- * just wants to roll dice should not have to create a campaign first, and
- * someone running a game should get their state persisted.
+ * Holds an optional campaign, so a caller works with or without one: someone who
+ * just wants to roll dice should not have to create a campaign first, and someone
+ * running a game should get their state persisted.
  */
 export class WebSession {
 	readonly registry = createRegistry(commonContent);
@@ -73,6 +82,16 @@ export class WebSession {
 	#campaign: Campaign | undefined;
 
 	constructor(options: SessionOptions) {
+		// Checked here rather than left to fail on the first read. A caller that
+		// forgot storage should learn it at construction, with the reason, instead of
+		// meeting an undefined method call several steps later.
+		if (!options?.storage) {
+			throw new TypeError(
+				"WebSession needs a storage adapter, and has no default on purpose: a default would bind this " +
+					"package to one platform. Pass BrowserStorage in a browser, MemoryStorage in a test, or your " +
+					"own adapter over whatever service is hosting you.",
+			);
+		}
 		this.#deps = {
 			storage: options.storage,
 			clock: systemClock,
@@ -118,9 +137,8 @@ export class WebSession {
 	/**
 	 * Roll, and record to the campaign's ledger when there is one.
 	 *
-	 * The ids come back so the UI can show them: a number with no id is exactly
-	 * the thing the ledger exists to make impossible, in a browser as much as
-	 * anywhere else.
+	 * The ids come back so a caller can show them: a number with no id is exactly
+	 * the thing the ledger exists to make impossible, wherever it runs.
 	 */
 	async roll(input: string, options: { dc?: number } = {}): Promise<RollOutcome> {
 		const { times, expression } = splitRepeat(input);
