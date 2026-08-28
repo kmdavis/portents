@@ -16,6 +16,7 @@ import type { ModelMessage } from "ai";
 
 import { buildModel, runTurn, stateDigest, systemPrompt } from "./agent.ts";
 import { renderMarkdown } from "./markdown.ts";
+import { isHurt, PARTY_STAT_KEYS } from "./party.ts";
 import { Transcript } from "./transcript.ts";
 import {
 	clearSettings,
@@ -229,20 +230,9 @@ async function refreshCard(): Promise<void> {
 
 	const rows: Array<[string, string]> = [];
 	if (campaign) {
-		const name = campaign.activeCharacter;
-		rows.push(["Character", name ?? "none yet"]);
-
-		if (name) {
-			const sheet = await campaign.readCharacter(name);
-			// Only the keys a player glances at mid-fight. The rest is in the sheet.
-			for (const key of ["HP", "AC", "Hit Dice", "Death Saves", "Conditions", "Hero Points"]) {
-				const value = sheet?.data[key];
-				if (value !== undefined && value !== null && String(value).trim()) rows.push([key, String(value)]);
-			}
-		}
-
 		const scene = campaign.scene;
 		if (scene?.location) rows.push(["Location", scene.location]);
+		if (scene?.summary) rows.push(["Scene", scene.summary]);
 		rows.push(["Rolls", String(campaign.ledger.recent(9999).length)]);
 	}
 
@@ -260,6 +250,82 @@ async function refreshCard(): Promise<void> {
 	const clockLine = $("card-clocks");
 	clockLine.hidden = clocks.length === 0;
 	clockLine.textContent = clocks.map((clock) => `${clock.name} ${clock.filled}/${clock.segments}`).join(" · ");
+
+	await refreshParty();
+}
+
+/**
+ * One block per character, main and sidekicks alike.
+ *
+ * The guidance now recommends a main character plus one or two sidekicks, because a
+ * lone character is outnumbered every round whatever its hit points. That advice is
+ * only honest if the player can see what they are responsible for: a sidekick whose
+ * hit points exist solely in the GM's context is one the player forgets, and then
+ * loses.
+ *
+ * Read from the sheets on disk rather than tracked here. The sheet is canonical, and a
+ * second copy in the UI would be one more thing to disagree with it.
+ */
+async function refreshParty(): Promise<void> {
+	const party = $("party");
+	const campaign = session.campaign;
+	if (!campaign) {
+		party.replaceChildren();
+		return;
+	}
+
+	const names = await campaign.listCharacters();
+	const active = campaign.activeCharacter;
+	const blocks: HTMLElement[] = [];
+
+	for (const name of names) {
+		const sheet = await campaign.readCharacter(name);
+		const block = document.createElement("section");
+		block.className = active === name ? "pc active" : "pc";
+
+		const heading = document.createElement("h3");
+		heading.textContent = name;
+		block.append(heading);
+
+		const role = document.createElement("span");
+		role.className = "role";
+		role.textContent = active === name ? "main" : "sidekick";
+		block.append(role);
+
+		const concept = sheet?.data["Concept"] ?? sheet?.data["concept"];
+		if (concept) {
+			const line = document.createElement("p");
+			line.className = "concept";
+			line.textContent = String(concept);
+			block.append(line);
+		}
+
+		const stats = document.createElement("dl");
+		for (const key of PARTY_STAT_KEYS) {
+			const value = sheet?.data[key];
+			if (value === undefined || value === null || !String(value).trim()) continue;
+			const dt = document.createElement("dt");
+			dt.textContent = key;
+			const dd = document.createElement("dd");
+			dd.textContent = String(value);
+			// Colour a character at or below half, so a sidekick about to drop is visible
+			// without the player doing arithmetic.
+			if (key === "HP" && isHurt(String(value))) dd.classList.add("hurt");
+			stats.append(dt, dd);
+		}
+		if (stats.childElementCount > 0) block.append(stats);
+
+		if (!sheet) {
+			const missing = document.createElement("p");
+			missing.className = "concept";
+			missing.textContent = "sheet missing on disk";
+			block.append(missing);
+		}
+
+		blocks.push(block);
+	}
+
+	party.replaceChildren(...blocks);
 }
 
 /**

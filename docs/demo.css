@@ -132,6 +132,27 @@ button { font: inherit; cursor: pointer; }
 
 #map-holder svg { width: 100%; height: auto; display: block; }
 
+/* The party: one block per character. A sidekick whose hit points are invisible is a
+   sidekick the player forgets they are responsible for. */
+#party { display: flex; flex-direction: column; gap: 0.6rem; }
+
+.pc {
+	border: 1px solid var(--rule);
+	border-radius: 4px;
+	padding: 0.6rem 0.7rem;
+	font-family: ui-sans-serif, system-ui, sans-serif;
+	font-size: 0.8rem;
+}
+.pc.active { border-left: 3px solid var(--accent); }
+.pc h3 { margin: 0; font-size: 0.9rem; font-family: ui-serif, Georgia, serif; }
+.pc .role { color: var(--muted); font-size: 0.72rem; text-transform: uppercase; letter-spacing: 0.04em; }
+.pc .concept { color: var(--muted); font-size: 0.75rem; margin: 0.1rem 0 0; }
+.pc dl { margin: 0.5rem 0 0; grid-template-columns: auto 1fr; display: grid; gap: 0.15rem 0.5rem; }
+.pc dt { color: var(--muted); font-size: 0.7rem; text-transform: uppercase; letter-spacing: 0.03em; }
+.pc dd { margin: 0; font-variant-numeric: tabular-nums; }
+
+@media (prefers-color-scheme: dark) { .pc dd.hurt { color: #f2b8b5; } }
+
 /* Ledger dialog: a table of what really happened. */
 #ledger-dialog { max-width: 44rem; width: calc(100vw - 3rem); }
 #ledger-body { max-height: 60vh; overflow-y: auto; margin-top: 0.8rem; }

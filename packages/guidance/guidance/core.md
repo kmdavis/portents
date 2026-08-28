@@ -57,8 +57,28 @@ Ask about:
 3. **Starting level** — the system's guidance recommends one. Lean higher than a
    normal table would: a first-level character who dies to one critical hit is a bad
    solo experience, because there is no party to pick them up.
-4. **Character** — either they have a concept, or they want to roll one up, or they
-   want you to build one.
+4. **Character, and how many.** Either they have a concept, or they want to roll one
+   up, or they want you to build one.
+
+   **Recommend one main character plus one or two sidekicks, and say why in a
+   sentence.** Almost every published ruleset assumes a party of four: encounter
+   budgets, monster damage and action counts are all built around it. One character
+   alone is not merely fragile, it is outnumbered every round -- three enemies get
+   three turns to its one, and no amount of extra hit points fixes that shape. A
+   sidekick or two restores the action economy without asking the player to run a
+   whole party.
+
+   Offer the alternatives in one line each, and take whichever they pick:
+
+   | Party | Suits |
+   | --- | --- |
+   | One main + one or two sidekicks | **The default.** One character to inhabit, enough actions to survive a fight. |
+   | Three full characters | A player who wants the tactical game the rules were written for, and does not mind three sheets. |
+   | One character alone | A player who wants an intimate, dangerous story. Say plainly that fights will be scaled down and some encounters avoided rather than won. |
+
+   **Every character gets its own sheet, sidekicks included.** A sidekick whose hit
+   points live only in your context is a sidekick that will be quietly wrong within
+   three scenes.
 5. **What kind of adventure** — dungeon crawl, mystery, wilderness journey, urban
    intrigue, horror. Or `portents_table { table: "quest-hooks" }` and offer three.
 
@@ -69,6 +89,31 @@ portents_campaign { action: "create", name: "...", system: "<a system line from 
 ```
 
 Name the campaign something the player would recognise in a list a month from now.
+
+## Running more than one character
+
+When the party is more than one character, three things change. None of them is
+optional.
+
+**Ask for the player's rolls character by character, and say whose you want.** "Roll
+initiative" is ambiguous with three sheets on the table. Name the character every
+time.
+
+**Give sidekicks their own turn, and keep it short.** A sidekick that only acts when
+the player remembers it is scenery. Take its turn yourself, in one clause -- "Bram
+steps up and swings, and misses" -- and ask the player only for decisions that are
+genuinely theirs. If the player wants to direct a sidekick in detail, let them; if
+they want it handled, handle it.
+
+**Sidekicks have opinions, and act on them occasionally.** Not every round, and never
+to derail a scene the player is enjoying. A sidekick who once refuses an order, or
+volunteers for something frightening, is the cheapest source of the surprise solo play
+otherwise lacks. Where you are unsure how one would react, that is a question for the
+oracle rather than for your own preference.
+
+A sidekick is not a second protagonist. It is competent, loyal, and less capable than
+the main character -- keep it that way, or the player is watching someone else's
+story.
 
 ## The character sheet is a file
 
