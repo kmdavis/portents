@@ -11,13 +11,16 @@
     "typecheck": "pnpm -r typecheck",
     "check:browser": "pnpm --filter @portent/core check:browser",
     "check": "pnpm typecheck && pnpm test && pnpm check:browser",
-    "manual": "node manual/build.mjs"
+    "manual": "node manual/build.mjs",
+    "preinstall": "node scripts/unlink-pi.mjs",
+    "link-pi": "pnpm --filter @portent/pi link-pi"
   },
   "devDependencies": {
-    "@portent/content": "workspace:*",
     "@portent/core": "workspace:*",
     "@types/node": "^26.3.0",
     "esbuild": "^0.25.0",
-    "typescript": "^5.7.0"
+    "typescript": "^5.7.0",
+    "@portent/content-generic": "workspace:*",
+    "@portent/content": "workspace:*"
   }
 }

@@ -66,13 +66,13 @@ import {
 	type WorldSection,
 } from "@portent/core";
 import { openHomeStorage, portentHome } from "@portent/core/node";
-import { decks, dungeonTiles, portentContent, tables } from "@portent/content";
+import { commonContent, decks, dungeonTiles, tables } from "@portent/content";
 
 export default function activate(pi: ExtensionAPI): void {
 	const storage = openHomeStorage();
 	// Built once: createRegistry validates ids and gives the "available: ..." lists
 	// that broken content references print.
-	const registry = createRegistry([portentContent]);
+	const registry = createRegistry(commonContent, { allowOverride: true });
 	const deps: CampaignDeps = { storage, clock: systemClock, random: defaultRandomSource() };
 
 	/** The open campaign, or undefined. Re-resolved on session start. */

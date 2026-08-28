@@ -8,7 +8,7 @@
  *
  * ```ts
  * import { roll, formatRoll, parseTile, renderAscii, renderSvg } from "@portent/core";
- * import { dungeonTiles } from "@portent/content";
+ * import { dungeonTiles } from "@portent/content-generic";
  *
  * formatRoll(roll("6#4d6kh3"));   // ability scores
  * renderSvg(parseTile(mySource)); // the same tile the ASCII shows

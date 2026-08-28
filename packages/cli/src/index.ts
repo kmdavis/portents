@@ -43,7 +43,7 @@ import {
 	createView,
 	revealAll,
 } from "@portent/core";
-import { decks, dungeonTiles, portentContent, tables } from "@portent/content";
+import { commonContent, decks, dungeonTiles, tables } from "@portent/content";
 import { intFlag, parseArgs, stringFlag, UsageError } from "./args.ts";
 import { bold, cyan, dim, plain, table } from "./format.ts";
 
@@ -53,7 +53,7 @@ export interface RunResult {
 	readonly stderr: string;
 }
 
-const registry = createRegistry([portentContent]);
+const registry = createRegistry(commonContent, { allowOverride: true });
 
 function ok(stdout: string): RunResult {
 	return { code: 0, stdout: stdout.endsWith("\n") ? stdout : `${stdout}\n`, stderr: "" };

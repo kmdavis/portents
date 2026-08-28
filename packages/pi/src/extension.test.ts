@@ -112,15 +112,23 @@ function makeCtx(h: Harness, overrides: Record<string, unknown> = {}) {
  * contributed `tests 0, pass 0, fail 0, skipped 0` and reported success, so a
  * real breakage inside the extension looked exactly like a missing dependency.
  */
-const piAvailable = await (async () => {
+const piState = await (async () => {
+	const { existsSync } = await import("node:fs");
+	const vendored = new URL("../node_modules/@earendil-works/pi-coding-agent", import.meta.url).pathname;
+	const present = existsSync(vendored);
 	try {
-		await import.meta.resolve?.("@earendil-works/pi-coding-agent");
 		await import("@earendil-works/pi-coding-agent");
-		return true;
-	} catch {
-		return false;
+		return { usable: true as const };
+	} catch (error) {
+		// Three states, not two. "Absent" is an environment fact and skips. "Present
+		// but unimportable" is a broken vendoring and must fail: copying pi instead
+		// of symlinking it orphaned its own dependency on chalk, and the suite
+		// quietly dropped 38 tests while still exiting 0.
+		return { usable: false as const, present, reason: (error as Error).message.split("\n")[0] };
 	}
 })();
+
+const piAvailable = piState.usable;
 
 /**
  * Loaded only when pi is present, and any failure now throws.
@@ -136,14 +144,19 @@ describe("test environment", () => {
 	// Always runs, so "the adapter was not tested" is visible in the output
 	// instead of being indistinguishable from "the adapter passed".
 	it(piAvailable ? "has pi linked, so the adapter suite runs" : "reports that the adapter suite was skipped", () => {
-		if (!piAvailable) {
-			console.error(
-				"\n  NOTE: pi is not linked, so the adapter suite did not run.\n" +
-					"  Run `pnpm --filter @portent/pi link-pi` to exercise it.\n" +
-					"  The parity suite below does not need pi.\n",
+		if (piAvailable) return;
+		if (piState.present) {
+			assert.fail(
+				`pi is vendored at packages/pi/node_modules but cannot be imported: ${piState.reason}\n` +
+					"  That is a broken vendoring, not a missing dependency, so the adapter\n" +
+					"  suite is being skipped for the wrong reason. Re-run `pnpm link-pi`.",
 			);
 		}
-		assert.equal(typeof piAvailable, "boolean");
+		console.error(
+			"\n  NOTE: pi is not linked, so the adapter suite did not run.\n" +
+				"  Run `pnpm link-pi` to exercise it.\n" +
+				"  The parity suite below does not need pi.\n",
+		);
 	});
 });
 

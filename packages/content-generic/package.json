@@ -1,18 +1,28 @@
 {
-  "name": "@portent/content",
+  "name": "@portent/content-generic",
   "version": "0.0.0",
-  "description": "Content packs for Portent: dungeon tiles, decks, and random tables. Original writing, CC0.",
-  "keywords": ["rpg", "ttrpg", "dungeon", "tiles", "tables", "content"],
+  "description": "Generic solo-RPG content: decks, tables and dungeon tiles that work in any d20-ish fantasy game. The fallback every other content pack overrides.",
+  "keywords": [
+    "rpg",
+    "ttrpg",
+    "dungeon",
+    "tiles",
+    "tables",
+    "content"
+  ],
   "license": "MIT",
   "author": "Kevan Davis",
   "repository": {
     "type": "git",
     "url": "git+https://github.com/kmdavis/portent.git",
-    "directory": "content"
+    "directory": "packages/content-generic"
   },
   "type": "module",
   "sideEffects": false,
-  "files": ["dist", "README.md"],
+  "files": [
+    "dist",
+    "README.md"
+  ],
   "exports": {
     ".": {
       "development": "./src/index.ts",

@@ -11,9 +11,9 @@
  *
  * ```ts
  * import { createRegistry, rollTableById, yesNo } from "@portent/core";
- * import { portentContent } from "@portent/content";
+ * import { genericContent } from "@portent/content-generic";
  *
- * const registry = createRegistry([portentContent]);
+ * const registry = createRegistry([genericContent]);
  * rollTableById("encounters-dungeon", { registry });
  * yesNo("Is the gate still guarded?", "likely", { registry });
  * ```
@@ -38,10 +38,17 @@ export { decks, tables };
  * oracle. Put a pack of your own after it with `allowOverride` to replace
  * individual entries by id.
  */
-export const portentContent: ContentPack = {
-	id: "portent",
-	name: "Portent core content",
+export const genericContent: ContentPack = {
+	id: "generic",
+	name: "Generic fantasy content",
 	decks,
 	tables,
 	provenance: { source: "original writing for Portent", license: "CC0" },
 };
+
+/**
+ * @deprecated Renamed to {@link genericContent} when content was split into one
+ * package per system. Kept so an in-tree import fails loudly at typecheck rather
+ * than silently resolving to something else.
+ */
+export const portentContent = genericContent;

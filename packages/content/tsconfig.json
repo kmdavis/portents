@@ -1,0 +1,12 @@
+{
+  "extends": "../../tsconfig.base.json",
+  "compilerOptions": {
+    "types": ["node"],
+    // Resolve the sibling package to source, so typechecking the workspace does
+    // not require building lib first.
+    "paths": {
+      "@portent/core": ["../lib/src/index.ts"]
+    }
+  },
+  "include": ["src/**/*.ts"]
+}

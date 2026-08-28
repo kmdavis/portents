@@ -9,5 +9,6 @@ scratch/
 manual/dist/
 
 # pi's own packages, symlinked in for the extension's typecheck (see
-# extensions/pi/scripts/link-pi.mjs). Not on a reachable registry.
-extensions/pi/node_modules/
+# packages/pi/scripts/link-pi.mjs). Outside node_modules so pnpm does not try to
+# manage read-only files it cannot chmod.
+packages/pi/node_modules/

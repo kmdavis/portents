@@ -1,5 +1,5 @@
 {
-  "extends": "../tsconfig.base.json",
+  "extends": "../../tsconfig.base.json",
   "compilerOptions": {
     // DOM is here for the browser adapter (IndexedDB) and node for the Node
     // adapter. Neither is a licence for engine code to use them: the real

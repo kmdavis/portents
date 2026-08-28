@@ -10,10 +10,13 @@ importers:
     devDependencies:
       '@portent/content':
         specifier: workspace:*
-        version: link:content
+        version: link:packages/content
+      '@portent/content-generic':
+        specifier: workspace:*
+        version: link:packages/content-generic
       '@portent/core':
         specifier: workspace:*
-        version: link:lib
+        version: link:packages/core
       '@types/node':
         specifier: ^26.3.0
         version: 26.3.0
@@ -24,38 +27,39 @@ importers:
         specifier: ^5.7.0
         version: 5.9.3
 
-  cli:
+  packages/cli:
     dependencies:
       '@portent/content':
         specifier: workspace:*
         version: link:../content
       '@portent/core':
         specifier: workspace:*
-        version: link:../lib
+        version: link:../core
     optionalDependencies:
       '@resvg/resvg-js':
         specifier: ^2.6.2
         version: 2.6.2
 
-  content:
+  packages/content:
+    dependencies:
+      '@portent/content-generic':
+        specifier: workspace:*
+        version: link:../content-generic
     devDependencies:
       '@portent/core':
         specifier: workspace:*
-        version: link:../lib
+        version: link:../core
+
+  packages/content-generic:
+    devDependencies:
+      '@portent/core':
+        specifier: workspace:*
+        version: link:../core
       typescript:
         specifier: ^5.7.0
         version: 5.9.3
 
-  extensions/pi:
-    devDependencies:
-      '@portent/content':
-        specifier: workspace:*
-        version: link:../../content
-      '@portent/core':
-        specifier: workspace:*
-        version: link:../../lib
-
-  lib:
+  packages/core:
     devDependencies:
       esbuild:
         specifier: ^0.25.0
@@ -63,6 +67,15 @@ importers:
       typescript:
         specifier: ^5.7.0
         version: 5.9.3
+
+  packages/pi:
+    devDependencies:
+      '@portent/content':
+        specifier: workspace:*
+        version: link:../content
+      '@portent/core':
+        specifier: workspace:*
+        version: link:../core
 
 packages:
 

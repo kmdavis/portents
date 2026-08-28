@@ -2,18 +2,30 @@
   "name": "@portent/core",
   "version": "0.0.0",
   "description": "Solo tabletop RPG engine: dice, oracles, decks, random tables, and map tiles that render identically as text and as vectors. Runs in Node and the browser.",
-  "keywords": ["rpg", "ttrpg", "dice", "oracle", "solo", "dungeon", "tiles", "generator"],
+  "keywords": [
+    "rpg",
+    "ttrpg",
+    "dice",
+    "oracle",
+    "solo",
+    "dungeon",
+    "tiles",
+    "generator"
+  ],
   "license": "MIT",
   "author": "Kevan Davis",
   "repository": {
     "type": "git",
     "url": "git+https://github.com/kmdavis/portent.git",
-    "directory": "lib"
+    "directory": "packages/core"
   },
-  "homepage": "https://github.com/kmdavis/portent/tree/main/lib#readme",
+  "homepage": "https://github.com/kmdavis/portent/tree/main/packages/core#readme",
   "type": "module",
   "sideEffects": false,
-  "files": ["dist", "README.md"],
+  "files": [
+    "dist",
+    "README.md"
+  ],
   "exports": {
     ".": {
       "development": "./src/index.ts",

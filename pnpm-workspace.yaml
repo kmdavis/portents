@@ -1,8 +1,6 @@
 packages:
-  - lib
-  - content
-  - cli
-  - web
-  - extensions/*
+  - packages/*
+  - manual
 onlyBuiltDependencies:
   - esbuild
+  - "@resvg/resvg-js"

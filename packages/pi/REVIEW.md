@@ -11,7 +11,7 @@ not a review.
 
 | Severity | Finding | What was wrong |
 |---|---|---|
-| critical | Typecheck resolves siblings to unbuilt dist | Resolved `@portent/core` via the `types` condition, so a clean checkout failed before anything was built. Fixed with `customConditions: ["development"]`, verified with `lib/dist` and `content/dist` deleted. |
+| critical | Typecheck resolves siblings to unbuilt dist | Resolved `@portent/core` via the `types` condition, so a clean checkout failed before anything was built. Fixed with `customConditions: ["development"]`, verified with the packages' `dist` directories deleted. |
 | critical | Silent link step leaves typecheck failing | `link-pi.mjs >/dev/null 2>&1` hid the only useful message, and made `typecheck` write symlinks as a side effect. That side effect corrupted my own verification of it. |
 | medium | A broken import silently skips the whole suite | Worse than reported: contributed `tests 0` and exited 0, so a broken `@portent/core` looked identical to a missing pi. Presence is probed directly now, and absence is reported by a test that always runs. |
 | medium | Deck status and shuffle draw a card instead | `status`/`shuffle`/`recent` fell through to an ephemeral draw with no campaign, returning a card the GM would narrate as real. |
@@ -35,7 +35,7 @@ than rushed into this one.
 | medium | Skills never load from a path with a space | `new URL(...).pathname` percent-encodes. Wants `fileURLToPath`, plus a test that a spaced path resolves -- and I want the test to be a real temporary directory rather than a mocked path. |
 | medium | New sheets ignore the campaign's system | `createCharacter` stamps 5E section headings onto a Cthulhu sheet. The fix is a per-system section list, which is a content decision rather than an adapter one. |
 | medium | Parity never checks the messages it pins | The rejection fixtures assert that both sides throw, not that they say the same thing. Tightening it means deciding whether message text is part of the contract; I think it is, which makes this a fixture recapture. |
-| medium | `oracleAnswer` has no library test | It is exercised only through the harness, which needs pi. It belongs in `lib/src/oracle/oracle.test.ts`. |
+| medium | `oracleAnswer` has no library test | It is exercised only through the harness, which needs pi. It belongs in `packages/core/src/oracle/oracle.test.ts`. |
 | minor | Each die in a batch rewrites `campaign.md` | Six ability scores rewrite the file six times, and the repeat cap is fifty. Wants a counter that flushes once per batch. |
 | minor | A new oracle kind answers as a GM move | `gm_move` is the `default:` branch, so a seventh kind would silently misroute. Wants an exhaustive switch with a throwing default. |
 | minor | Saving a map is dropped with no campaign | `save_as` is silently ignored. Should say so. |

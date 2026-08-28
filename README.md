@@ -17,11 +17,11 @@ can be spotted.
 
 | Package | Directory | What it is |
 | --- | --- | --- |
-| `@portent/core` | [`lib/`](lib) | The engine. Runs in Node and the browser. |
-| `@portent/content` | [`content/`](content) | 27 tiles, 6 decks, 23 tables. Data only, no behaviour. |
-| `@portent/cli` | `cli/` | `portent roll 6#4d6kh3` and friends. Not written yet. |
-| `@portent/pi` | `extensions/pi/` | Extension for the [pi](https://pi.dev) coding agent. Not ported yet. |
-| `@portent/web` | `web/` | Browser wrapper. Not written yet. |
+| `@portent/core` | [`packages/core/`](packages/core) | The engine. Runs in Node and the browser. |
+| `@portent/content` | [`packages/content/`](packages/content) | Batteries included: generic plus common systems. |
+| `@portent/content-generic` | [`packages/content-generic/`](packages/content-generic) | The generic fallback every other pack overrides. |
+| `@portent/cli` | [`packages/cli/`](packages/cli) | `portent roll`, `portent map`, and friends. |
+| `@portent/pi` | [`packages/pi/`](packages/pi) | Runs a game inside the pi coding agent. |
 
 Content is a separate package from the engine because content is the part people
 will want to fork, extend and version independently. The engine knows how to
@@ -127,7 +127,7 @@ exitsOf(tile);      // derived from the art, never declared
 
 Dice notation follows Foundry VTT: `4d6kh3`, `2d20kl1`, `1d6x`, `4d6r1`,
 `1d20min10`, `5d10cs>=7`, `d%`, `4dF`, `floor((2d6+3)/2)*2`, `8d6 # fireball`,
-and a leading `6#` to repeat. Full table in [`lib/README.md`](lib/README.md).
+and a leading `6#` to repeat. Full table in [`packages/core/README.md`](packages/core/README.md).
 
 ## Playing with it
 
@@ -162,7 +162,7 @@ portent oracle "is the gate still guarded?" --likelihood unlikely
 ```
 
 Every command takes `--json` for scripting and `--seed` for reproducibility. See
-[cli/README.md](cli/README.md).
+[packages/cli/README.md](packages/cli/README.md).
 
 ## Where data lives
 
@@ -177,7 +177,7 @@ of sync is **reported rather than silently resolved**.
 ## How it stays portable
 
 The engine is synchronous and depends on nothing but interfaces in
-`lib/src/ports`. Persistence is the one asynchronous seam, because IndexedDB
+`packages/core/src/ports`. Persistence is the one asynchronous seam, because IndexedDB
 cannot be synchronous:
 
 ```
@@ -190,7 +190,7 @@ cannot be synchronous:
 
 Three mechanisms keep that honest rather than aspirational:
 
-1. `lib/src/isomorphism.test.ts` scans every source file and fails on a `node:`
+1. `packages/core/src/isomorphism.test.ts` scans every source file and fails on a `node:`
    import, `process`, `Buffer`, or a DOM global outside the two platform
    adapters. The rule is symmetrical — `document` breaks Node exactly as
    `node:fs` breaks the browser.
@@ -254,4 +254,4 @@ Code is MIT. See [LICENSE](LICENSE).
 
 There is no contribution process yet; the API is still moving. If you want to
 add a tile set or a content pack, the formats are documented in
-[`lib/README.md`](lib/README.md) and the tests will tell you what you got wrong.
+[`packages/core/README.md`](packages/core/README.md) and the tests will tell you what you got wrong.

@@ -23,10 +23,10 @@ import {
 	tableReferences,
 } from "@portent/core";
 import { decks } from "./decks/index.ts";
-import { portentContent } from "./index.ts";
+import { genericContent } from "./index.ts";
 import { tables } from "./tables/index.ts";
 
-const registry = createRegistry([portentContent]);
+const registry = createRegistry([genericContent]);
 
 describe("the pack loads", () => {
 	it("indexes without duplicate ids", () => {
