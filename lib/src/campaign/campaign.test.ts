@@ -70,8 +70,10 @@ describe("creating a campaign", () => {
 		const { data, body } = parseDocument(text);
 		assert.equal(data.name, "The Bell of Wrenfield");
 		assert.equal(data.slug, "the-bell-of-wrenfield");
-		assert.equal(data.system, "5e");
-		assert.equal(data.edition, "2024");
+		// One freeform line, not two keys, and no quoting of a year that looks numeric.
+		assert.equal(data.system, "5e (2024)");
+		assert.ok(!("edition" in data), "edition should not be a separate key");
+		assert.match(text, /^system: 5e \(2024\)$/m);
 		assert.match(body, /## Premise/);
 		assert.match(body, /A drowned village rings its bell at midnight\./);
 		assert.match(body, /No harm to children\./);
@@ -88,16 +90,52 @@ describe("creating a campaign", () => {
 	});
 
 	it("honours an explicitly older printing", async () => {
-		const campaign = await Campaign.create(deps(), { name: "Old Ways", system: "5e", edition: "2014" });
+		const campaign = await Campaign.create(deps(), { name: "Old Ways", system: "5e (2014)" });
 		assert.equal(campaign.edition, "2014");
+		assert.equal(campaign.systemLine, "5e (2014)");
 	});
 
 	it("refuses a printing from another system rather than quietly falling back", async () => {
 		// A silent fallback hands the player the wrong character creation rules with
 		// no way to notice.
 		await assert.rejects(
-			() => Campaign.create(deps(), { name: "Mixed", system: "5e", edition: "remaster" }),
-			/not a printing of "5e"/,
+			() => Campaign.create(deps(), { name: "Mixed", system: "5e (remaster)" }),
+			/is a printing of "pf2e", not "5e"/,
+		);
+	});
+
+	it("catches a typo in the printing", async () => {
+		await assert.rejects(
+			() => Campaign.create(deps(), { name: "Typo", system: "5e (2025)" }),
+			/Unknown printing "2025"/,
+		);
+	});
+
+	it("accepts a system it has never heard of", async () => {
+		// Sheets already take whatever keys a system needs; refusing to record an
+		// unusual system would contradict that.
+		const campaign = await Campaign.create(deps(), { name: "Arkham", system: "Call of Cthulhu 7e" });
+		assert.equal(campaign.system, "Call of Cthulhu 7e");
+		assert.equal(campaign.edition, undefined);
+		assert.equal(campaign.systemLine, "Call of Cthulhu 7e");
+		assert.deepEqual(await campaign.problems(), [], "an unknown system should not be nagged about printings");
+	});
+
+	it("keeps an unknown system's printing verbatim", async () => {
+		const campaign = await Campaign.create(deps(), { name: "Doskvol", system: "Blades in the Dark (2nd printing)" });
+		assert.equal(campaign.system, "Blades in the Dark");
+		assert.equal(campaign.edition, "2nd printing");
+	});
+
+	it("takes the printing as a separate argument too", async () => {
+		const campaign = await Campaign.create(deps(), { name: "Old Ways 2", system: "5e", edition: "2014" });
+		assert.equal(campaign.systemLine, "5e (2014)");
+	});
+
+	it("refuses a system line and edition that disagree", async () => {
+		await assert.rejects(
+			() => Campaign.create(deps(), { name: "Conflict", system: "5e (2024)", edition: "2014" }),
+			/pick one/,
 		);
 	});
 
@@ -122,12 +160,9 @@ describe("creating a campaign", () => {
 		await assert.rejects(() => Campaign.create(d, INPUT), /already exists/);
 	});
 
-	it("refuses a nameless or unknown-system campaign", async () => {
+	it("refuses a nameless campaign, or one with no system at all", async () => {
 		await assert.rejects(() => Campaign.create(deps(), { name: "  ", system: "5e" }), /needs a name/);
-		await assert.rejects(
-			() => Campaign.create(deps(), { name: "X", system: "nope" as "5e" }),
-			/Unknown system/,
-		);
+		await assert.rejects(() => Campaign.create(deps(), { name: "X", system: "  " }), /needs a system/);
 	});
 });
 
@@ -166,6 +201,7 @@ describe("opening and listing", () => {
 		const list = await Campaign.list(d);
 		assert.deepEqual(list.map((entry) => entry.slug), ["second", "first"]);
 		assert.equal(list[0].edition, "remaster");
+		assert.equal(list[0].systemLine, "pf2e (remaster)");
 		assert.equal(list[0].scene, "Later.");
 	});
 
@@ -473,7 +509,9 @@ describe("the resume brief", () => {
 
 		const brief = await campaign.brief();
 		assert.match(brief, /# The Bell of Wrenfield/);
-		assert.match(brief, /2024 revision/);
+		// The printing echoes what the user wrote rather than being prettified,
+		// which is the point of a freeform field.
+		assert.match(brief, /Fifth-edition d20 fantasy, 2024 — the current core rules/);
 		assert.match(brief, /On the causeway at low tide\./);
 		assert.match(brief, /\*\*Brannoc\*\* — HP 19\/26/);
 		assert.match(brief, /The tide returns.*4\/6/);
@@ -527,7 +565,9 @@ describe("problems", () => {
 		const keys = campaignKeys("the-bell-of-wrenfield");
 		await d.storage.write(keys.overview, "---\nname: X\nslug: the-bell-of-wrenfield\nsystem: 5e\n---\n\n# X\n");
 		const reopened = await Campaign.open(d, "the-bell-of-wrenfield");
-		assert.match((await reopened.problems())[0], /more than one printing but none is recorded/);
+		const problems = await reopened.problems();
+		assert.match(problems[0], /more than one printing but none is recorded/);
+		assert.match(problems[0], /write it as "5e \(2024\)"/);
 	});
 
 	it("notices an active character with no sheet", async () => {

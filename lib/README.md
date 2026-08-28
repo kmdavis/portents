@@ -461,8 +461,7 @@ Which produces a file that reads like this:
 ```markdown
 ---
 name: The Bell of Wrenfield
-system: 5e
-edition: "2024"
+system: 5e (2024)
 scene:
   summary: At the causeway.
   location: Wrenfield
@@ -502,15 +501,33 @@ recent journal scenes, recent ledger ids, and anything inconsistent. With no
 scene recorded it says so explicitly, and tells the GM to **ask** rather than
 invent.
 
-### Which printing of the rules
+### The system is one freeform line
 
-Both major systems have had a revision that changed character creation, so a GM
-that guesses wrong hands the player rules they never agreed to. `5e` defaults to
-`2024` and `pf2e` to the `remaster`: **the newer printing always wins**, since
-someone who wants the older one knows they want it.
+```yaml
+system: 5e (2024)
+system: pf2e (remaster)
+system: Call of Cthulhu 7e
+system: Blades in the Dark (2nd printing)
+```
 
-Asking for a printing that belongs to the other system is an **error, not a
-fallback** -- a silent fallback would leave the player unable to notice.
+A system and its printing are one fact about a table, so they are one line rather
+than two keys. The system is **any string**: nothing in this library assumes d20,
+sheets take whatever keys a system needs, and refusing to record a campaign of
+something unusual would contradict that.
+
+The safety is kept where it matters. Two systems in wide use have had a revision
+that changed character creation, so for those the printing is checked:
+
+| Written | Result |
+|---|---|
+| `5e` | `5e (2024)` -- the newer printing always wins |
+| `5e (2014)` | kept; someone who wants the older one knows it |
+| `5e (2025)` | **error:** `Unknown printing "2025" for "5e". Use one of: 2024, 2014` |
+| `5e (remaster)` | **error:** `"remaster" is a printing of "pf2e", not "5e"` |
+| `Traveller (Mongoose 2e)` | kept verbatim; an unknown system is not second-guessed |
+
+Never a silent fallback -- that would leave the player unable to notice they had
+been handed the wrong character creation rules.
 
 ## The roll ledger
 

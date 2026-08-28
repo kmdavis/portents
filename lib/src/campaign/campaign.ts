@@ -62,9 +62,10 @@ import {
 	defaultEdition,
 	describeRules,
 	type Edition,
-	isEdition,
-	isRulesSystem,
-	resolveEdition,
+	formatSystem,
+	knownSystem,
+	parseSystem,
+	resolveSystemLine,
 	type RulesSystem,
 	systemLabel,
 } from "./editions.ts";
@@ -145,13 +146,17 @@ export interface CampaignSummary {
 	readonly name: string;
 	readonly system: RulesSystem;
 	readonly edition?: Edition;
+	/** The line as written: `"5e (2024)"`. */
+	readonly systemLine?: string;
 	readonly updatedAt?: string;
 	readonly scene?: string;
 }
 
 export interface CreateCampaignInput {
 	readonly name: string;
-	readonly system: RulesSystem;
+	/** Freeform, and may carry its printing: `"5e"`, `"5e (2024)"`, `"Call of Cthulhu 7e"`. */
+	readonly system: string;
+	/** An alternative to putting the printing in {@link system}. Supplying both, in conflict, is an error. */
 	readonly edition?: string;
 	readonly premise?: string;
 	readonly tone?: string;
@@ -227,20 +232,20 @@ export class Campaign {
 
 	static async create(deps: CampaignDeps, input: CreateCampaignInput): Promise<Campaign> {
 		if (!input.name.trim()) throw new CampaignError("A campaign needs a name");
-		if (!isRulesSystem(input.system)) throw new CampaignError(`Unknown system ${JSON.stringify(input.system)}`);
 		const slug = slugify(input.name);
 		const keys = campaignKeys(slug);
 		if (await deps.storage.exists(keys.overview)) {
 			throw new CampaignError(`Campaign "${slug}" already exists`);
 		}
 
-		const edition = resolveEdition(input.system, input.edition);
+		const { system, edition } = resolveSystemLine(input.system, input.edition);
 		const now = deps.clock.iso();
 		const data: Frontmatter = {
 			name: input.name.trim(),
 			slug,
-			system: input.system,
-			...(edition ? { edition } : {}),
+			// One freeform line: "5e (2024)". A system and its printing are one fact
+			// about a table, and two keys made the frontmatter read like a form.
+			system: formatSystem(system, edition),
 			createdAt: now,
 			updatedAt: now,
 			counters: { sessions: 0, rolls: 0, draws: 0 },
@@ -249,7 +254,7 @@ export class Campaign {
 		const body = [
 			`# ${input.name.trim()}`,
 			"",
-			`_${describeRules(input.system, edition)}_`,
+			`_${describeRules(system, edition)}_`,
 			"",
 			"## Premise",
 			"",
@@ -321,14 +326,15 @@ export class Campaign {
 			try {
 				const { data } = parseDocument(text);
 				const slug = typeof data.slug === "string" ? data.slug : key.split("/").at(-2)!;
-				const system = typeof data.system === "string" && isRulesSystem(data.system) ? data.system : "generic";
-				const edition = typeof data.edition === "string" && isEdition(data.edition) ? data.edition : undefined;
+				const line = typeof data.system === "string" ? data.system : "generic";
+				const { system, edition } = parseSystem(line);
 				const scene = asMap(data.scene).summary;
 				summaries.push({
 					slug,
 					name: typeof data.name === "string" ? data.name : slug,
 					system,
 					...(edition ? { edition } : {}),
+					systemLine: line,
 					...(typeof data.updatedAt === "string" ? { updatedAt: data.updatedAt } : {}),
 					...(scene ? { scene: String(scene) } : {}),
 				});
@@ -352,14 +358,27 @@ export class Campaign {
 		return String(this.#data.name);
 	}
 
+	/** The system alone: `"5e"` from `5e (2024)`. */
 	get system(): RulesSystem {
-		const value = this.#data.system;
-		return typeof value === "string" && isRulesSystem(value) ? value : "generic";
+		return this.#parsedSystem().system;
 	}
 
+	/** The printing alone: `"2024"` from `5e (2024)`. */
 	get edition(): Edition | undefined {
-		const value = this.#data.edition;
-		return typeof value === "string" && isEdition(value) ? value : undefined;
+		return this.#parsedSystem().edition;
+	}
+
+	/** The whole line as written: `"5e (2024)"`. */
+	get systemLine(): string {
+		return typeof this.#data.system === "string" ? this.#data.system : "generic";
+	}
+
+	#parsedSystem(): { system: string; edition?: string } {
+		try {
+			return parseSystem(this.systemLine);
+		} catch {
+			return { system: "generic" };
+		}
 	}
 
 	get keys() {
@@ -761,10 +780,12 @@ export class Campaign {
 			problems.push("the campaign has no name in its frontmatter");
 		}
 		if (this.#data.system === undefined) problems.push("the campaign has no system recorded");
-		if (this.system !== "generic" && this.edition === undefined) {
+		// Only for a system whose printings are known: an unusual system is nobody's
+		// business to second-guess.
+		if (knownSystem(this.system) && defaultEdition(this.system) && this.edition === undefined) {
 			problems.push(
 				`${systemLabel(this.system)} has more than one printing but none is recorded; ` +
-					`set it before character creation (default ${defaultEdition(this.system)})`,
+					`write it as "${formatSystem(this.system, defaultEdition(this.system))}" before character creation`,
 			);
 		}
 		for (const clock of this.clocks) {
