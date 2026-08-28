@@ -529,8 +529,7 @@ async function send(text: string, options: { show?: boolean } = {}): Promise<voi
 	waiting.className = "waiting";
 	waiting.setAttribute("aria-label", "The GM is thinking");
 	waiting.append(...[0, 1, 2].map(() => document.createElement("span")));
-	transcript.append(waiting);
-	scrollDown();
+	view.pending(waiting);
 
 	view.startTurn();
 	openThinking = undefined;

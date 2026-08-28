@@ -182,6 +182,33 @@ describe("turn rows", () => {
 		assert.equal(prose[0].textContent, "First half. Second half.");
 	});
 
+	it("puts a pending indicator in the player's column, not the gutter", () => {
+		// The transcript is a two-column grid, so appending to its root put the "GM is
+		// thinking" dots in the private gutter instead of where the player reads.
+		const { transcript } = fresh();
+		transcript.startTurn();
+		const dots = document.createElement("div");
+		dots.className = "waiting";
+		transcript.pending(dots);
+
+		assert.equal(dots.parentElement?.className, "turn-content");
+	});
+
+	it("does not let a pending indicator split the narration", () => {
+		// It is removed on the first token, so it must not close the prose block.
+		const { transcript } = fresh();
+		transcript.startTurn();
+		transcript.stream("First half. ");
+		const dots = transcript.pending(document.createElement("div"));
+		transcript.stream("Second half.");
+		dots.remove();
+		transcript.end();
+
+		const prose = contentBlocks(transcript).filter((block) => block.className === "turn gm");
+		assert.equal(prose.length, 1, "the indicator split the narration");
+		assert.equal(prose[0].textContent, "First half. Second half.");
+	});
+
 	it("creates a row for a caller that forgot to start a turn", () => {
 		const { transcript } = fresh();
 		transcript.stream("straight in");

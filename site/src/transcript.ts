@@ -121,6 +121,22 @@ export class Transcript {
 		return block;
 	}
 
+	/**
+	 * Add a transient element to the player's column, without closing the prose block.
+	 *
+	 * For the waiting indicator. It was previously appended to the transcript root,
+	 * which in a two-column grid means the first column -- so the "GM is thinking" dots
+	 * appeared in the private gutter rather than where the player was reading.
+	 *
+	 * Unlike {@link add} this leaves the open prose block open, because the indicator is
+	 * removed the moment the first token arrives and should not split the narration.
+	 */
+	pending(block: HTMLElement): HTMLElement {
+		this.#cells().content.append(block);
+		this.#onChange();
+		return block;
+	}
+
 	/** The current row, creating one if a caller skipped startTurn. */
 	#cells(): { row: HTMLElement; aside: HTMLElement; content: HTMLElement } {
 		if (!this.#row) this.startTurn();
