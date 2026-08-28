@@ -30,10 +30,12 @@
  */
 
 import type { ContentPack } from "@portent/core";
+import { dnd2014Content, dnd2024Content } from "@portent/content-dnd";
 import { genericContent } from "@portent/content-generic";
 
 export { genericContent } from "@portent/content-generic";
 export * from "@portent/content-generic";
+export { dnd2014Content, dnd2024Content, SRD_5_1, SRD_5_2_1 } from "@portent/content-dnd";
 
 /**
  * Every bundled pack, generic first.
@@ -41,7 +43,7 @@ export * from "@portent/content-generic";
  * Pass the whole array to `createRegistry`: the order is the override order, and
  * getting it wrong is how a system's own table gets shadowed by the generic one.
  */
-export const commonContent: readonly ContentPack[] = [genericContent];
+export const commonContent: readonly ContentPack[] = [genericContent, dnd2014Content, dnd2024Content];
 
 /** Which systems this bundle covers, for a caller that wants to say so. */
-export const bundledSystems: readonly string[] = ["generic"];
+export const bundledSystems: readonly string[] = ["generic", "5e (2014)", "5e (2024)"];

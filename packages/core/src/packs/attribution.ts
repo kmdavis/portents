@@ -45,11 +45,32 @@
  * ORC are **not** in the SPDX list, which is why no content here uses them: the
  * package metadata could not express the licence it was actually under.
  */
-export const CONTENT_LICENSES = ["CC0-1.0", "CC-BY-4.0", "public domain"] as const;
+export const CONTENT_LICENSES = ["CC0-1.0", "CC-BY-4.0", "public domain", "UNLICENSED"] as const;
 export type ContentLicense = (typeof CONTENT_LICENSES)[number];
 
 /** Licences whose conditions require an {@link Attribution} block. */
 export const ATTRIBUTION_REQUIRED: readonly ContentLicense[] = ["CC-BY-4.0"];
+
+/**
+ * Content nobody has the right to redistribute.
+ *
+ * `UNLICENSED` is npm's documented value for "I grant no rights", and it is not
+ * a licence — it is the *absence* of one. Owning a rulebook lets you use it; it
+ * does not let you publish its tables. So a table typed out of a book you own,
+ * for your own game, is `UNLICENSED`: usable locally, never distributable.
+ *
+ * Marking it honestly is the point. The alternative is content with a plausible
+ * licence field that nobody checked, sitting in a package that looks publishable.
+ *
+ * A package containing any of it **must** be private. That is enforced, not
+ * advised: see the `publishable` check in the licence conformance suite.
+ */
+export const NON_DISTRIBUTABLE: readonly ContentLicense[] = ["UNLICENSED"];
+
+/** Whether this licence forbids redistribution outright. */
+export function isDistributable(license: string): boolean {
+	return !(NON_DISTRIBUTABLE as readonly string[]).includes(license);
+}
 
 export function isContentLicense(value: string): value is ContentLicense {
 	return (CONTENT_LICENSES as readonly string[]).includes(value);
@@ -119,6 +140,21 @@ export function provenanceProblems(id: string, provenance: Provenance | undefine
 			`${id} declares the licence ${JSON.stringify(license)}, which is not one this project carries ` +
 				`(${CONTENT_LICENSES.join(", ")}). Adding one is a deliberate decision, not a typo fix.`,
 		);
+	}
+
+	if (license === "UNLICENSED") {
+		// No attribution can make this distributable, so the only thing to check is
+		// that the pack is honest about where it came from.
+		if (!provenance.source.trim()) {
+			problems.push(`${id} is UNLICENSED but does not say what it came from`);
+		}
+		if (attribution) {
+			problems.push(
+				`${id} is UNLICENSED and carries an attribution block; attribution does not create a right to ` +
+					"redistribute, and the block implies one exists",
+			);
+		}
+		return problems;
 	}
 
 	if (license === "CC0-1.0" && !/original writing/i.test(provenance.source)) {
@@ -205,7 +241,11 @@ export function renderNotice(
 	packageName: string,
 	items: readonly AttributedItem[],
 ): string | undefined {
-	const attributed = items.filter((item) => item.provenance?.attribution);
+	// Non-distributable content is never listed: a NOTICE is a document you ship,
+	// and this content is not shipped. A package containing it is private.
+	const attributed = items.filter(
+		(item) => item.provenance?.attribution && isDistributable(item.provenance.license ?? ""),
+	);
 	if (attributed.length === 0) return undefined;
 
 	// One entry per distinct work, not per table: five tables adapted from one
@@ -249,6 +289,10 @@ export function packageLicenseFor(items: readonly AttributedItem[]): string {
 		if (item.provenance?.license) licenses.add(item.provenance.license);
 	}
 	if (licenses.size === 0) return "CC0-1.0";
+	// UNLICENSED dominates. One non-distributable table makes the whole package
+	// non-distributable, and an SPDX expression mixing it with CC0 would imply
+	// parts could be extracted and shared, which is exactly the wrong signal.
+	if (licenses.has("UNLICENSED")) return "UNLICENSED";
 	// "public domain" is a statement of fact, not a licence grant, so it does not
 	// widen the expression: a public-domain item inside a CC0 package is still CC0.
 	licenses.delete("public domain");

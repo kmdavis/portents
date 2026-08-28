@@ -187,6 +187,8 @@ export {
 	CONTENT_LICENSES,
 	type ContentLicense,
 	isContentLicense,
+	isDistributable,
+	NON_DISTRIBUTABLE,
 	packageLicenseFor,
 	provenanceProblems,
 	renderAttribution,

@@ -10,7 +10,7 @@
     "tables",
     "decks"
   ],
-  "license": "CC0-1.0",
+  "license": "CC-BY-4.0 AND CC0-1.0",
   "author": "Kevan Davis",
   "repository": {
     "type": "git",
@@ -40,7 +40,8 @@
     "@portent/core": "workspace:*"
   },
   "dependencies": {
-    "@portent/content-generic": "workspace:*"
+    "@portent/content-generic": "workspace:*",
+    "@portent/content-dnd": "workspace:*"
   },
   "devDependencies": {
     "@portent/core": "workspace:*"

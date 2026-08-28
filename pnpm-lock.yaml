@@ -42,9 +42,27 @@ importers:
 
   packages/content:
     dependencies:
+      '@portent/content-dnd':
+        specifier: workspace:*
+        version: link:../content-dnd
       '@portent/content-generic':
         specifier: workspace:*
         version: link:../content-generic
+    devDependencies:
+      '@portent/core':
+        specifier: workspace:*
+        version: link:../core
+
+  packages/content-dnd:
+    devDependencies:
+      '@portent/content-generic':
+        specifier: workspace:*
+        version: link:../content-generic
+      '@portent/core':
+        specifier: workspace:*
+        version: link:../core
+
+  packages/content-dnd-personal:
     devDependencies:
       '@portent/core':
         specifier: workspace:*

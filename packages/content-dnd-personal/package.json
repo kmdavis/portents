@@ -1,0 +1,24 @@
+{
+  "name": "@portent/content-dnd-personal",
+  "version": "0.0.0",
+  "private": true,
+  "license": "UNLICENSED",
+  "description": "LOCAL ONLY. A place to type content out of rulebooks you own, for your own game. Never published.",
+  "author": "Kevan Davis",
+  "type": "module",
+  "sideEffects": false,
+  "files": [],
+  "exports": {
+    ".": {
+      "development": "./src/index.ts",
+      "types": "./dist/index.d.ts",
+      "default": "./dist/index.js"
+    }
+  },
+  "scripts": {
+    "test": "node --conditions=development --test 'src/**/*.test.ts'",
+    "typecheck": "tsc -p tsconfig.json --noEmit"
+  },
+  "peerDependencies": { "@portent/core": "workspace:*" },
+  "devDependencies": { "@portent/core": "workspace:*" }
+}

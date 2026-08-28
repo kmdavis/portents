@@ -4,6 +4,7 @@ import {
 	type Attribution,
 	CONTENT_LICENSES,
 	isContentLicense,
+	isDistributable,
 	packageLicenseFor,
 	type Provenance,
 	provenanceProblems,
@@ -35,7 +36,10 @@ const adapted: Attribution = {
 
 describe("the licence list", () => {
 	it("is short on purpose, and every entry is a real SPDX id or a plain statement", () => {
-		assert.deepEqual([...CONTENT_LICENSES], ["CC0-1.0", "CC-BY-4.0", "public domain"]);
+		// UNLICENSED is npm's documented value for "no rights granted". It is not a
+		// licence, which is exactly why it is listed: content with no licence needs
+		// somewhere honest to sit.
+		assert.deepEqual([...CONTENT_LICENSES], ["CC0-1.0", "CC-BY-4.0", "public domain", "UNLICENSED"]);
 		for (const licence of CONTENT_LICENSES) assert.ok(isContentLicense(licence));
 		assert.ok(!isContentLicense("OGL-1.0a"), "the OGL is not SPDX and must not be accepted");
 		assert.ok(!isContentLicense("ORC-1.0"), "ORC is not SPDX and must not be accepted");
@@ -207,5 +211,76 @@ describe("the package licence field", () => {
 			]),
 			"CC0-1.0",
 		);
+	});
+});
+
+describe("content nobody may redistribute", () => {
+	const personal = {
+		source: "typed from a rulebook I own, for my own game",
+		license: "UNLICENSED" as const,
+	};
+
+	it("is recognised as non-distributable", () => {
+		assert.ok(!isDistributable("UNLICENSED"));
+		assert.ok(isDistributable("CC0-1.0"));
+		assert.ok(isDistributable("CC-BY-4.0"));
+		assert.ok(isDistributable("public domain"));
+	});
+
+	it("passes on its own terms, needing no attribution", () => {
+		// There is no attribution that would make it shareable, so demanding one
+		// would be theatre.
+		assert.deepEqual(provenanceProblems("table:phb-wild-magic", personal), []);
+	});
+
+	it("refuses an attribution block, which would imply a right that does not exist", () => {
+		assert.match(
+			provenanceProblems("t", { ...personal, attribution: adapted })[0],
+			/attribution does not create a right to redistribute/,
+		);
+	});
+
+	it("still has to say where it came from", () => {
+		assert.match(provenanceProblems("t", { source: "  ", license: "UNLICENSED" })[0], /does not say what it came from/);
+	});
+
+	it("dominates the package licence, rather than mixing", () => {
+		// An expression like "CC0-1.0 AND UNLICENSED" would imply the CC0 parts could
+		// be extracted and shared, which is the wrong signal on a private package.
+		assert.equal(
+			packageLicenseFor([{ id: "a", provenance: original }, { id: "b", provenance: personal }]),
+			"UNLICENSED",
+		);
+	});
+
+	it("is never listed in a NOTICE even if it wrongly carries attribution", () => {
+		// The shape that escaped an earlier mutation: provenanceProblems rejects
+		// UNLICENSED-with-attribution, but renderNotice does not validate, so the
+		// filter has to hold on its own.
+		const notice = renderNotice("mixed", [
+			{ id: "phb", provenance: { ...personal, attribution: { ...adapted, license: "UNLICENSED" } } },
+			{ id: "srd", provenance: { source: "SRD", license: "CC-BY-4.0", attribution: adapted } },
+		])!;
+		assert.doesNotMatch(notice, /rulebook I own/, "non-distributable content reached a shipped notice");
+		assert.equal((notice.match(/^### /gm) ?? []).length, 1);
+	});
+
+	it("is never listed in a NOTICE", () => {
+		// A NOTICE is a document you ship. This content is not shipped.
+		assert.equal(
+			renderNotice("@portent/content-dnd-personal", [
+				{ id: "a", provenance: { ...personal, license: "UNLICENSED" } },
+			]),
+			undefined,
+		);
+	});
+
+	it("does not suppress the notice for content that does need one", () => {
+		const notice = renderNotice("mixed", [
+			{ id: "a", provenance: personal },
+			{ id: "b", provenance: { source: "SRD", license: "CC-BY-4.0", attribution: adapted } },
+		])!;
+		assert.match(notice, /System Reference Document/);
+		assert.doesNotMatch(notice, /rulebook I own/);
 	});
 });

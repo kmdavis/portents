@@ -33,6 +33,7 @@
 
 import {
 	type AttributedItem,
+	isDistributable,
 	type ContentLicense,
 	packageLicenseFor,
 	provenanceProblems,
@@ -64,6 +65,14 @@ export interface LicenceConformanceOptions {
 	readonly noticeExists?: boolean;
 	/** The `license` field the package declares, to check it against the content. */
 	readonly declaredLicense?: string;
+	/**
+	 * Whether the package can be published, i.e. `private` is not true.
+	 *
+	 * When given, a package holding non-distributable content must report `false`.
+	 * This is the check that stops a pack of tables typed out of a rulebook from
+	 * sitting in something publishable.
+	 */
+	readonly publishable?: boolean;
 }
 
 function itemsOf(packs: readonly ContentPack[]): AttributedItem[] {
@@ -139,6 +148,23 @@ export function licenceConformanceCases(options: LicenceConformanceOptions): Lic
 					fail(
 						`the package declares ${JSON.stringify(options.declaredLicense)} but its content is ` +
 							`${JSON.stringify(expected)}`,
+					);
+				}
+			},
+		});
+	}
+
+	if (options.publishable !== undefined) {
+		cases.push({
+			name: "is private if it holds anything non-distributable",
+			run: () => {
+				const offenders = items
+					.filter((item) => item.provenance?.license && !isDistributable(item.provenance.license))
+					.map((item) => item.id);
+				if (offenders.length > 0 && options.publishable) {
+					fail(
+						`this package holds content nobody may redistribute (${offenders.join(", ")}) but is ` +
+							'publishable. Set "private": true and "license": "UNLICENSED".',
 					);
 				}
 			},

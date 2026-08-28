@@ -429,13 +429,26 @@ describe(
 				assert.match(await call("portent_sheet", { action: "read", character: "Brannoc" }), /19\/26/);
 			});
 
-			it("does not stamp one system's headings onto every character", async () => {
-				// The campaign resolves sections from content for its own system. A
-				// hardcoded list here put "Attacks & Spellcasting" on an investigator.
+			it("gives a character the sections its own system asks for", async () => {
+				// This campaign is 5e, so 5E headings are correct here. The bug was a
+				// hardcoded list that gave them to every system; the assertion that
+				// matters is that the sections follow the campaign, which the Cthulhu
+				// case below pins from the other direction.
 				const { readFileSync } = await import("node:fs");
 				const raw = readFileSync(join(home, "campaigns", "harness-test", "characters", "brannoc.md"), "utf8");
-				assert.doesNotMatch(raw, /Attacks & Spellcasting/, "a hardcoded 5E heading came back");
-				assert.match(raw, /## Concept/, "the generic scaffold was not applied");
+				assert.match(raw, /## Attacks & Spellcasting/, "a 5e campaign should get 5e sections");
+			});
+
+			it("gives a different system different sections", async () => {
+				await call("portent_campaign", { action: "create", name: "Arkham Harness", system: "Call of Cthulhu 7e" });
+				const out = await call("portent_sheet", { action: "create", character: "Ashcombe" });
+				assert.match(out, /Generic scaffold|generic/i, "should say it fell back");
+				const { readFileSync } = await import("node:fs");
+				const raw = readFileSync(join(home, "campaigns", "arkham-harness", "characters", "ashcombe.md"), "utf8");
+				assert.doesNotMatch(raw, /Attacks & Spellcasting/, "5E headings on an investigator");
+				assert.match(raw, /## Concept/);
+				// Put the 5e campaign back for the tests that follow.
+				await call("portent_campaign", { action: "load", name: "harness-test" });
 			});
 
 			it("lists characters", async () => {
