@@ -133,16 +133,23 @@ button { font: inherit; cursor: pointer; }
 #map-holder svg { width: 100%; height: auto; display: block; }
 
 /* Behind the screen: the GM's private working, opt-in. */
-#gm-pane {
-	width: 19rem;
-	flex: none;
-	overflow-y: auto;
-	border-right: 1px solid var(--rule);
-	padding-right: 0.9rem;
-}
-#gm-pane h2 { margin: 0; font-size: 0.95rem; border: 0; }
+/* The GM column is a gutter inside the transcript's own scroller, so a turn's private
+   working sits level with what the player saw. One scrollbar, no offset measuring. */
+#transcript { --gm-width: 0rem; }
+#transcript.with-gm { --gm-width: 18rem; }
 
-#gm-log { margin-top: 0.8rem; display: flex; flex-direction: column; gap: 0.5rem; }
+.turn-row {
+	display: grid;
+	grid-template-columns: var(--gm-width) minmax(0, 1fr);
+	gap: 0 1.25rem;
+	align-items: start;
+}
+
+.turn-aside { display: none; flex-direction: column; gap: 0.4rem; padding-top: 1.1rem; }
+#transcript.with-gm .turn-aside { display: flex; border-right: 1px solid var(--rule); padding-right: 0.85rem; }
+
+#gm-header { display: none; }
+#transcript.with-gm ~ #gm-header, .with-gm-header #gm-header { display: block; }
 
 .gm-event {
 	border: 1px solid var(--rule);
@@ -156,6 +163,21 @@ button { font: inherit; cursor: pointer; }
 .gm-event .what { display: flex; gap: 0.4rem; align-items: baseline; }
 .gm-event .tool { color: var(--accent); font-family: ui-monospace, Menlo, monospace; font-size: 0.7rem; }
 .gm-event .turn-no { color: var(--muted); margin-left: auto; font-variant-numeric: tabular-nums; }
+.gm-event p, .gm-event pre { overflow-wrap: anywhere; }
+.gm-event pre code { white-space: pre-wrap; }
+
+/* Thinking, collapsed. Expanding it is a deliberate act. */
+.gm-think summary {
+	cursor: pointer;
+	font-family: ui-sans-serif, system-ui, sans-serif;
+	font-size: 0.76rem;
+	color: var(--muted);
+	list-style: none;
+}
+.gm-think summary::before { content: "▸ "; }
+.gm-think[open] summary::before { content: "▾ "; }
+.gm-think[open] summary { color: var(--accent); }
+.gm-think pre { margin-top: 0.3rem; }
 .gm-event pre { margin: 0.35rem 0 0; padding: 0.35rem 0.45rem; font-size: 0.7rem; white-space: pre-wrap; }
 .gm-event p { margin: 0.2rem 0 0; }
 #gm-empty { color: var(--muted); font-size: 0.8rem; }

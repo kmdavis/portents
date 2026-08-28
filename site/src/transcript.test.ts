@@ -29,6 +29,9 @@ const fresh = () => {
 	return { root, transcript: new Transcript({ root, render }) };
 };
 
+/** The player-visible blocks, flattened out of their per-turn rows. */
+const contentBlocks = (transcript: Transcript): HTMLElement[] => transcript.contentBlocks;
+
 describe("ordering", () => {
 	it("puts a roll before the prose that follows it", () => {
 		// The reported bug. The GM narrates, calls a tool, then narrates the result;
@@ -67,25 +70,26 @@ describe("ordering", () => {
 
 	it("does not merge prose across a tool call", () => {
 		// Each half must be its own block, or the roll cannot sit between them.
-		const { root, transcript } = fresh();
+		const { transcript } = fresh();
 		transcript.stream("First half.");
 		transcript.add("turn roll", "r-1");
 		transcript.stream("Second half.");
 		transcript.end();
 
-		const prose = [...root.children].filter((child) => child.className === "turn gm");
+		const prose = contentBlocks(transcript).filter((block) => block.className === "turn gm");
 		assert.equal(prose.length, 2);
 		assert.equal(prose[0].textContent, "First half.");
 		assert.equal(prose[1].textContent, "Second half.", "prose restarted with the earlier text still attached");
 	});
 
 	it("accumulates streamed chunks within one block", () => {
-		const { root, transcript } = fresh();
+		const { transcript } = fresh();
 		for (const chunk of ["The ", "gate ", "is ", "barred."]) transcript.stream(chunk);
 		transcript.end();
 
-		assert.equal(root.childElementCount, 1);
-		assert.equal(root.firstElementChild?.textContent, "The gate is barred.");
+		const blocks = contentBlocks(transcript);
+		assert.equal(blocks.length, 1);
+		assert.equal(blocks[0].textContent, "The gate is barred.");
 	});
 });
 
@@ -127,5 +131,60 @@ describe("change notification", () => {
 		transcript.end();
 
 		assert.equal(changes, 4);
+	});
+});
+
+describe("turn rows", () => {
+	/**
+	 * Alignment is the reason rows exist.
+	 *
+	 * A flat list of GM events tagged "turn 5" cannot be matched to the exchange it
+	 * belonged to once the transcript is long -- which was the complaint. Each turn is
+	 * now one grid row holding both columns, so the GM's private working sits beside
+	 * what the player saw, with no offset measuring or scroll syncing.
+	 */
+	it("puts a turn's asides and content in the same row", () => {
+		const { transcript } = fresh();
+		transcript.startTurn();
+		transcript.add("turn player", "I open the door.");
+		const aside = document.createElement("div");
+		aside.className = "gm-event";
+		transcript.aside(aside);
+		transcript.stream("It is not locked.");
+		transcript.end();
+
+		assert.equal(transcript.rowCount, 1);
+		assert.ok(aside.parentElement?.className === "turn-aside", "the aside left its column");
+		assert.equal(transcript.order.join(","), "turn player,turn gm");
+	});
+
+	it("starts a new row per turn", () => {
+		const { transcript } = fresh();
+		for (const text of ["one", "two", "three"]) {
+			transcript.startTurn();
+			transcript.stream(text);
+			transcript.end();
+		}
+		assert.equal(transcript.rowCount, 3);
+	});
+
+	it("does not let an aside interrupt the prose block", () => {
+		// The aside is a different column, so unlike a roll it must not split narration.
+		const { transcript } = fresh();
+		transcript.startTurn();
+		transcript.stream("First half. ");
+		transcript.aside(document.createElement("div"));
+		transcript.stream("Second half.");
+		transcript.end();
+
+		const prose = contentBlocks(transcript).filter((block) => block.className === "turn gm");
+		assert.equal(prose.length, 1, "an aside split the narration");
+		assert.equal(prose[0].textContent, "First half. Second half.");
+	});
+
+	it("creates a row for a caller that forgot to start a turn", () => {
+		const { transcript } = fresh();
+		transcript.stream("straight in");
+		assert.equal(transcript.rowCount, 1);
 	});
 });

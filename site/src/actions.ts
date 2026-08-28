@@ -111,6 +111,8 @@ export async function campaignAction(session: WebSession, params: CampaignParams
 export interface SheetParams {
 	action: string;
 	character?: string;
+	/** Promote or refuse to promote this character. Omit to let the engine decide. */
+	main?: boolean;
 	concept?: string;
 	section?: string;
 	body?: string;
@@ -136,9 +138,20 @@ export async function sheetAction(session: WebSession, params: SheetParams): Pro
 					...(params.status ? { status: params.status } : {}),
 					...(params.abilities ? { abilities: params.abilities } : {}),
 				},
-				{ active: true },
+				// Only an explicit `main: true` promotes. Passing `active: true`
+				// unconditionally -- which this did -- made every sidekick the main
+				// character the moment it was created, defeating the engine default that
+				// exists to prevent exactly that.
+				params.main === undefined ? {} : { active: params.main },
 			);
-			return `Created **${params.character}**.\n\n${stringifySheet(sheet)}`;
+			const role = campaign.activeCharacter === params.character ? "main character" : "sidekick";
+			return `Created **${params.character}** as the ${role}.\n\n${stringifySheet(sheet)}`;
+		}
+
+		case "set_main": {
+			if (!params.character) throw new Error("Setting the main character needs a name");
+			await campaign.setActiveCharacter(params.character);
+			return `**${params.character}** is now the main character.`;
 		}
 
 		case "read": {

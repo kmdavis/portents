@@ -127,6 +127,14 @@ export async function stateDigest(session: WebSession): Promise<string | undefin
 export interface TurnHandlers {
 	/** Called with each chunk of the GM's prose. */
 	onText: (delta: string) => void;
+	/**
+	 * Called with each chunk of the model's reasoning, where a model emits it.
+	 *
+	 * Kept separate from prose because it is not narration and must not be rendered as
+	 * such: reasoning routinely says what the oracle returned and what the GM decided
+	 * not to do, which is exactly the material the secrecy rule keeps off the table.
+	 */
+	onReasoning?: (delta: string) => void;
 	/** Called when a step finishes, so the UI can show what the tools did. */
 	onStep?: () => void;
 }
@@ -155,7 +163,12 @@ export async function runTurn(options: {
 		onStepFinish: () => options.handlers.onStep?.(),
 	});
 
-	for await (const delta of result.textStream) options.handlers.onText(delta);
+	// fullStream rather than textStream, so reasoning parts are visible. Providers that
+	// emit none simply never produce those parts.
+	for await (const part of result.fullStream) {
+		if (part.type === "text-delta") options.handlers.onText(part.text);
+		else if (part.type === "reasoning-delta") options.handlers.onReasoning?.(part.text);
+	}
 
 	// The full message list, tool calls and results included, so the next turn has the
 	// same history the model just saw.

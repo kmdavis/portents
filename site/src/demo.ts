@@ -55,12 +55,8 @@ const mapHolder = $("map-holder");
 const toggleMapButton = $<HTMLButtonElement>("toggle-map");
 const rollDialog = $<HTMLDialogElement>("roll-dialog");
 const ledgerDialog = $<HTMLDialogElement>("ledger-dialog");
-const gmPane = $("gm-pane");
-const gmLog = $("gm-log");
+const gmHeader = $("gm-header");
 const toggleGmButton = $<HTMLButtonElement>("toggle-gm");
-
-/** Turn counter, so a GM event can say which exchange it belonged to. */
-let turnNumber = 0;
 
 const GM_PANE_KEY = "portents.demo.gmPane";
 
@@ -178,10 +174,7 @@ function logGmEvent(trace: ToolTrace): void {
 	const tool = document.createElement("span");
 	tool.className = "tool";
 	tool.textContent = trace.name;
-	const turn = document.createElement("span");
-	turn.className = "turn-no";
-	turn.textContent = `turn ${turnNumber}`;
-	head.append(tool, turn);
+	head.append(tool);
 	event.append(head);
 
 	const summary = document.createElement("p");
@@ -189,13 +182,43 @@ function logGmEvent(trace: ToolTrace): void {
 	event.append(summary);
 
 	if (trace.detail) {
-		const detail = document.createElement("pre");
-		detail.textContent = trace.detail;
+		// Rendered, not printed. A table result arrives as markdown, so a raw cell read
+		// "**Names: Human / Common**: Alric Oakenshield".
+		const detail = document.createElement("div");
+		renderProse(detail, trace.detail);
 		event.append(detail);
 	}
 
-	gmLog.append(event);
-	if (!gmPane.hidden) gmPane.scrollTop = gmPane.scrollHeight;
+	// Into this turn's gutter, so it sits level with the exchange it belonged to. The
+	// turn number it used to carry was unusable once the transcript grew past a screen.
+	view.aside(event);
+}
+
+/**
+ * The model's reasoning, collapsed.
+ *
+ * Collapsed rather than shown, even inside the GM pane, and for a stronger reason than
+ * tidiness: reasoning says out loud what the oracle returned and which branch the GM
+ * discarded. A player who opens it has chosen to; one who is glancing at a roll should
+ * not have the next scene spoiled in passing.
+ *
+ * One block per turn, appended to, because reasoning arrives in many small deltas.
+ */
+let openThinking: { details: HTMLElement; body: HTMLElement; text: string } | undefined;
+
+function logThinking(delta: string): void {
+	if (!openThinking) {
+		const details = document.createElement("details");
+		details.className = "gm-event gm-think";
+		const summary = document.createElement("summary");
+		summary.textContent = "Thinking";
+		const body = document.createElement("pre");
+		details.append(summary, body);
+		view.aside(details);
+		openThinking = { details, body, text: "" };
+	}
+	openThinking.text += delta;
+	openThinking.body.textContent = openThinking.text;
 }
 
 function renderTraces(traces: readonly ToolTrace[]): void {
@@ -509,7 +532,8 @@ async function send(text: string, options: { show?: boolean } = {}): Promise<voi
 	transcript.append(waiting);
 	scrollDown();
 
-	turnNumber += 1;
+	view.startTurn();
+	openThinking = undefined;
 	const traces: ToolTrace[] = [];
 	const tools = portentsTools(session, (trace) => traces.push(trace));
 
@@ -551,8 +575,11 @@ async function send(text: string, options: { show?: boolean } = {}): Promise<voi
 			handlers: {
 				onText: (delta) => {
 					waiting.remove();
+					// Prose ends a thinking block: anything after this belongs to the next one.
+					openThinking = undefined;
 					view.stream(delta);
 				},
+				onReasoning: (delta) => logThinking(delta),
 				onStep: () => {
 					renderTraces(traces.splice(0));
 					updateChrome();
@@ -602,13 +629,13 @@ $<HTMLButtonElement>("reveal-all").addEventListener("click", revealAll);
 
 /** Show or hide the GM pane, remembering the choice. */
 function setGmPane(open: boolean): void {
-	gmPane.hidden = !open;
+	transcript.classList.toggle("with-gm", open);
+	gmHeader.hidden = !open;
 	toggleGmButton.setAttribute("aria-pressed", String(open));
 	localStorage.setItem(GM_PANE_KEY, open ? "1" : "0");
-	if (open) gmPane.scrollTop = gmPane.scrollHeight;
 }
 
-toggleGmButton.addEventListener("click", () => setGmPane(gmPane.hidden));
+toggleGmButton.addEventListener("click", () => setGmPane(!transcript.classList.contains("with-gm")));
 $<HTMLButtonElement>("ledger-close").addEventListener("click", () => ledgerDialog.close());
 
 // ── Start ────────────────────────────────────────────────────────────────────

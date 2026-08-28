@@ -57,13 +57,9 @@
   <div class="panes">
     <!-- Everything the GM did privately. Off by default: seeing the oracle's answer
          before the fiction spoils the fiction. -->
-    <aside id="gm-pane" hidden>
-      <h2>Behind the screen</h2>
-      <p class="card-sub">Every tool call, in order, with what it returned. Off by default because knowing which parts of the world the dice chose is knowledge you cannot un-learn.</p>
-      <div id="gm-log"></div>
-    </aside>
 
     <div class="chat-pane">
+      <p id="gm-header" class="card-sub">Behind the screen: every tool call and the GM's thinking, level with the exchange it belonged to. Knowing which parts of the world the dice chose is knowledge you cannot un-learn.</p>
       <div id="transcript" role="log" aria-live="polite"></div>
       <form id="say-form">
         <textarea id="say" rows="2" placeholder="What do you do?" autocomplete="off"></textarea>

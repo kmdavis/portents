@@ -14,6 +14,12 @@
  *
  * The rule is one line: **anything appended closes the open prose block.** Prose
  * arriving afterwards starts a new one, so blocks appear in the order events happened.
+ *
+ * Blocks are grouped into per-turn rows, each a two-column grid: the GM's private
+ * working on the left, what the player saw on the right. Alignment is therefore
+ * structural rather than computed -- no measuring offsets, no synchronised scrolling,
+ * one scrollbar -- and it answers the question a flat list could not, which is which
+ * exchange a given oracle roll belonged to.
  */
 
 /** How prose becomes DOM. Injected so this module needs no markdown library. */
@@ -35,19 +41,90 @@ export class Transcript {
 	#open: HTMLElement | undefined;
 	#prose = "";
 
+	/** The current turn's row, and its two cells. */
+	#row: { row: HTMLElement; aside: HTMLElement; content: HTMLElement } | undefined;
+
 	constructor(options: TranscriptOptions) {
 		this.#root = options.root;
 		this.#render = options.render;
 		this.#onChange = options.onChange ?? (() => {});
 	}
 
-	/** Blocks currently in the transcript, in order, as `class` values. */
+	/**
+	 * Content blocks currently in the transcript, in order, as `class` values.
+	 *
+	 * Walked rather than selected. `:scope >` is the obvious query and is not reliable
+	 * in jsdom, which made every ordering test fail against working code.
+	 */
 	get order(): string[] {
-		return [...this.#root.children].map((child) => child.className);
+		const blocks: string[] = [];
+		for (const row of this.#rows()) {
+			const content = [...row.children].find((cell) => cell.className === "turn-content");
+			for (const child of content?.children ?? []) blocks.push(child.className);
+		}
+		return blocks;
+	}
+
+	/** Rows currently in the transcript. One per exchange. */
+	get rowCount(): number {
+		return this.#rows().length;
+	}
+
+	/** The player-visible blocks, flattened out of their rows. */
+	get contentBlocks(): HTMLElement[] {
+		const blocks: HTMLElement[] = [];
+		for (const row of this.#rows()) {
+			const content = [...row.children].find((cell) => cell.className === "turn-content");
+			for (const child of content?.children ?? []) blocks.push(child as HTMLElement);
+		}
+		return blocks;
+	}
+
+	#rows(): HTMLElement[] {
+		return [...this.#root.children].filter((child): child is HTMLElement => child.className === "turn-row");
 	}
 
 	get isEmpty(): boolean {
-		return this.#root.childElementCount === 0;
+		return this.order.length === 0;
+	}
+
+	/**
+	 * Begin an exchange.
+	 *
+	 * Called once per send, so everything the turn produces -- the player's message, the
+	 * GM's prose, its rolls, and its private working -- shares one row and therefore one
+	 * vertical position.
+	 */
+	startTurn(): void {
+		const row = document.createElement("div");
+		row.className = "turn-row";
+		const aside = document.createElement("div");
+		aside.className = "turn-aside";
+		const content = document.createElement("div");
+		content.className = "turn-content";
+		row.append(aside, content);
+		this.#root.append(row);
+		this.#row = { row, aside, content };
+		this.#open = undefined;
+		this.#prose = "";
+	}
+
+	/**
+	 * Add something to the current turn's private column.
+	 *
+	 * Does not close the open prose block: the aside is a different column, so it
+	 * cannot interrupt the reading order of what the player saw.
+	 */
+	aside(block: HTMLElement): HTMLElement {
+		this.#cells().aside.append(block);
+		this.#onChange();
+		return block;
+	}
+
+	/** The current row, creating one if a caller skipped startTurn. */
+	#cells(): { row: HTMLElement; aside: HTMLElement; content: HTMLElement } {
+		if (!this.#row) this.startTurn();
+		return this.#row!;
 	}
 
 	/** Add a finished block of any kind, closing any open prose. */
@@ -74,9 +151,13 @@ export class Transcript {
 	 */
 	stream(delta: string): void {
 		if (!this.#open) {
-			this.#open = document.createElement("div");
-			this.#open.className = "turn gm";
-			this.#root.append(this.#open);
+			// The row is resolved first. startTurn clears the open block, so creating the
+			// block before the row it belongs to nulls the reference immediately.
+			const cell = this.#cells().content;
+			const block = document.createElement("div");
+			block.className = "turn gm";
+			cell.append(block);
+			this.#open = block;
 			this.#prose = "";
 		}
 		this.#prose += delta;
@@ -105,7 +186,7 @@ export class Transcript {
 	#place(block: HTMLElement): void {
 		this.#open = undefined;
 		this.#prose = "";
-		this.#root.append(block);
+		this.#cells().content.append(block);
 		this.#onChange();
 	}
 }

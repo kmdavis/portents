@@ -241,8 +241,11 @@ export function portentsTools(session: WebSession, onTrace: (trace: ToolTrace) =
 
 		portents_sheet: tool({
 			description:
-				"Read and write the character sheet. Actions: create, read, patch_status, set_section, " +
-				"append_section. Patch it the moment anything changes: damage, healing, a spent slot, an item.",
+				"Read and write character sheets. Actions: create, read, patch_status, list, set_main. " +
+				"Patch a sheet the moment anything changes: damage, healing, a spent slot, an item. " +
+				"**Every character needs a sheet, sidekicks included** — the first one created becomes the " +
+				"main character and later ones are sidekicks, so create the player's character first. " +
+				'Pass main: true only to deliberately change who the main character is.',
 			inputSchema: jsonSchema<{
 				action: string;
 				character?: string;
@@ -256,10 +259,15 @@ export function portentsTools(session: WebSession, onTrace: (trace: ToolTrace) =
 				properties: {
 					action: {
 						type: "string",
-						enum: ["create", "read", "patch_status", "set_section", "append_section", "list"],
+						enum: ["create", "read", "patch_status", "list", "set_main"],
 						description: "What to do",
 					},
 					character: str("Character name"),
+					main: {
+						type: "boolean",
+						description:
+							"Make this the main character. Omit when creating a sidekick: the first character created is the main one automatically.",
+					},
 					concept: str('e.g. "Level 3 Wood Elf Ranger"'),
 					section: str("Section heading"),
 					body: str("Markdown for the section"),
