@@ -295,3 +295,13 @@ dialog menu { display: flex; gap: 0.6rem; justify-content: flex-end; padding: 0;
 .turn.gm hr { border: 0; border-top: 1px solid var(--rule); margin: 1rem 0; }
 #say[disabled] { opacity: 0.6; }
 .pc dd.unset { color: var(--muted); font-style: italic; font-size: 0.72rem; }
+
+/* A caution: the turn stood, but something in it should be questioned. */
+.caution {
+	border-left: 3px solid #b8860b;
+	background: var(--code-bg);
+	padding: 0.55rem 0.75rem;
+	font-size: 0.85rem;
+}
+.caution p { margin: 0.2rem 0; }
+@media (prefers-color-scheme: dark) { .caution { border-left-color: #e0b341; } }

@@ -16,6 +16,7 @@ import { marked } from "marked";
 import type { ModelMessage } from "ai";
 
 import { buildModel, reasoningOptions, runTurn, stateDigest, systemPrompt } from "./agent.ts";
+import { checkCitations, COMMAND_HELP, describeCitations, parseCommand } from "./commands.ts";
 import { renderMarkdown } from "./markdown.ts";
 import { ALWAYS_SHOWN, isHurt, PARTY_STAT_KEYS, statusOf } from "./party.ts";
 import { Transcript } from "./transcript.ts";
@@ -238,6 +239,19 @@ function renderTraces(traces: readonly ToolTrace[]): void {
 	if (hidden > 0) line.append(`+${hidden} behind the screen`);
 	// Its own block, so the next prose sits below it rather than absorbing it.
 	view.addElement(line);
+}
+
+/**
+ * A caution rather than a failure.
+ *
+ * Used for citation problems, which do not stop the turn: the fiction may still be
+ * fine, and the player is the one who decides whether to challenge it.
+ */
+function showWarning(message: string): void {
+	const box = document.createElement("div");
+	box.className = "caution";
+	renderProse(box, `**Check this.** ${message}`);
+	view.addElement(box);
 }
 
 function showError(message: string): void {
@@ -544,6 +558,7 @@ async function send(text: string, options: { show?: boolean } = {}): Promise<voi
 	const digest = await stateDigest(session);
 	const messages = digest ? [...history, { role: "user" as const, content: digest }] : history;
 
+	let prose = "";
 	const waiting = document.createElement("div");
 	waiting.className = "waiting";
 	waiting.setAttribute("aria-label", "The GM is thinking");
@@ -552,6 +567,9 @@ async function send(text: string, options: { show?: boolean } = {}): Promise<voi
 
 	view.startTurn();
 	openThinking = undefined;
+	// Ledger ids that existed before this turn, so a citation can be told apart from a
+	// result actually produced now.
+	const idsBefore = new Set((session.campaign?.ledger.recent(9999) ?? []).map((entry) => entry.id));
 	const traces: ToolTrace[] = [];
 	const tools = portentsTools(session, (trace) => traces.push(trace));
 
@@ -596,6 +614,7 @@ async function send(text: string, options: { show?: boolean } = {}): Promise<voi
 					waiting.remove();
 					// Prose ends a thinking block: anything after this belongs to the next one.
 					openThinking = undefined;
+					prose += delta;
 					view.stream(delta);
 				},
 				onReasoning: (delta) => logThinking(delta),
@@ -609,6 +628,16 @@ async function send(text: string, options: { show?: boolean } = {}): Promise<voi
 		});
 		history = [...history, ...produced];
 		renderTraces(traces.splice(0));
+
+		// The ids the GM cites are claims about the ledger, and the ledger can settle
+		// them. A model once reported a fresh result citing a genuine id from an earlier
+		// session; nothing checked, so nothing caught it.
+		const all = (session.campaign?.ledger.recent(9999) ?? []).map((entry) => entry.id);
+		const problems = checkCitations(prose, {
+			thisTurn: all.filter((id) => !idsBefore.has(id)),
+			known: all,
+		});
+		if (problems.length > 0) showWarning(describeCitations(problems));
 	} catch (error) {
 		showError(error instanceof Error ? `${error.name}: ${error.message}` : String(error));
 	} finally {
@@ -623,12 +652,64 @@ async function send(text: string, options: { show?: boolean } = {}): Promise<voi
 	}
 }
 
+/**
+ * Handle a slash command, or return false if this is ordinary speech.
+ *
+ * `/roll` exists because a player typed it, reasonably, and the demo passed it to the
+ * model as text -- which then reported a result nobody had rolled. A command the player
+ * expects and the harness ignores is worse than no command at all.
+ */
+async function runCommand(text: string): Promise<boolean> {
+	const command = parseCommand(text);
+	if (!command) return false;
+
+	view.startTurn();
+	view.add("turn player", text);
+
+	switch (command.kind) {
+		case "roll": {
+			try {
+				const outcome = await session.roll(command.expression);
+				view.add(
+					"turn roll",
+					`**Rolled ${command.expression}**\n\n${outcome.lines.map((line) => `- ${line}`).join("\n")}`,
+				);
+				// The GM is told, so it can use the number rather than asking again.
+				history.push({
+					role: "user",
+					content: `I rolled ${command.expression} myself: ${outcome.lines.join("; ")}`,
+				});
+				void refreshCard();
+			} catch (error) {
+				view.add("turn player", `Could not roll that: ${(error as Error).message}`);
+			}
+			return true;
+		}
+		case "ledger":
+			openLedger();
+			return true;
+		case "status":
+			// A brief is the GM's job, so this becomes a request rather than a local read.
+			void send("Re-brief me: where do things stand, and whose turn is it?");
+			return true;
+		case "help":
+			view.add("turn gm", COMMAND_HELP);
+			return true;
+		case "unknown":
+			view.add("turn gm", `Unknown command \`${command.name}\`.\n\n${COMMAND_HELP}`);
+			return true;
+	}
+}
+
 sayForm.addEventListener("submit", (event) => {
 	event.preventDefault();
 	const text = sayBox.value.trim();
-	if (!text) return;
+	if (!text || busy) return;
 	sayBox.value = "";
-	void send(text);
+	void (async () => {
+		if (await runCommand(text)) return;
+		await send(text);
+	})();
 });
 
 // Enter sends, shift+enter makes a newline. A chat box that needs a mouse is a chore.
