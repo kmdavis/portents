@@ -1,5 +1,18 @@
 /* Demo-only styles. The landing page's style.css supplies the palette. */
-body.demo { max-width: 68rem; padding-bottom: 1rem; }
+/* Full height, so the transcript uses the window rather than a slice of it.
+   dvh rather than vh: on mobile Safari, vh includes the collapsing toolbar, which
+   leaves the composer under it. */
+body.demo {
+	max-width: 78rem;
+	height: 100dvh;
+	padding: 0.75rem 1.25rem;
+	display: flex;
+	flex-direction: column;
+	overflow: hidden;
+}
+
+#setup { overflow-y: auto; }
+#game { flex: 1; display: flex; flex-direction: column; min-height: 0; }
 
 .notice {
 	border-left: 3px solid var(--accent);
@@ -54,14 +67,15 @@ button { font: inherit; cursor: pointer; }
 }
 .chip:hover { border-color: var(--accent); color: var(--accent); }
 
-.panes { display: flex; gap: 1.25rem; align-items: flex-start; }
-.chat-pane { flex: 1; min-width: 0; }
+.panes { display: flex; gap: 1.25rem; flex: 1; min-height: 0; padding-top: 0.75rem; }
+.chat-pane { flex: 1; min-width: 0; display: flex; flex-direction: column; }
 
 #transcript {
-	min-height: 55vh;
-	max-height: 68vh;
+	flex: 1;
+	min-height: 0;
 	overflow-y: auto;
-	padding: 0.5rem 0;
+	padding: 0.25rem 0;
+	scrollbar-gutter: stable;
 }
 
 .turn { margin: 1.1rem 0; }
@@ -87,12 +101,61 @@ button { font: inherit; cursor: pointer; }
 #send { white-space: nowrap; }
 #send[disabled] { opacity: 0.5; cursor: default; }
 
-#map-pane { width: 22rem; flex: none; }
-#map-holder svg { width: 100%; height: auto; border: 1px solid var(--rule); border-radius: 3px; background: var(--paper); }
+/* The side card: what the session is, and a way into the record. */
+#side-card {
+	width: 17rem;
+	flex: none;
+	overflow-y: auto;
+	display: flex;
+	flex-direction: column;
+	gap: 0.75rem;
+}
 
-@media (max-width: 60rem) {
-	.panes { flex-direction: column; }
-	#map-pane { width: 100%; }
+.card {
+	border: 1px solid var(--rule);
+	border-radius: 4px;
+	padding: 0.85rem 0.9rem;
+	background: var(--code-bg);
+	font-family: ui-sans-serif, system-ui, sans-serif;
+	font-size: 0.85rem;
+}
+
+.card h2 { margin: 0; font-size: 1rem; border: 0; font-family: ui-serif, Georgia, serif; }
+.card-sub { margin: 0.15rem 0 0; color: var(--muted); font-size: 0.78rem; }
+
+.card dl { margin: 0.8rem 0 0; display: grid; grid-template-columns: auto 1fr; gap: 0.25rem 0.6rem; }
+.card dt { color: var(--muted); font-size: 0.75rem; text-transform: uppercase; letter-spacing: 0.03em; }
+.card dd { margin: 0; font-variant-numeric: tabular-nums; }
+
+.card-clocks { margin: 0.7rem 0 0; font-size: 0.8rem; }
+.card-actions { margin-top: 0.9rem; display: flex; flex-wrap: wrap; gap: 0.4rem; }
+
+#map-holder svg { width: 100%; height: auto; display: block; }
+
+/* Ledger dialog: a table of what really happened. */
+#ledger-dialog { max-width: 44rem; width: calc(100vw - 3rem); }
+#ledger-body { max-height: 60vh; overflow-y: auto; margin-top: 0.8rem; }
+#ledger-body table { width: 100%; font-size: 0.82rem; font-family: ui-monospace, Menlo, monospace; }
+#ledger-body th { position: sticky; top: 0; background: var(--paper); }
+#ledger-body td:first-child { white-space: nowrap; color: var(--accent); }
+#ledger-body .secret td { color: var(--muted); font-style: italic; }
+#ledger-empty { color: var(--muted); font-size: 0.85rem; }
+
+.turn.roll {
+	border-left: 3px solid var(--accent);
+	padding-left: 0.9rem;
+	font-size: 0.9rem;
+}
+.turn.roll ul { list-style: none; padding-left: 0; margin: 0.3rem 0 0; }
+.turn.roll li { font-family: ui-monospace, Menlo, monospace; font-size: 0.8rem; }
+
+#say-form { flex: none; }
+
+@media (max-width: 62rem) {
+	body.demo { height: auto; overflow: visible; }
+	.panes { flex-direction: column-reverse; }
+	#side-card { width: 100%; }
+	#transcript { min-height: 60vh; }
 }
 
 dialog { border: 1px solid var(--rule); border-radius: 4px; background: var(--paper); color: var(--ink); max-width: 26rem; padding: 1.25rem; }

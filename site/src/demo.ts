@@ -16,6 +16,7 @@ import type { ModelMessage } from "ai";
 
 import { buildModel, runTurn, stateDigest, systemPrompt } from "./agent.ts";
 import { renderMarkdown } from "./markdown.ts";
+import { Transcript } from "./transcript.ts";
 import {
 	clearSettings,
 	defaultModelFor,
@@ -49,8 +50,9 @@ const sendButton = $<HTMLButtonElement>("send");
 const campaignLabel = $("campaign-label");
 const mapPane = $("map-pane");
 const mapHolder = $("map-holder");
-const showMapButton = $<HTMLButtonElement>("show-map");
+const toggleMapButton = $<HTMLButtonElement>("toggle-map");
 const rollDialog = $<HTMLDialogElement>("roll-dialog");
+const ledgerDialog = $<HTMLDialogElement>("ledger-dialog");
 
 const session = new WebSession({ storage: new BrowserStorage({ database: "portents-demo" }) });
 let history: ModelMessage[] = [];
@@ -116,12 +118,11 @@ $<HTMLButtonElement>("reset").addEventListener("click", () => {
 
 // ── Transcript ───────────────────────────────────────────────────────────────
 
-function addTurn(role: "player" | "gm"): HTMLElement {
-	const turn = document.createElement("div");
-	turn.className = `turn ${role}`;
-	transcript.append(turn);
-	return turn;
-}
+const view = new Transcript({
+	root: transcript,
+	render: renderProse,
+	onChange: () => scrollDown(),
+});
 
 function scrollDown(): void {
 	transcript.scrollTop = transcript.scrollHeight;
@@ -149,7 +150,7 @@ function renderProse(target: HTMLElement, text: string): void {
  * through the very interface meant to uphold it, while hiding them completely would
  * hide the dice the demo exists to prove are real.
  */
-function renderTraces(target: HTMLElement, traces: readonly ToolTrace[]): void {
+function renderTraces(traces: readonly ToolTrace[]): void {
 	if (traces.length === 0) return;
 	const line = document.createElement("p");
 	line.className = "tools";
@@ -162,7 +163,8 @@ function renderTraces(target: HTMLElement, traces: readonly ToolTrace[]): void {
 	}
 	const hidden = traces.length - open.length;
 	if (hidden > 0) line.append(`+${hidden} behind the screen`);
-	target.append(line);
+	// Its own block, so the next prose sits below it rather than absorbing it.
+	view.addElement(line);
 }
 
 function showError(message: string): void {
@@ -171,8 +173,7 @@ function showError(message: string): void {
 	// Verbatim. A wrong model id or a CORS refusal is only diagnosable if the
 	// provider's own words survive.
 	box.textContent = message;
-	transcript.append(box);
-	scrollDown();
+	view.addElement(box);
 }
 
 // ── The player's own rolls ───────────────────────────────────────────────────
@@ -197,9 +198,11 @@ async function askRoll(expression: string, reason: string, dc?: number): Promise
 	}
 
 	const outcome = await session.roll(expression, { reason, ...(dc === undefined ? {} : { dc }) });
-	const turn = addTurn("player");
-	renderProse(turn, `Rolled ${expression} — ${outcome.lines.join("; ")}`);
-	scrollDown();
+	view.add(
+		"turn roll",
+		`**Rolled ${expression}** — ${reason}\n\n${outcome.lines.map((line) => `- ${line}`).join("\n")}`,
+	);
+	void refreshCard();
 	return outcome.lines.join("\n");
 }
 
@@ -210,6 +213,110 @@ function updateChrome(): void {
 	campaignLabel.textContent = campaign ? `${campaign.name} · ${campaign.systemLine}` : "No campaign";
 }
 
+/**
+ * The side card: what this session is, and the state the player would otherwise have
+ * to scroll for.
+ *
+ * Read straight from the campaign each time rather than tracked separately. The
+ * campaign is already the single source of truth -- it writes through on every change
+ * -- and a second copy here would be one more thing to get out of step with the sheet
+ * on disk.
+ */
+async function refreshCard(): Promise<void> {
+	const campaign = session.campaign;
+	$("card-campaign").textContent = campaign?.name ?? "No campaign";
+	$("card-system").textContent = campaign?.systemLine ?? "Nothing open yet";
+
+	const rows: Array<[string, string]> = [];
+	if (campaign) {
+		const name = campaign.activeCharacter;
+		rows.push(["Character", name ?? "none yet"]);
+
+		if (name) {
+			const sheet = await campaign.readCharacter(name);
+			// Only the keys a player glances at mid-fight. The rest is in the sheet.
+			for (const key of ["HP", "AC", "Hit Dice", "Death Saves", "Conditions", "Hero Points"]) {
+				const value = sheet?.data[key];
+				if (value !== undefined && value !== null && String(value).trim()) rows.push([key, String(value)]);
+			}
+		}
+
+		const scene = campaign.scene;
+		if (scene?.location) rows.push(["Location", scene.location]);
+		rows.push(["Rolls", String(campaign.ledger.recent(9999).length)]);
+	}
+
+	const list = $("card-state");
+	list.replaceChildren();
+	for (const [label, value] of rows) {
+		const dt = document.createElement("dt");
+		dt.textContent = label;
+		const dd = document.createElement("dd");
+		dd.textContent = value;
+		list.append(dt, dd);
+	}
+
+	const clocks = campaign?.clocks ?? [];
+	const clockLine = $("card-clocks");
+	clockLine.hidden = clocks.length === 0;
+	clockLine.textContent = clocks.map((clock) => `${clock.name} ${clock.filled}/${clock.segments}`).join(" · ");
+}
+
+/**
+ * Show the ledger.
+ *
+ * Secret entries are listed but not described: the id, the kind and the fact that
+ * something was rolled, without the answer. The player can see that the machinery ran
+ * without being told what the oracle said, which is the same line the transcript
+ * draws. Once the campaign is over, the file is theirs to read.
+ */
+function openLedger(): void {
+	const campaign = session.campaign;
+	const body = $("ledger-body");
+	body.replaceChildren();
+
+	const entries = campaign?.ledger.recent(9999) ?? [];
+	if (entries.length === 0) {
+		const empty = document.createElement("p");
+		empty.id = "ledger-empty";
+		empty.textContent = campaign
+			? "Nothing rolled yet."
+			: "No campaign is open, so nothing has been recorded.";
+		body.append(empty);
+	} else {
+		const table = document.createElement("table");
+		const head = document.createElement("thead");
+		const headRow = document.createElement("tr");
+		for (const label of ["Id", "What", "Result"]) {
+			const th = document.createElement("th");
+			th.textContent = label;
+			headRow.append(th);
+		}
+		head.append(headRow);
+		table.append(head);
+
+		const tbody = document.createElement("tbody");
+		for (const entry of [...entries].reverse()) {
+			const row = document.createElement("tr");
+			const secret = SECRET_LEDGER_KINDS.has(entry.kind);
+			if (secret) row.className = "secret";
+			for (const text of [entry.id, entry.request ?? entry.kind, secret ? "behind the screen" : entry.result]) {
+				const td = document.createElement("td");
+				td.textContent = text;
+				row.append(td);
+			}
+			tbody.append(row);
+		}
+		table.append(tbody);
+		body.append(table);
+	}
+
+	ledgerDialog.showModal();
+}
+
+/** Ledger kinds whose results are the GM's, not the player's. */
+const SECRET_LEDGER_KINDS = new Set(["oracle", "table", "card", "move"]);
+
 async function send(text: string, options: { show?: boolean } = {}): Promise<void> {
 	if (busy || !settings) return;
 	busy = true;
@@ -217,7 +324,7 @@ async function send(text: string, options: { show?: boolean } = {}): Promise<voi
 	sayBox.disabled = true;
 
 	if (text) {
-		if (options.show !== false) renderProse(addTurn("player"), text);
+		if (options.show !== false) view.add("turn player", text);
 		history.push({ role: "user", content: text });
 	}
 
@@ -257,7 +364,7 @@ async function send(text: string, options: { show?: boolean } = {}): Promise<voi
 			if (svg.nodeName === "svg") {
 				mapHolder.replaceChildren(svg);
 				mapPane.hidden = false;
-				showMapButton.hidden = false;
+				toggleMapButton.hidden = false;
 			}
 			void originalMap;
 			void opts;
@@ -265,8 +372,6 @@ async function send(text: string, options: { show?: boolean } = {}): Promise<voi
 		},
 	} as typeof tools.portents_map;
 
-	const turn = addTurn("gm");
-	let prose = "";
 
 	try {
 		const produced = await runTurn({
@@ -277,29 +382,28 @@ async function send(text: string, options: { show?: boolean } = {}): Promise<voi
 			handlers: {
 				onText: (delta) => {
 					waiting.remove();
-					prose += delta;
-					renderProse(turn, prose);
-					scrollDown();
+					view.stream(delta);
 				},
 				onStep: () => {
-					renderTraces(turn, traces.splice(0));
+					renderTraces(traces.splice(0));
 					updateChrome();
+					refreshCard();
 					scrollDown();
 				},
 			},
 		});
 		history = [...history, ...produced];
-		renderTraces(turn, traces.splice(0));
+		renderTraces(traces.splice(0));
 	} catch (error) {
 		showError(error instanceof Error ? `${error.name}: ${error.message}` : String(error));
 	} finally {
 		waiting.remove();
-		// An empty turn leaves an empty bubble, which reads as a broken reply.
-		if (!prose.trim() && turn.childElementCount === 0) turn.remove();
+		view.end();
 		busy = false;
 		sendButton.disabled = false;
 		sayBox.disabled = false;
 		updateChrome();
+		void refreshCard();
 		sayBox.focus();
 	}
 }
@@ -320,9 +424,12 @@ sayBox.addEventListener("keydown", (event) => {
 	}
 });
 
-showMapButton.addEventListener("click", () => {
+toggleMapButton.addEventListener("click", () => {
 	mapPane.hidden = !mapPane.hidden;
 });
+
+$<HTMLButtonElement>("open-ledger").addEventListener("click", openLedger);
+$<HTMLButtonElement>("ledger-close").addEventListener("click", () => ledgerDialog.close());
 
 // ── Start ────────────────────────────────────────────────────────────────────
 
@@ -330,9 +437,10 @@ function showGame(): void {
 	setupSection.hidden = true;
 	gameSection.hidden = false;
 	updateChrome();
+	void refreshCard();
 	sayBox.focus();
 
-	if (transcript.childElementCount === 0) {
+	if (view.isEmpty) {
 		// The GM opens, but it needs something to open in reply to: a turn with no
 		// messages at all is rejected by the API before it reaches a model, which is
 		// exactly what "messages must not be empty" was. Sent but not shown, so the

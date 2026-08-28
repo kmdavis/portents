@@ -50,7 +50,6 @@
   <header class="bar">
     <span id="campaign-label">No campaign</span>
     <span class="grow"></span>
-    <button id="show-map" class="chip" hidden>Map</button>
     <button id="reset" class="chip">Change key</button>
   </header>
 
@@ -62,13 +61,35 @@
         <button type="submit" id="send" class="button">Send</button>
       </form>
     </div>
-    <aside id="map-pane" hidden>
-      <div id="map-holder"></div>
+
+    <aside id="side-card">
+      <section class="card">
+        <h2 id="card-campaign">No campaign</h2>
+        <p id="card-system" class="card-sub"></p>
+        <dl id="card-state"></dl>
+        <p id="card-clocks" class="card-clocks" hidden></p>
+        <div class="card-actions">
+          <button id="open-ledger" class="chip">Roll ledger</button>
+          <button id="toggle-map" class="chip" hidden>Map</button>
+        </div>
+      </section>
+      <section id="map-pane" class="card" hidden>
+        <div id="map-holder"></div>
+      </section>
     </aside>
   </div>
 </section>
 
 <!-- Player rolls. A dialog, because the point is that the human rolls their own dice. -->
+<dialog id="ledger-dialog">
+  <h2>Roll ledger</h2>
+  <p class="card-sub">Every roll, card and oracle answer, in order. This is the audit trail — the GM cannot write to it except by rolling.</p>
+  <div id="ledger-body"></div>
+  <menu>
+    <button id="ledger-close" class="button secondary">Close</button>
+  </menu>
+</dialog>
+
 <dialog id="roll-dialog">
   <form method="dialog">
     <h2>Your roll</h2>
