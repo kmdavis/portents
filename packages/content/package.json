@@ -41,7 +41,8 @@
   },
   "dependencies": {
     "@portent/content-generic": "workspace:*",
-    "@portent/content-dnd": "workspace:*"
+    "@portent/content-dnd": "workspace:*",
+    "@portent/content-pf": "workspace:*"
   },
   "devDependencies": {
     "@portent/core": "workspace:*"

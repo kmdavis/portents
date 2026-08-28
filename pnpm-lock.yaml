@@ -48,6 +48,9 @@ importers:
       '@portent/content-generic':
         specifier: workspace:*
         version: link:../content-generic
+      '@portent/content-pf':
+        specifier: workspace:*
+        version: link:../content-pf
     devDependencies:
       '@portent/core':
         specifier: workspace:*
@@ -76,6 +79,15 @@ importers:
       typescript:
         specifier: ^5.7.0
         version: 5.9.3
+
+  packages/content-pf:
+    devDependencies:
+      '@portent/content-generic':
+        specifier: workspace:*
+        version: link:../content-generic
+      '@portent/core':
+        specifier: workspace:*
+        version: link:../core
 
   packages/core:
     devDependencies:
