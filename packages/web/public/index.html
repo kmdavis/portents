@@ -1,0 +1,116 @@
+<!doctype html>
+<html lang="en">
+	<head>
+		<meta charset="utf-8" />
+		<meta name="viewport" content="width=device-width, initial-scale=1" />
+		<title>Portent</title>
+		<style>
+			:root {
+				--ink: #1c1a17;
+				--paper: #faf8f4;
+				--rule: #ddd6c9;
+				--accent: #7a3b2e;
+				--dim: #6b6459;
+			}
+			@media (prefers-color-scheme: dark) {
+				:root { --ink: #e8e3d9; --paper: #171614; --rule: #35322c; --accent: #d08c72; --dim: #96907f; }
+			}
+			* { box-sizing: border-box; }
+			body {
+				margin: 0; padding: 2rem 1.25rem 4rem; background: var(--paper); color: var(--ink);
+				font: 16px/1.55 ui-serif, Georgia, serif; max-width: 62rem; margin-inline: auto;
+			}
+			h1 { font-size: 1.5rem; margin: 0 0 .25rem; letter-spacing: .01em; }
+			h1 span { color: var(--accent); }
+			.sub { color: var(--dim); margin: 0 0 2rem; font-size: .9rem; }
+			section { border-top: 1px solid var(--rule); padding: 1.25rem 0; }
+			h2 { font-size: .78rem; text-transform: uppercase; letter-spacing: .09em; color: var(--dim); margin: 0 0 .75rem; font-weight: 600; }
+			.row { display: flex; gap: .5rem; flex-wrap: wrap; align-items: center; }
+			input, select, button {
+				font: inherit; font-size: .92rem; padding: .4rem .6rem; border: 1px solid var(--rule);
+				background: var(--paper); color: var(--ink); border-radius: 3px;
+			}
+			input { font-family: ui-monospace, SFMono-Regular, Menlo, monospace; }
+			button { cursor: pointer; border-color: var(--ink); }
+			button:hover { background: var(--ink); color: var(--paper); }
+			button.quiet { border-color: var(--rule); font-size: .85rem; }
+			output, pre {
+				display: block; margin-top: .75rem; white-space: pre-wrap;
+				font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: .85rem; line-height: 1.5;
+			}
+			pre.grid { line-height: 1.05; overflow-x: auto; font-size: .8rem; }
+			.id { color: var(--accent); }
+			.bar { display: flex; gap: 1rem; align-items: baseline; flex-wrap: wrap; font-size: .85rem; color: var(--dim); }
+			.bar strong { color: var(--ink); font-weight: 600; }
+			svg { max-width: 100%; height: auto; border: 1px solid var(--rule); border-radius: 3px; margin-top: .75rem; }
+			.hint { color: var(--dim); font-size: .8rem; margin-top: .5rem; }
+			.tabs { display: flex; gap: .35rem; margin-bottom: .75rem; }
+			.tabs button[aria-selected="true"] { background: var(--ink); color: var(--paper); }
+		</style>
+	</head>
+	<body>
+		<h1>Portent<span>.</span></h1>
+		<p class="sub">Solo tabletop dice, oracles and dungeons. Everything stays in this browser.</p>
+
+		<section id="campaign">
+			<h2>Campaign</h2>
+			<div class="row">
+				<select id="campaign-list"><option value="">— no campaign —</option></select>
+				<button id="campaign-open" class="quiet">Open</button>
+				<input id="campaign-name" placeholder="new campaign name" size="22" />
+				<input id="campaign-system" placeholder="5e (2024)" size="14" />
+				<button id="campaign-create" class="quiet">Create</button>
+			</div>
+			<div class="bar" id="campaign-bar"></div>
+			<p class="hint">With a campaign open, rolls get a ledger id and decks stay depleted between visits.</p>
+		</section>
+
+		<section id="dice">
+			<h2>Dice</h2>
+			<div class="row">
+				<input id="dice-expr" value="2d20kh1+5" size="20" />
+				<input id="dice-dc" placeholder="DC" size="4" inputmode="numeric" />
+				<button id="dice-roll">Roll</button>
+				<button id="dice-odds" class="quiet">Odds</button>
+			</div>
+			<output id="dice-out"></output>
+		</section>
+
+		<section id="oracle">
+			<h2>Oracle</h2>
+			<div class="row">
+				<input id="oracle-q" placeholder="is the gate still guarded?" size="34" />
+				<select id="oracle-kind"></select>
+				<button id="oracle-ask">Ask</button>
+			</div>
+			<output id="oracle-out"></output>
+		</section>
+
+		<section id="content">
+			<h2>Decks &amp; tables</h2>
+			<div class="row">
+				<select id="deck-id"></select>
+				<button id="deck-draw" class="quiet">Draw</button>
+				<select id="table-id"></select>
+				<button id="table-roll" class="quiet">Roll</button>
+			</div>
+			<output id="content-out"></output>
+		</section>
+
+		<section id="map">
+			<h2>Dungeon</h2>
+			<div class="row">
+				<input id="map-rooms" value="9" size="3" inputmode="numeric" />
+				<input id="map-seed" placeholder="seed (optional)" size="14" />
+				<button id="map-go">Generate</button>
+				<div class="tabs">
+					<button id="map-tab-svg" aria-selected="true">Vector</button>
+					<button id="map-tab-ascii" aria-selected="false">Text</button>
+				</div>
+			</div>
+			<div id="map-out"></div>
+		</section>
+
+		<script type="module" src="./app.js"></script>
+	</body>
+</html>

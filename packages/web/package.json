@@ -1,0 +1,23 @@
+{
+  "name": "@portent/web",
+  "version": "0.0.0",
+  "private": true,
+  "license": "MIT",
+  "description": "Portent in a browser: dice, oracles, decks, tables and dungeon maps, with campaign state in IndexedDB.",
+  "author": "Kevan Davis",
+  "type": "module",
+  "scripts": {
+    "build": "node scripts/build.mjs",
+    "dev": "node scripts/build.mjs --watch",
+    "test": "node --conditions=development --test 'src/**/*.test.ts'",
+    "typecheck": "tsc -p tsconfig.json --noEmit && tsc -p tsconfig.test.json --noEmit"
+  },
+  "dependencies": {
+    "@portent/content": "workspace:*",
+    "@portent/core": "workspace:*"
+  },
+  "devDependencies": {
+    "esbuild": "^0.25.0",
+    "fake-indexeddb": "^6.2.5"
+  }
+}

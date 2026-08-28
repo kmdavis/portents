@@ -22,6 +22,9 @@ can be spotted.
 | `@portent/content-generic` | [`packages/content-generic/`](packages/content-generic) | The generic fallback every other pack overrides. |
 | `@portent/cli` | [`packages/cli/`](packages/cli) | `portent roll`, `portent map`, and friends. |
 | `@portent/pi` | [`packages/pi/`](packages/pi) | Runs a game inside the pi coding agent. |
+| `@portent/content-dnd` | [`packages/content-dnd/`](packages/content-dnd) | Fifth edition, both printings. SRD material under CC-BY-4.0. |
+| `@portent/content-pf` | [`packages/content-pf/`](packages/content-pf) | Pathfinder-style systems, three printings. Original writing. |
+| `@portent/web` | [`packages/web/`](packages/web) | Browser app. State in IndexedDB. Not published. |
 
 Content is a separate package from the engine because content is the part people
 will want to fork, extend and version independently. The engine knows how to
@@ -199,15 +202,16 @@ Three mechanisms keep that honest rather than aspirational:
 3. Both bundled Storage adapters run the same published conformance suite, so
    they cannot drift apart.
 
-**Known gaps.** Two things typecheck and bundle but have no automated coverage,
-because Node has neither an IndexedDB nor a canvas: the **IndexedDB storage
-adapter** and the **browser PNG rasteriser**. Both are exercised by the manual
-page; neither has been run in CI. A browser test job would close this, and until
-then they should be treated as unproven.
+**The IndexedDB adapter is now covered.** It used to be a known gap, because Node
+has no IndexedDB. `packages/web` supplies one with `fake-indexeddb` and runs the
+**same published conformance suite** against `BrowserStorage` that the Node and
+memory adapters pass -- all 22 cases, plus checks that a fresh handle to the same
+database sees the earlier writes. The polyfill is a dev dependency of `web`, not
+of `core`, so nothing ships to make a test possible.
 
-There is **no Node PNG rasteriser**. `svgToPngBlob` throws in Node with a message
-pointing at `@resvg/resvg-js`. Adding a native binary dependency is a decision
-rather than a default, so it waits for the CLI.
+**One gap remains: the browser PNG rasteriser.** `svgToPngBlob` needs a canvas,
+which Node does not have, so it is exercised only by the manual page. Treat it as
+unproven. The CLI rasterises through `@resvg/resvg-js` instead and is tested.
 
 ## Checking it by eye
 

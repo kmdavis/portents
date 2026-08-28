@@ -1,0 +1,9 @@
+{
+	"extends": "./tsconfig.json",
+	"compilerOptions": {
+		// Tests run in Node against a fake IndexedDB, so they need both sets of
+		// globals. App code deliberately gets only the browser's.
+		"types": ["node"]
+	},
+	"include": ["src/**/*.ts"]
+}

@@ -1,0 +1,14 @@
+{
+	"extends": "../../tsconfig.base.json",
+	"compilerOptions": {
+		"noEmit": true,
+		"customConditions": ["development"],
+		// A browser target: DOM types and *no* Node types, so an accidental `node:`
+		// import in app code fails here rather than at bundle time. The tests need
+		// Node types, so they have their own config.
+		"lib": ["ES2023", "DOM", "DOM.Iterable"],
+		"types": []
+	},
+	"include": ["src/**/*.ts"],
+	"exclude": ["src/**/*.test.ts"]
+}

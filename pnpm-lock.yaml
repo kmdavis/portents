@@ -107,6 +107,22 @@ importers:
         specifier: workspace:*
         version: link:../core
 
+  packages/web:
+    dependencies:
+      '@portent/content':
+        specifier: workspace:*
+        version: link:../content
+      '@portent/core':
+        specifier: workspace:*
+        version: link:../core
+    devDependencies:
+      esbuild:
+        specifier: ^0.25.0
+        version: 0.25.12
+      fake-indexeddb:
+        specifier: ^6.2.5
+        version: 6.2.5
+
 packages:
 
   '@esbuild/aix-ppc64@0.25.12':
@@ -353,6 +369,10 @@ packages:
     engines: {node: '>=18'}
     hasBin: true
 
+  fake-indexeddb@6.2.5:
+    resolution: {integrity: sha512-CGnyrvbhPlWYMngksqrSSUT1BAVP49dZocrHuK0SvtR0D5TMs5wP0o3j7jexDJW01KSadjBp1M/71o/KR3nD1w==, tarball: https://registry.npmjs.org/fake-indexeddb/-/fake-indexeddb-6.2.5.tgz}
+    engines: {node: '>=18'}
+
   typescript@5.9.3:
     resolution: {integrity: sha512-jl1vZzPDinLr9eUt3J/t7V6FgNEw9QjvBPdysz9KfQDD41fQrC2Y4vKQdiaUpFT4bXlb1RHhLpp8wtm6M5TgSw==, tarball: https://registry.npmjs.org/typescript/-/typescript-5.9.3.tgz}
     engines: {node: '>=14.17'}
@@ -525,6 +545,8 @@ snapshots:
       '@esbuild/win32-arm64': 0.25.12
       '@esbuild/win32-ia32': 0.25.12
       '@esbuild/win32-x64': 0.25.12
+
+  fake-indexeddb@6.2.5: {}
 
   typescript@5.9.3: {}
 
