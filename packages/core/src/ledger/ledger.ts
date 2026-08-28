@@ -378,7 +378,40 @@ export class Ledger {
 		return formatId(kind, this.#next, this.#options.writer);
 	}
 
+	/**
+	 * Tail of the append queue, so appends cannot interleave.
+	 *
+	 * {@link append} reads the counter, awaits a write, then increments. That ordering
+	 * is deliberate -- a failed write must not burn a number -- but it puts an `await`
+	 * inside the critical section, so two concurrent callers both read the same
+	 * sequence and produce the same id.
+	 *
+	 * This was not hypothetical. The pi extension executes tool calls one at a time and
+	 * never hit it; the AI SDK runs them in parallel within a step, so a GM turn that
+	 * consulted the oracle twice produced two entries both called `o-7`. A duplicate id
+	 * resolves to the wrong entry, which defeats the point of citing ids at all -- and
+	 * the ledger's whole design rests on ids being unique.
+	 */
+	#queue: Promise<unknown> = Promise.resolve();
+
+	/**
+	 * Append an entry.
+	 *
+	 * Serialised against other appends on the same ledger. Concurrent callers are
+	 * queued rather than rejected: a GM that rolls two things at once should get two
+	 * ids, not an error.
+	 */
 	async append(input: AppendInput): Promise<LedgerEntry> {
+		// Chained on both settle paths, so one failed append does not wedge the queue.
+		const run = this.#queue.then(
+			() => this.#appendExclusive(input),
+			() => this.#appendExclusive(input),
+		);
+		this.#queue = run.catch(() => undefined);
+		return run;
+	}
+
+	async #appendExclusive(input: AppendInput): Promise<LedgerEntry> {
 		if (!isEventKind(input.kind)) throw new LedgerError(`unknown event kind ${JSON.stringify(input.kind)}`);
 		const seq = this.#next;
 		const entry: LedgerEntry = {

@@ -417,3 +417,63 @@ describe("reading back", () => {
 		assert.equal(kindLabel("hit"), "attack roll");
 	});
 });
+
+describe("concurrent appends", () => {
+	/**
+	 * Ids must stay unique when appends overlap.
+	 *
+	 * Found in the demo, not in a test: the AI SDK executes a step's tool calls in
+	 * parallel, so a turn that consulted the oracle twice wrote two entries both called
+	 * `o-7`. The pi extension runs tools one at a time and never showed it.
+	 *
+	 * A duplicate id is worse than a missing one. `[o-7]` cited in the journal now
+	 * resolves to whichever entry is found first, so the audit trail confirms the wrong
+	 * number -- and an audit trail that confirms wrong numbers is worse than none.
+	 */
+	it("gives every concurrent append its own id", async () => {
+		const ledger = await openLedger();
+
+		const entries = await Promise.all(
+			Array.from({ length: 25 }, (_unused, index) =>
+				ledger.append({ kind: "oracle", request: "scene", result: `answer ${index}` }),
+			),
+		);
+
+		const ids = entries.map((entry) => entry.id);
+		assert.equal(new Set(ids).size, ids.length, `duplicate ids: ${ids.join(", ")}`);
+		const seqs = entries.map((entry) => entry.seq).sort((a, b) => a - b);
+		assert.deepEqual(seqs, Array.from({ length: 25 }, (_unused, index) => index + 1));
+	});
+
+	it("persists every concurrent append, not just the last", async () => {
+		// The other half of the race: entries overwriting each other on disk.
+		const ledger = await openLedger();
+		await Promise.all(
+			Array.from({ length: 12 }, (_unused, index) =>
+				ledger.append({ kind: "roll", request: "1d20", result: `roll ${index}`, total: index }),
+			),
+		);
+		assert.equal(ledger.recent(9999).length, 12);
+	});
+
+	it("keeps the queue working after an append fails", async () => {
+		// An invalid kind rejects. The next caller must still get an id.
+		const ledger = await openLedger();
+		await assert.rejects(ledger.append({ kind: "nonsense" as never, result: "x" }));
+		const after = await ledger.append({ kind: "roll", request: "1d20", result: "ok" });
+		assert.match(after.id, /^r-\d+$/);
+	});
+
+	it("resolves each concurrent id to its own entry", async () => {
+		// Uniqueness is not enough; the id has to point at the right row.
+		const ledger = await openLedger();
+		const entries = await Promise.all(
+			Array.from({ length: 8 }, (_unused, index) =>
+				ledger.append({ kind: "oracle", request: "yes_no", result: `answer ${index}` }),
+			),
+		);
+		for (const entry of entries) {
+			assert.match(ledger.describe(entry.id), new RegExp(entry.result.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")));
+		}
+	});
+});

@@ -689,7 +689,18 @@ export class Campaign {
 				: {}),
 		});
 		await this.writeCharacter(sheet);
-		if (options.active !== false) await this.setActiveCharacter(input.name);
+
+		// Omitting `active` makes this the active character only when there is not one
+		// already, so the first character created becomes the main one and later ones do
+		// not displace it.
+		//
+		// This used to be `options.active !== false`, which made every new character
+		// active. That was harmless while a campaign had one character and wrong the moment
+		// guidance started recommending sidekicks: creating a sidekick silently stole the
+		// main character's slot, which is the sheet the GM patches by default and the one
+		// every briefing reports.
+		const shouldActivate = options.active ?? this.activeCharacter === undefined;
+		if (shouldActivate) await this.setActiveCharacter(input.name);
 		return sheet;
 	}
 

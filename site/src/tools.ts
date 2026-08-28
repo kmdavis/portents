@@ -15,10 +15,19 @@ import { jsonSchema, type Tool, tool } from "ai";
 
 import { campaignAction, type CampaignParams, sheetAction, type SheetParams } from "./actions.ts";
 
-/** What a tool call did, for the transcript. */
+/** What a tool call did, for the transcript and the GM pane. */
 export interface ToolTrace {
 	readonly name: string;
 	readonly summary: string;
+	/**
+	 * The full result, including anything the transcript hides.
+	 *
+	 * Carried so the GM pane and the ledger can offer to reveal it. Solo play needs the
+	 * mechanism hidden *by default*, not permanently: the player is also the person
+	 * checking that the dice were real, and refusing to ever show them makes the
+	 * accountability claim unfalsifiable.
+	 */
+	readonly detail?: string;
 	/**
 	 * May the player see this?
 	 *
@@ -58,7 +67,8 @@ const num = (description: string) => ({ type: "number" as const, description });
  * die was rolled.
  */
 export function portentsTools(session: WebSession, onTrace: (trace: ToolTrace) => void): Record<string, Tool> {
-	const trace = (name: string, summary: string, secret = false) => onTrace({ name, summary, secret });
+	const trace = (name: string, summary: string, secret = false, detail?: string) =>
+		onTrace({ name, summary, secret, ...(detail ? { detail } : {}) });
 
 	return {
 		portents_roll: tool({
@@ -77,7 +87,7 @@ export function portentsTools(session: WebSession, onTrace: (trace: ToolTrace) =
 			}),
 			execute: async ({ expression, reason, dc }) => {
 				const result = await session.roll(expression, { ...(reason ? { reason } : {}), ...(dc === undefined ? {} : { dc }) });
-				trace("roll", `${expression} → ${result.totals.join(", ")}`);
+				trace("roll", `${expression} → ${result.totals.join(", ")}`, false, result.lines.join("\n"));
 				return result.lines.join("\n");
 			},
 		}),
@@ -133,7 +143,7 @@ export function portentsTools(session: WebSession, onTrace: (trace: ToolTrace) =
 			}),
 			execute: async ({ kind, question, likelihood }) => {
 				const answer = await session.oracle(kind as never, question, likelihood as never);
-				trace("oracle", `${kind}${question ? `: ${question}` : ""}`, true);
+				trace("oracle", `${kind}${question ? `: ${question}` : ""}`, true, answer);
 				return gmOnly(answer);
 			},
 		}),
@@ -150,7 +160,7 @@ export function portentsTools(session: WebSession, onTrace: (trace: ToolTrace) =
 			execute: async ({ table }) => {
 				if (!table) return `Tables: ${session.tableIds().join(", ")}`;
 				const result = await session.rollTable(table);
-				trace("table", table, true);
+				trace("table", table, true, result);
 				return gmOnly(result);
 			},
 		}),
@@ -167,7 +177,7 @@ export function portentsTools(session: WebSession, onTrace: (trace: ToolTrace) =
 			execute: async ({ deck, count }) => {
 				if (!deck) return `Decks: ${session.deckIds().join(", ")}`;
 				const result = (await session.draw(deck, count ?? 1)).join("\n");
-				trace("deck", `${deck} ×${count ?? 1}`, true);
+				trace("deck", `${deck} ×${count ?? 1}`, deck.startsWith("crit-") ? false : true, result);
 				// Crit and fumble cards resolving the player's own attack are the exception:
 				// they watched that land, so naming the card is fair. The GM decides, and the
 				// standing guidance tells it how.
@@ -186,7 +196,7 @@ export function portentsTools(session: WebSession, onTrace: (trace: ToolTrace) =
 			}),
 			execute: async ({ rooms, seed }) => {
 				const map = session.map({ rooms: rooms ?? 9, seed });
-				trace("map", `${rooms ?? 9} rooms, seed ${map.seed}`);
+				trace("map", `${rooms ?? 9} rooms, seed ${map.seed}`, false, map.ascii);
 				return map.ascii;
 			},
 		}),

@@ -650,3 +650,47 @@ describe("durability", () => {
 		assert.equal(statusValue(sheet, "Hit Dice"), "3d10");
 	});
 });
+
+describe("more than one character", () => {
+	/**
+	 * A sidekick must not displace the main character.
+	 *
+	 * The guidance now recommends one main character plus one or two sidekicks, and this
+	 * is what made that recommendation dangerous: `createCharacter` activated every new
+	 * character unless explicitly told not to, so creating a sidekick silently moved the
+	 * active slot -- the sheet patched by default, and the one every briefing reports.
+	 */
+	it("keeps the first character active when later ones are added", async () => {
+		const { campaign } = await fresh();
+		await campaign.createCharacter({ name: "Ossiran Vale" });
+		await campaign.createCharacter({ name: "Bram Holt" });
+		await campaign.createCharacter({ name: "Wick" });
+
+		assert.equal(campaign.activeCharacter, "Ossiran Vale");
+		assert.deepEqual((await campaign.listCharacters()).sort(), ["bram-holt", "ossiran-vale", "wick"]);
+	});
+
+	it("still honours an explicit active flag", async () => {
+		const { campaign } = await fresh();
+		await campaign.createCharacter({ name: "First" });
+		await campaign.createCharacter({ name: "Second" }, { active: true });
+		assert.equal(campaign.activeCharacter, "Second", "an explicit request was ignored");
+	});
+
+	it("never activates when told not to, even as the first character", async () => {
+		const { campaign } = await fresh();
+		await campaign.createCharacter({ name: "Nobody" }, { active: false });
+		assert.equal(campaign.activeCharacter, undefined);
+	});
+
+	it("survives a reload with the right character active", async () => {
+		// The active character is campaign state, so it has to be on disk rather than in
+		// memory: a browser reload mid-session must not promote a sidekick.
+		const { d, campaign } = await fresh();
+		await campaign.createCharacter({ name: "Ossiran Vale" });
+		await campaign.createCharacter({ name: "Bram Holt" });
+
+		const reopened = await Campaign.open(d, campaign.slug);
+		assert.equal(reopened.activeCharacter, "Ossiran Vale");
+	});
+});

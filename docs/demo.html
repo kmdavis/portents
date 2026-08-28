@@ -48,12 +48,21 @@
 <!-- The game. -->
 <section id="game" hidden>
   <header class="bar">
+    <button id="toggle-gm" class="chip" aria-pressed="false">Behind the screen</button>
     <span id="campaign-label">No campaign</span>
     <span class="grow"></span>
     <button id="reset" class="chip">Change key</button>
   </header>
 
   <div class="panes">
+    <!-- Everything the GM did privately. Off by default: seeing the oracle's answer
+         before the fiction spoils the fiction. -->
+    <aside id="gm-pane" hidden>
+      <h2>Behind the screen</h2>
+      <p class="card-sub">Every tool call, in order, with what it returned. Off by default because knowing which parts of the world the dice chose is knowledge you cannot un-learn.</p>
+      <div id="gm-log"></div>
+    </aside>
+
     <div class="chat-pane">
       <div id="transcript" role="log" aria-live="polite"></div>
       <form id="say-form">
@@ -89,6 +98,7 @@
   <p class="card-sub">Every roll, card and oracle answer, in order. This is the audit trail — the GM cannot write to it except by rolling.</p>
   <div id="ledger-body"></div>
   <menu>
+    <button id="reveal-all" class="chip">Reveal everything</button>
     <button id="ledger-close" class="button secondary">Close</button>
   </menu>
 </dialog>

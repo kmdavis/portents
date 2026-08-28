@@ -132,6 +132,43 @@ button { font: inherit; cursor: pointer; }
 
 #map-holder svg { width: 100%; height: auto; display: block; }
 
+/* Behind the screen: the GM's private working, opt-in. */
+#gm-pane {
+	width: 19rem;
+	flex: none;
+	overflow-y: auto;
+	border-right: 1px solid var(--rule);
+	padding-right: 0.9rem;
+}
+#gm-pane h2 { margin: 0; font-size: 0.95rem; border: 0; }
+
+#gm-log { margin-top: 0.8rem; display: flex; flex-direction: column; gap: 0.5rem; }
+
+.gm-event {
+	border: 1px solid var(--rule);
+	border-left: 3px solid var(--muted);
+	border-radius: 3px;
+	padding: 0.45rem 0.55rem;
+	font-family: ui-sans-serif, system-ui, sans-serif;
+	font-size: 0.76rem;
+}
+.gm-event.secret { border-left-color: var(--accent); }
+.gm-event .what { display: flex; gap: 0.4rem; align-items: baseline; }
+.gm-event .tool { color: var(--accent); font-family: ui-monospace, Menlo, monospace; font-size: 0.7rem; }
+.gm-event .turn-no { color: var(--muted); margin-left: auto; font-variant-numeric: tabular-nums; }
+.gm-event pre { margin: 0.35rem 0 0; padding: 0.35rem 0.45rem; font-size: 0.7rem; white-space: pre-wrap; }
+.gm-event p { margin: 0.2rem 0 0; }
+#gm-empty { color: var(--muted); font-size: 0.8rem; }
+.chip[aria-pressed="true"] { border-color: var(--accent); color: var(--accent); background: var(--code-bg); }
+
+/* Ledger rows that can be revealed. */
+#ledger-body .secret td:last-child { cursor: pointer; text-decoration: underline dotted; }
+#ledger-body .secret.shown td:last-child { cursor: default; text-decoration: none; font-style: normal; }
+#ledger-body td p { margin: 0; }
+#ledger-body td code { font-size: 0.95em; }
+#reveal-all { margin-left: auto; }
+#ledger-dialog menu { align-items: center; }
+
 /* The party: one block per character. A sidekick whose hit points are invisible is a
    sidekick the player forgets they are responsible for. */
 #party { display: flex; flex-direction: column; gap: 0.6rem; }

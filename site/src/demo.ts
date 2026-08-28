@@ -8,6 +8,7 @@
  */
 
 import { BrowserStorage } from "@portents/core/browser";
+import { guidanceTitle } from "@portents/core";
 import { WebSession } from "@portents/web";
 import DOMPurify from "dompurify";
 import { marked } from "marked";
@@ -54,6 +55,14 @@ const mapHolder = $("map-holder");
 const toggleMapButton = $<HTMLButtonElement>("toggle-map");
 const rollDialog = $<HTMLDialogElement>("roll-dialog");
 const ledgerDialog = $<HTMLDialogElement>("ledger-dialog");
+const gmPane = $("gm-pane");
+const gmLog = $("gm-log");
+const toggleGmButton = $<HTMLButtonElement>("toggle-gm");
+
+/** Turn counter, so a GM event can say which exchange it belonged to. */
+let turnNumber = 0;
+
+const GM_PANE_KEY = "portents.demo.gmPane";
 
 const session = new WebSession({ storage: new BrowserStorage({ database: "portents-demo" }) });
 let history: ModelMessage[] = [];
@@ -151,10 +160,50 @@ function renderProse(target: HTMLElement, text: string): void {
  * through the very interface meant to uphold it, while hiding them completely would
  * hide the dice the demo exists to prove are real.
  */
+/**
+ * Record a tool call in the GM pane.
+ *
+ * Separate from the transcript summary on purpose. The transcript counts secret calls
+ * without describing them; this shows everything, and is off by default. Both are
+ * needed: the game requires the mechanism hidden, and accountability requires it
+ * reachable. Defaulting it off and putting it behind a labelled toggle lets the player
+ * decide which they want, one session at a time.
+ */
+function logGmEvent(trace: ToolTrace): void {
+	const event = document.createElement("div");
+	event.className = trace.secret ? "gm-event secret" : "gm-event";
+
+	const head = document.createElement("div");
+	head.className = "what";
+	const tool = document.createElement("span");
+	tool.className = "tool";
+	tool.textContent = trace.name;
+	const turn = document.createElement("span");
+	turn.className = "turn-no";
+	turn.textContent = `turn ${turnNumber}`;
+	head.append(tool, turn);
+	event.append(head);
+
+	const summary = document.createElement("p");
+	summary.textContent = trace.summary;
+	event.append(summary);
+
+	if (trace.detail) {
+		const detail = document.createElement("pre");
+		detail.textContent = trace.detail;
+		event.append(detail);
+	}
+
+	gmLog.append(event);
+	if (!gmPane.hidden) gmPane.scrollTop = gmPane.scrollHeight;
+}
+
 function renderTraces(traces: readonly ToolTrace[]): void {
 	if (traces.length === 0) return;
 	const line = document.createElement("p");
 	line.className = "tools";
+
+	for (const trace of traces) logGmEvent(trace);
 
 	const open = traces.filter((trace) => !trace.secret);
 	for (const trace of open) {
@@ -209,9 +258,25 @@ async function askRoll(expression: string, reason: string, dc?: number): Promise
 
 // ── A turn ───────────────────────────────────────────────────────────────────
 
+/**
+ * The system as a person would say it.
+ *
+ * `campaign.systemLine` is the stored line -- "5e (2014)" -- which is what a tool takes
+ * as a parameter, not what a header should say. The guidance document for that system
+ * carries a proper title, and the GM's own prose already used it, so the chrome saying
+ * "5e (2014)" while the GM said "D&D 5E (2014 printing)" was the UI disagreeing with
+ * the game.
+ */
+function systemTitle(): string {
+	const campaign = session.campaign;
+	if (!campaign) return "";
+	const found = session.registry.guidanceFor(campaign.systemLine) ?? session.registry.guidanceFor(campaign.system);
+	return found ? guidanceTitle(found) : campaign.systemLine;
+}
+
 function updateChrome(): void {
 	const campaign = session.campaign;
-	campaignLabel.textContent = campaign ? `${campaign.name} · ${campaign.systemLine}` : "No campaign";
+	campaignLabel.textContent = campaign ? `${campaign.name} · ${systemTitle()}` : "No campaign";
 }
 
 /**
@@ -226,7 +291,7 @@ function updateChrome(): void {
 async function refreshCard(): Promise<void> {
 	const campaign = session.campaign;
 	$("card-campaign").textContent = campaign?.name ?? "No campaign";
-	$("card-system").textContent = campaign?.systemLine ?? "Nothing open yet";
+	$("card-system").textContent = campaign ? systemTitle() : "Nothing open yet";
 
 	const rows: Array<[string, string]> = [];
 	if (campaign) {
@@ -274,25 +339,33 @@ async function refreshParty(): Promise<void> {
 		return;
 	}
 
-	const names = await campaign.listCharacters();
+	const slugs = await campaign.listCharacters();
 	const active = campaign.activeCharacter;
 	const blocks: HTMLElement[] = [];
 
-	for (const name of names) {
-		const sheet = await campaign.readCharacter(name);
+	for (const slug of slugs) {
+		const sheet = await campaign.readCharacter(slug);
+		// listCharacters returns file slugs; activeCharacter returns the display name.
+		// Comparing them directly matched nothing, so every character -- including the
+		// only one -- was labelled a sidekick.
+		const name = String(sheet?.data["name"] ?? slug);
+		const isActive = active !== undefined && (active === name || active === slug);
 		const block = document.createElement("section");
-		block.className = active === name ? "pc active" : "pc";
+		block.className = isActive ? "pc active" : "pc";
 
 		const heading = document.createElement("h3");
 		heading.textContent = name;
 		block.append(heading);
 
+		// Only claim a role when the campaign actually records one. A campaign whose
+		// active character was never set gets no label rather than a wrong one, and a
+		// lone character is the main one whatever the field says.
 		const role = document.createElement("span");
 		role.className = "role";
-		role.textContent = active === name ? "main" : "sidekick";
-		block.append(role);
+		role.textContent = isActive || slugs.length === 1 ? "main" : active === undefined ? "" : "sidekick";
+		if (role.textContent) block.append(role);
 
-		const concept = sheet?.data["Concept"] ?? sheet?.data["concept"];
+		const concept = sheet?.data["concept"] ?? sheet?.data["Concept"];
 		if (concept) {
 			const line = document.createElement("p");
 			line.className = "concept";
@@ -366,11 +439,26 @@ function openLedger(): void {
 			const row = document.createElement("tr");
 			const secret = SECRET_LEDGER_KINDS.has(entry.kind);
 			if (secret) row.className = "secret";
-			for (const text of [entry.id, entry.request ?? entry.kind, secret ? "behind the screen" : entry.result]) {
-				const td = document.createElement("td");
-				td.textContent = text;
-				row.append(td);
+
+			const id = document.createElement("td");
+			id.textContent = entry.id;
+			const what = document.createElement("td");
+			what.textContent = entry.request ?? entry.kind;
+
+			const result = document.createElement("td");
+			if (secret) {
+				// Hidden by default, revealed on click. A permanently unreadable audit
+				// trail cannot be audited, which would make the accountability claim
+				// unfalsifiable -- and this is a demo whose whole argument is that the
+				// dice are checkable.
+				result.textContent = "behind the screen";
+				result.title = "Click to reveal";
+				result.addEventListener("click", () => revealRow(row, result, entry.result), { once: true });
+			} else {
+				renderProse(result, entry.result);
 			}
+
+			row.append(id, what, result);
 			tbody.append(row);
 		}
 		table.append(tbody);
@@ -378,6 +466,20 @@ function openLedger(): void {
 	}
 
 	ledgerDialog.showModal();
+}
+
+/** Show one hidden result, and stop pretending the row is still secret. */
+function revealRow(row: HTMLElement, cell: HTMLElement, result: string): void {
+	row.classList.add("shown");
+	cell.removeAttribute("title");
+	renderProse(cell, result);
+}
+
+/** Reveal every hidden row at once, for someone auditing rather than playing. */
+function revealAll(): void {
+	for (const cell of ledgerDialog.querySelectorAll<HTMLElement>("tr.secret:not(.shown) td:last-child")) {
+		cell.click();
+	}
 }
 
 /** Ledger kinds whose results are the GM's, not the player's. */
@@ -407,6 +509,7 @@ async function send(text: string, options: { show?: boolean } = {}): Promise<voi
 	transcript.append(waiting);
 	scrollDown();
 
+	turnNumber += 1;
 	const traces: ToolTrace[] = [];
 	const tools = portentsTools(session, (trace) => traces.push(trace));
 
@@ -495,6 +598,17 @@ toggleMapButton.addEventListener("click", () => {
 });
 
 $<HTMLButtonElement>("open-ledger").addEventListener("click", openLedger);
+$<HTMLButtonElement>("reveal-all").addEventListener("click", revealAll);
+
+/** Show or hide the GM pane, remembering the choice. */
+function setGmPane(open: boolean): void {
+	gmPane.hidden = !open;
+	toggleGmButton.setAttribute("aria-pressed", String(open));
+	localStorage.setItem(GM_PANE_KEY, open ? "1" : "0");
+	if (open) gmPane.scrollTop = gmPane.scrollHeight;
+}
+
+toggleGmButton.addEventListener("click", () => setGmPane(gmPane.hidden));
 $<HTMLButtonElement>("ledger-close").addEventListener("click", () => ledgerDialog.close());
 
 // ── Start ────────────────────────────────────────────────────────────────────
@@ -517,6 +631,10 @@ function showGame(): void {
 		);
 	}
 }
+
+// Default off. Seeing the oracle's answer before the fiction spoils the fiction, so
+// this has to be something the player switches on deliberately.
+setGmPane(localStorage.getItem(GM_PANE_KEY) === "1");
 
 settings = loadSettings();
 if (settings) {
