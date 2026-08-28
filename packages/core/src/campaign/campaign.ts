@@ -48,6 +48,8 @@ import {
 	type Scalar,
 	stringifyDocument,
 } from "../sheets/frontmatter.ts";
+import type { ContentRegistry } from "../packs/registry.ts";
+import { genericSheet, type SheetTemplate } from "../sheets/template.ts";
 import {
 	createSheet,
 	type CreateSheetInput,
@@ -170,6 +172,11 @@ export interface CampaignDeps {
 	readonly storage: Storage;
 	readonly clock: Clock;
 	readonly random?: RandomSource;
+	/**
+	 * Content, if the caller wants system-appropriate sheet scaffolds. Optional:
+	 * without it a new character gets whatever sections the caller names.
+	 */
+	readonly registry?: ContentRegistry;
 }
 
 function requireString(data: Frontmatter, key: string, where: string): string {
@@ -653,12 +660,34 @@ export class Campaign {
 		await this.#deps.storage.write(this.#keys.character(name), stringifySheet(sheet));
 	}
 
+	/**
+	 * Sections for a new character in this campaign's system.
+	 *
+	 * A declared template if some pack claims the system, otherwise the generic
+	 * scaffold, otherwise nothing. Never a guess: a wrong heading is written to a
+	 * file the player hand-edits and then keeps.
+	 */
+	sheetTemplate(): SheetTemplate | undefined {
+		const registry = this.#deps.registry;
+		if (!registry) return undefined;
+		return registry.sheetFor(this.systemLine) ?? genericSheet([...registry.sheetIds()].map((id) => registry.sheet(id)!));
+	}
+
 	async createCharacter(input: CreateSheetInput, options: { active?: boolean } = {}): Promise<Sheet> {
 		const key = this.#keys.character(input.name);
 		if (await this.#deps.storage.exists(key)) {
 			throw new CampaignError(`Character "${input.name}" already exists in this campaign`);
 		}
-		const sheet = createSheet(input);
+		// The template only fills gaps: an explicit sections or status list from the
+		// caller wins, because they know something the pack does not.
+		const template = input.sections === undefined ? this.sheetTemplate() : undefined;
+		const sheet = createSheet({
+			...input,
+			...(template ? { sections: template.sections } : {}),
+			...(template?.status && !input.status
+				? { status: Object.fromEntries(template.status.map((key) => [key, ""])) }
+				: {}),
+		});
 		await this.writeCharacter(sheet);
 		if (options.active !== false) await this.setActiveCharacter(input.name);
 		return sheet;

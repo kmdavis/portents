@@ -181,7 +181,11 @@ export {
 	emptyRegistry,
 	type Provenance,
 	type RegistryOptions,
+	type AppliedOverride,
+	type ContentKind,
+	type ContentOverride,
 	UnknownContentError,
+	UnusedOverrideError,
 } from "./packs/index.ts";
 
 // Decks, with piles the caller owns and persists.
@@ -283,6 +287,14 @@ export {
 	stringifySheet,
 	syncGeneratedSections,
 } from "./sheets/index.ts";
+export {
+	genericSheet,
+	matchSheet,
+	normaliseSystem,
+	type SheetTemplate,
+	type TemplateSection,
+	templateProblems,
+} from "./sheets/template.ts";
 
 // The roll ledger: an append-only record that makes solo play auditable.
 export {

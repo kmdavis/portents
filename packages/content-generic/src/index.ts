@@ -23,10 +23,12 @@
  */
 
 import type { ContentPack } from "@portent/core";
+import { sheets } from "./sheets.ts";
 import { decks } from "./decks/index.ts";
 import { tables } from "./tables/index.ts";
 
 export { dungeonTiles } from "./dungeon-tiles.ts";
+export { genericSheet, sheets } from "./sheets.ts";
 export * from "./decks/index.ts";
 export * from "./tables/index.ts";
 export { decks, tables };
@@ -43,6 +45,7 @@ export const genericContent: ContentPack = {
 	name: "Generic fantasy content",
 	decks,
 	tables,
+	sheets,
 	provenance: { source: "original writing for Portent", license: "CC0" },
 };
 

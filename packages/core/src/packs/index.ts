@@ -1,4 +1,8 @@
 export {
+	type AppliedOverride,
+	type ContentKind,
+	type ContentOverride,
+	UnusedOverrideError,
 	type ContentPack,
 	type ContentRegistry,
 	createRegistry,

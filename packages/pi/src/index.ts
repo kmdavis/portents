@@ -70,10 +70,10 @@ import { commonContent, decks, dungeonTiles, tables } from "@portent/content";
 
 export default function activate(pi: ExtensionAPI): void {
 	const storage = openHomeStorage();
-	// Built once: createRegistry validates ids and gives the "available: ..." lists
-	// that broken content references print.
-	const registry = createRegistry(commonContent, { allowOverride: true });
-	const deps: CampaignDeps = { storage, clock: systemClock, random: defaultRandomSource() };
+	// Built once: createRegistry validates ids, applies each pack's declared
+	// overrides, and gives the "available: ..." lists that broken references print.
+	const registry = createRegistry(commonContent);
+	const deps: CampaignDeps = { storage, clock: systemClock, random: defaultRandomSource(), registry };
 
 	/** The open campaign, or undefined. Re-resolved on session start. */
 	let campaign: Campaign | undefined;
@@ -836,15 +836,23 @@ export default function activate(pi: ExtensionAPI): void {
 			if (!name) throw new Error("Which character? Pass `character`, or create one first.");
 
 			if (params.action === "create") {
+				// No section list here on purpose: the campaign resolves one from the
+				// content packs for its own system, and falls back to a generic scaffold.
+				// A hardcoded list stamped 5E headings onto a Call of Cthulhu character.
 				const sheet = await active.createCharacter({
 					name,
 					concept: params.concept,
 					status: params.status,
 					abilities: params.abilities,
-					sections: ["Skills & Proficiencies", "Attacks & Spellcasting", "Features & Traits", "Equipment", "Notes"],
 				});
+				const template = active.sheetTemplate();
 				await showStatus(ctx);
-				return text(`Created a sheet for **${name}**.\n\n${statusDigest(sheet) || "No status recorded yet."}`);
+				return text(
+					`Created a sheet for **${name}**.\n\n${statusDigest(sheet) || "No status recorded yet."}` +
+						(template?.generic
+							? `\n\n_${template.note ?? "Generic scaffold used."}_`
+							: ""),
+				);
 			}
 
 			const sheet = await active.readCharacter(name);

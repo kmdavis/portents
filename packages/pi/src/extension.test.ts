@@ -429,6 +429,15 @@ describe(
 				assert.match(await call("portent_sheet", { action: "read", character: "Brannoc" }), /19\/26/);
 			});
 
+			it("does not stamp one system's headings onto every character", async () => {
+				// The campaign resolves sections from content for its own system. A
+				// hardcoded list here put "Attacks & Spellcasting" on an investigator.
+				const { readFileSync } = await import("node:fs");
+				const raw = readFileSync(join(home, "campaigns", "harness-test", "characters", "brannoc.md"), "utf8");
+				assert.doesNotMatch(raw, /Attacks & Spellcasting/, "a hardcoded 5E heading came back");
+				assert.match(raw, /## Concept/, "the generic scaffold was not applied");
+			});
+
 			it("lists characters", async () => {
 				assert.match(await call("portent_sheet", { action: "list" }), /brannoc/);
 			});

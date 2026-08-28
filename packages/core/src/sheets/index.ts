@@ -35,3 +35,11 @@ export {
 	stringifySheet,
 	syncGeneratedSections,
 } from "./sheet.ts";
+export {
+	genericSheet,
+	matchSheet,
+	normaliseSystem,
+	type SheetTemplate,
+	type TemplateSection,
+	templateProblems,
+} from "./template.ts";
