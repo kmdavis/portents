@@ -226,6 +226,11 @@ export {
 // The oracle: mechanism here, words in a content pack.
 export {
 	formatYesNo,
+	oracleAnswer,
+	ORACLE_KINDS,
+	type OracleKind,
+	type OracleRequest,
+	type OracleResponse,
 	gmMove,
 	howMany,
 	type Likelihood,

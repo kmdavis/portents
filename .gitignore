@@ -7,3 +7,7 @@ coverage/
 .tmp/
 scratch/
 manual/dist/
+
+# pi's own packages, symlinked in for the extension's typecheck (see
+# extensions/pi/scripts/link-pi.mjs). Not on a reachable registry.
+extensions/pi/node_modules/

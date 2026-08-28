@@ -239,3 +239,66 @@ export function formatYesNo(result: YesNoResult): string {
 export function missingOracleTables(registry: ContentRegistry): string[] {
 	return Object.values(ORACLE_TABLES).filter((id) => !registry.table(id));
 }
+
+// ── One entry point for a harness ────────────────────────────────────────────
+
+export const ORACLE_KINDS = ["yes_no", "meaning", "how_many", "reaction", "scene", "gm_move"] as const;
+export type OracleKind = (typeof ORACLE_KINDS)[number];
+
+export interface OracleRequest extends OracleOptions {
+	readonly kind: OracleKind;
+	/** For `yes_no`. Recorded rather than interpreted. */
+	readonly question?: string;
+	readonly likelihood?: Likelihood;
+	/** For `how_many`. */
+	readonly expression?: string;
+	/** For `reaction`. */
+	readonly modifier?: number;
+}
+
+export interface OracleResponse {
+	readonly kind: OracleKind;
+	/** Rendered for a GM to read. Never shown to the player verbatim. */
+	readonly text: string;
+	/** The bare answer, for a caller that wants to branch on it. */
+	readonly answer?: YesNoAnswer;
+	readonly detail?: OracleDetail;
+}
+
+/**
+ * Ask the oracle by kind.
+ *
+ * A dispatcher rather than six call sites, because choosing between the six is
+ * the same decision every time and a harness should not have to re-derive it.
+ * The kind is echoed back so a caller can record what was asked without
+ * restating it.
+ */
+export function oracleAnswer(request: OracleRequest): OracleResponse {
+	const { kind, question, likelihood, expression, modifier, ...options } = request;
+	switch (kind) {
+		case "yes_no": {
+			const result = yesNo(question ?? "", likelihood ?? "even", options);
+			return { kind, text: formatYesNo(result), answer: result.answer };
+		}
+		case "meaning": {
+			const detail = meaning(options);
+			return { kind, text: detail.text, detail };
+		}
+		case "how_many": {
+			const detail = howMany(expression ?? "1d6", options);
+			return { kind, text: detail.text, detail };
+		}
+		case "reaction": {
+			const detail = reaction(modifier ?? 0, options);
+			return { kind, text: detail.text, detail };
+		}
+		case "scene": {
+			const detail = sceneCheck(options);
+			return { kind, text: detail.text, detail };
+		}
+		default: {
+			const detail = gmMove(options);
+			return { kind, text: detail.text, detail };
+		}
+	}
+}

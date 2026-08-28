@@ -542,6 +542,23 @@ export class Campaign {
 		await this.#save();
 	}
 
+	/**
+	 * Record the rules and printing, e.g. `"5e (2024)"`.
+	 *
+	 * Validated the same way as at creation, so a typo cannot be written to a
+	 * campaign that already has play in it.
+	 */
+	async setSystem(line: string, edition?: string): Promise<void> {
+		const { system, edition: resolved } = resolveSystemLine(line, edition);
+		this.#data = { ...this.#data, system: formatSystem(system, resolved) };
+		this.#body = setSectionBody(
+			this.#body,
+			"Rules",
+			`<!-- portent:generated system -->\n\n${describeRules(system, resolved)}`,
+		);
+		await this.#save();
+	}
+
 	async setActiveCharacter(name: string | undefined): Promise<void> {
 		this.#data = { ...this.#data };
 		if (name === undefined) delete this.#data.activeCharacter;
