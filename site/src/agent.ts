@@ -12,7 +12,7 @@ import { CORE_GUIDANCE } from "@portents/guidance";
 import type { WebSession } from "@portents/web";
 import { type LanguageModel, type ModelMessage, stepCountIs, streamText, type Tool } from "ai";
 
-import { detectProvider, type Settings } from "./setup.ts";
+import { detectProvider, MODELS, type Settings } from "./setup.ts";
 
 /**
  * Build a language model from the visitor's settings.
@@ -21,6 +21,40 @@ import { detectProvider, type Settings } from "./setup.ts";
  * there is no server to hold it -- but it does mean the key travels from this page
  * straight to the provider, which is why the form says so.
  */
+/**
+ * Provider options, keyed by provider name.
+ *
+ * The SDK's own `ProviderOptions` is not exported, so this mirrors the shape it
+ * accepts: a JSON-ish value per provider.
+ */
+export type ReasoningOptions = Record<string, Record<string, unknown>>;
+
+/**
+ * Provider options that make a model return its reasoning.
+ *
+ * Both vendors compute reasoning by default on these models and neither *returns* it
+ * unless asked, which is why the demo showed no thinking at all:
+ *
+ * - OpenAI needs `reasoningSummary`. `reasoningEffort` alone changes how hard the model
+ *   thinks, not whether you are told about it.
+ * - Anthropic needs `thinking: { type: "enabled" }` with a token budget.
+ *
+ * Only sent for models in our own catalogue. A custom gateway pointed at some other
+ * model would otherwise be handed options it may reject, turning a working setup into
+ * a request that fails.
+ */
+export function reasoningOptions(settings: Settings): ReasoningOptions | undefined {
+	const known = MODELS.find((model) => model.id === settings.model);
+	if (!known) return undefined;
+
+	if (known.wire === "anthropic") {
+		// A budget, not a cap on usefulness: below about a thousand tokens the summaries
+		// are too terse to tell you anything about how a ruling was reached.
+		return { anthropic: { thinking: { type: "enabled", budgetTokens: 4096 } } };
+	}
+	return { openai: { reasoningEffort: "medium", reasoningSummary: "auto" } };
+}
+
 export function buildModel(settings: Settings): LanguageModel {
 	const provider = detectProvider(settings.apiKey, settings.baseUrl);
 
@@ -153,12 +187,14 @@ export async function runTurn(options: {
 	messages: ModelMessage[];
 	tools: Record<string, Tool>;
 	handlers: TurnHandlers;
+	providerOptions?: ReasoningOptions;
 }): Promise<ModelMessage[]> {
 	const result = streamText({
 		model: options.model,
 		system: options.system,
 		messages: options.messages,
 		tools: options.tools,
+		...(options.providerOptions ? { providerOptions: options.providerOptions as never } : {}),
 		stopWhen: stepCountIs(12),
 		onStepFinish: () => options.handlers.onStep?.(),
 	});

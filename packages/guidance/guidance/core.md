@@ -76,9 +76,10 @@ Ask about:
    | Three full characters | A player who wants the tactical game the rules were written for, and does not mind three sheets. |
    | One character alone | A player who wants an intimate, dangerous story. Say plainly that fights will be scaled down and some encounters avoided rather than won. |
 
-   **Every character gets its own sheet, sidekicks included.** A sidekick whose hit
-   points live only in your context is a sidekick that will be quietly wrong within
-   three scenes.
+   **Every character gets its own sheet, sidekicks included, and every sheet records
+   hit points and armour class from the moment it is created.** A character whose hit
+   points live only in your context will be quietly wrong within three scenes, and
+   "lightly wounded" is not a number anyone can check.
 5. **What kind of adventure** — dungeon crawl, mystery, wilderness journey, urban
    intrigue, horror. Or `portents_table { table: "quest-hooks" }` and offer three.
 

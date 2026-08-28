@@ -15,9 +15,9 @@ import { marked } from "marked";
 
 import type { ModelMessage } from "ai";
 
-import { buildModel, runTurn, stateDigest, systemPrompt } from "./agent.ts";
+import { buildModel, reasoningOptions, runTurn, stateDigest, systemPrompt } from "./agent.ts";
 import { renderMarkdown } from "./markdown.ts";
-import { isHurt, PARTY_STAT_KEYS } from "./party.ts";
+import { ALWAYS_SHOWN, isHurt, PARTY_STAT_KEYS, statusOf } from "./party.ts";
 import { Transcript } from "./transcript.ts";
 import {
 	clearSettings,
@@ -364,15 +364,27 @@ async function refreshParty(): Promise<void> {
 
 	const slugs = await campaign.listCharacters();
 	const active = campaign.activeCharacter;
+
+	// Read every sheet first, so the party can be ordered before it is rendered.
+	const members = await Promise.all(
+		slugs.map(async (slug) => {
+			const sheet = await campaign.readCharacter(slug);
+			const name = String(sheet?.data["name"] ?? slug);
+			return { slug, sheet, name, isActive: active !== undefined && (active === name || active === slug) };
+		}),
+	);
+
+	// The main character first. Storage lists files alphabetically, so "Alric" sorted
+	// above "Ossiran" and the sidekick led the party -- which reads as the wrong
+	// character being the protagonist.
+	members.sort((left, right) => {
+		if (left.isActive !== right.isActive) return left.isActive ? -1 : 1;
+		return left.name.localeCompare(right.name);
+	});
+
 	const blocks: HTMLElement[] = [];
 
-	for (const slug of slugs) {
-		const sheet = await campaign.readCharacter(slug);
-		// listCharacters returns file slugs; activeCharacter returns the display name.
-		// Comparing them directly matched nothing, so every character -- including the
-		// only one -- was labelled a sidekick.
-		const name = String(sheet?.data["name"] ?? slug);
-		const isActive = active !== undefined && (active === name || active === slug);
+	for (const { slug, sheet, name, isActive } of members) {
 		const block = document.createElement("section");
 		block.className = isActive ? "pc active" : "pc";
 
@@ -385,7 +397,7 @@ async function refreshParty(): Promise<void> {
 		// lone character is the main one whatever the field says.
 		const role = document.createElement("span");
 		role.className = "role";
-		role.textContent = isActive || slugs.length === 1 ? "main" : active === undefined ? "" : "sidekick";
+		role.textContent = isActive || members.length === 1 ? "main" : active === undefined ? "" : "sidekick";
 		if (role.textContent) block.append(role);
 
 		const concept = sheet?.data["concept"] ?? sheet?.data["Concept"];
@@ -396,17 +408,24 @@ async function refreshParty(): Promise<void> {
 			block.append(line);
 		}
 
+		const status = statusOf(sheet?.data);
 		const stats = document.createElement("dl");
 		for (const key of PARTY_STAT_KEYS) {
-			const value = sheet?.data[key];
-			if (value === undefined || value === null || !String(value).trim()) continue;
+			const value = status[key];
+			const missing = value === undefined || value === null || !String(value).trim();
+			// HP and AC are always shown, even when absent. A blank row is a visible
+			// prompt that the GM never recorded them; omitting the row hides the problem,
+			// which is how a character ends up "lightly wounded" with no hit points on
+			// the sheet at all.
+			if (missing && !ALWAYS_SHOWN.includes(key)) continue;
 			const dt = document.createElement("dt");
 			dt.textContent = key;
 			const dd = document.createElement("dd");
-			dd.textContent = String(value);
+			dd.textContent = missing ? "not recorded" : String(value);
+			if (missing) dd.classList.add("unset");
 			// Colour a character at or below half, so a sidekick about to drop is visible
 			// without the player doing arithmetic.
-			if (key === "HP" && isHurt(String(value))) dd.classList.add("hurt");
+			if (!missing && key === "HP" && isHurt(String(value))) dd.classList.add("hurt");
 			stats.append(dt, dd);
 		}
 		if (stats.childElementCount > 0) block.append(stats);
@@ -568,6 +587,7 @@ async function send(text: string, options: { show?: boolean } = {}): Promise<voi
 	try {
 		const produced = await runTurn({
 			model: buildModel(settings),
+			...(reasoningOptions(settings) ? { providerOptions: reasoningOptions(settings) } : {}),
 			system: systemPrompt(session.registry, session),
 			messages,
 			tools,

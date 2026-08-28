@@ -20,6 +20,7 @@ import {
 	SHOPIFY_BASE_URL,
 	defaultModelFor,
 } from "./setup.ts";
+import { reasoningOptions } from "./agent.ts";
 
 /** A localStorage stand-in. Node has no DOM. */
 function fakeStorage(initial: Record<string, string> = {}) {
@@ -192,5 +193,41 @@ describe("validation", () => {
 		assert.ok(problems.some((p) => p.includes("base URL")), problems.join(" | "));
 		// ...and stops asking once one is supplied.
 		assert.deepEqual(settingsProblems({ apiKey: "hunter2", model: "m", baseUrl: "https://x.example" }), []);
+	});
+});
+
+describe("reasoning options", () => {
+	it("asks OpenAI for a summary, not just effort", () => {
+		// reasoningEffort alone changes how hard the model thinks, not whether the
+		// reasoning comes back. Without reasoningSummary the demo showed no thinking at
+		// all while the model was thinking the whole time.
+		const options = reasoningOptions({ apiKey: "sk-x", model: "gpt-5.6-luna" })!;
+		assert.equal(options.openai?.reasoningSummary, "auto");
+		assert.ok(options.openai?.reasoningEffort);
+	});
+
+	it("enables Anthropic thinking with a budget", () => {
+		const options = reasoningOptions({ apiKey: "sk-ant-x", model: "claude-sonnet-5" })!;
+		const thinking = options.anthropic?.thinking as { type: string; budgetTokens: number };
+		assert.equal(thinking.type, "enabled");
+		assert.ok(thinking.budgetTokens >= 1024, "too small a budget produces useless summaries");
+	});
+
+	it("matches the option shape to the model, not the key", () => {
+		// The proxy takes an OpenAI-shaped key and serves Claude, so the model decides.
+		assert.ok(reasoningOptions({ apiKey: "shopify-x", model: "claude-opus-5" })?.anthropic);
+		assert.ok(reasoningOptions({ apiKey: "shopify-x", model: "gpt-5.6-sol" })?.openai);
+	});
+
+	it("sends nothing for a model it does not know", () => {
+		// A custom gateway pointed at something else must not be handed options it may
+		// reject, turning a working setup into a failing request.
+		assert.equal(reasoningOptions({ apiKey: "sk-x", model: "llama-3-70b", baseUrl: "https://x.example" }), undefined);
+	});
+
+	it("covers every model in the catalogue", () => {
+		for (const model of MODELS) {
+			assert.ok(reasoningOptions({ apiKey: "sk-x", model: model.id }), `${model.id} gets no reasoning options`);
+		}
 	});
 });
