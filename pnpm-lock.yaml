@@ -33,6 +33,15 @@ importers:
         specifier: ^5.7.0
         version: 5.9.3
 
+  extensions/pi:
+    devDependencies:
+      '@portent/content':
+        specifier: workspace:*
+        version: link:../../content
+      '@portent/core':
+        specifier: workspace:*
+        version: link:../../lib
+
   lib:
     devDependencies:
       esbuild:

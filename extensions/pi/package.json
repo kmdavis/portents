@@ -1,0 +1,23 @@
+{
+  "name": "@portent/pi",
+  "version": "0.0.0",
+  "private": true,
+  "description": "Portent as a pi extension: dice, decks, oracles, maps and campaign state for solo tabletop play.",
+  "license": "MIT",
+  "author": "Kevan Davis",
+  "type": "module",
+  "scripts": {
+    "test": "node --conditions=development --test 'src/**/*.test.ts'",
+    "typecheck": "tsc -p tsconfig.json --noEmit",
+    "capture-parity": "node scripts/capture-parity.mjs",
+    "check-parity": "node scripts/capture-parity.mjs --check"
+  },
+  "peerDependencies": {
+    "@portent/core": "workspace:*",
+    "@portent/content": "workspace:*"
+  },
+  "devDependencies": {
+    "@portent/core": "workspace:*",
+    "@portent/content": "workspace:*"
+  }
+}
