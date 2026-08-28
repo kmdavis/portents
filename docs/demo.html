@@ -1,0 +1,86 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Portents — demo</title>
+<link rel="stylesheet" href="style.css">
+<link rel="stylesheet" href="demo.css">
+</head>
+<body class="demo">
+
+<!-- Setup. Shown until settings are usable, and reachable again from the header. -->
+<section id="setup" hidden>
+  <h1>Portents</h1>
+  <p class="lede">Play a solo tabletop RPG with a model of your choosing. Bring your own key.</p>
+
+  <div class="notice">
+    <strong>Your key stays in this browser.</strong> It is saved in
+    <code>localStorage</code> and sent directly to the provider you point it at. This page
+    is static — there is no server here to send it to.
+  </div>
+
+  <form id="setup-form">
+    <label>
+      API key
+      <input type="password" id="api-key" autocomplete="off" spellcheck="false"
+             placeholder="sk-… / sk-ant-… / shopify-…" required>
+      <small id="provider-hint">Recognised from the prefix.</small>
+    </label>
+
+    <label>
+      Base URL <span class="optional">optional</span>
+      <input type="url" id="base-url" autocomplete="off" spellcheck="false"
+             placeholder="https://your-gateway.example/v1">
+      <small>Only needed for a gateway. Leave blank to use the provider's own endpoint.</small>
+    </label>
+
+    <label>
+      Model
+      <select id="model"></select>
+    </label>
+
+    <ul id="setup-problems" class="problems" hidden></ul>
+    <button type="submit" class="button">Start playing</button>
+  </form>
+</section>
+
+<!-- The game. -->
+<section id="game" hidden>
+  <header class="bar">
+    <span id="campaign-label">No campaign</span>
+    <span class="grow"></span>
+    <button id="show-map" class="chip" hidden>Map</button>
+    <button id="reset" class="chip">Change key</button>
+  </header>
+
+  <div class="panes">
+    <div class="chat-pane">
+      <div id="transcript" role="log" aria-live="polite"></div>
+      <form id="say-form">
+        <textarea id="say" rows="2" placeholder="What do you do?" autocomplete="off"></textarea>
+        <button type="submit" id="send" class="button">Send</button>
+      </form>
+    </div>
+    <aside id="map-pane" hidden>
+      <div id="map-holder"></div>
+    </aside>
+  </div>
+</section>
+
+<!-- Player rolls. A dialog, because the point is that the human rolls their own dice. -->
+<dialog id="roll-dialog">
+  <form method="dialog">
+    <h2>Your roll</h2>
+    <p id="roll-reason"></p>
+    <p class="expression"><code id="roll-expression"></code></p>
+    <menu>
+      <button value="cancel" class="button secondary">I do something else</button>
+      <button value="roll" class="button" autofocus>Roll</button>
+    </menu>
+  </form>
+</dialog>
+
+<script type="module" src="demo.js"></script>
+</body>
+</html>

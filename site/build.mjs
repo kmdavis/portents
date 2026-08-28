@@ -50,7 +50,9 @@ const options = {
 	target: ["es2023"],
 	conditions: ["development"],
 	outdir: out,
-	sourcemap: true,
+	// Only in dev. docs/ is committed, so a 4.5 MB sourcemap would land in the repo on
+	// every build, and the diff for a one-line prose change would be measured in megabytes.
+	sourcemap: watch,
 	minify: !watch,
 	logLevel: "info",
 };

@@ -40,24 +40,41 @@ export interface Model {
 	readonly id: string;
 	readonly label: string;
 	readonly wire: "openai" | "anthropic";
+	/** Pre-selected for its vendor. One per wire format. */
+	readonly recommended?: boolean;
 }
 
 /**
  * The model catalogue.
  *
- * **These ids are inferred, not verified.** pi 0.84.3's registry ships `gpt-5.4`,
- * `gpt-5.5` and `claude-opus-4-8`, so the naming pattern is clear but the exact ids
- * for this generation are not confirmed against either vendor's API. A wrong id fails
- * on the first request with the provider's own error, which the UI surfaces verbatim
- * rather than swallowing -- and the field is editable so a visitor can correct it.
+ * Ids verified against OpenAI's and Anthropic's own model documentation and the
+ * Shopify proxy's model dashboard, rather than inferred from pi's registry -- which
+ * ships an older generation (`gpt-5.5`, `claude-opus-4-8`) and would have produced
+ * plausible, wrong ids and missed `claude-fable-5` entirely.
+ *
+ * A wrong id still fails on the first request with the provider's own error, which the
+ * UI shows verbatim rather than swallowing, and the field stays editable.
  */
 export const MODELS: readonly Model[] = [
+	{ id: "gpt-5.6-luna", label: "GPT-5.6 Luna", wire: "openai", recommended: true },
 	{ id: "gpt-5.6-sol", label: "GPT-5.6 Sol", wire: "openai" },
 	{ id: "gpt-5.6-terra", label: "GPT-5.6 Terra", wire: "openai" },
-	{ id: "gpt-5.6-luna", label: "GPT-5.6 Luna", wire: "openai" },
+	{ id: "claude-sonnet-5", label: "Claude Sonnet 5", wire: "anthropic", recommended: true },
 	{ id: "claude-opus-5", label: "Claude Opus 5", wire: "anthropic" },
-	{ id: "claude-sonnet-5", label: "Claude Sonnet 5", wire: "anthropic" },
+	{ id: "claude-fable-5", label: "Claude Fable 5", wire: "anthropic" },
 ];
+
+/**
+ * The model to pre-select for a provider.
+ *
+ * Falls back to the first offered rather than throwing: a provider with an unexpected
+ * shape should still produce a usable form.
+ */
+export function defaultModelFor(provider: Provider): string {
+	const offered = modelsFor(provider);
+	const wire = offered.find((model) => model.wire === provider.wire && model.recommended);
+	return (wire ?? offered.find((model) => model.recommended) ?? offered[0])?.id ?? "";
+}
 
 /**
  * Work out which provider a key belongs to.

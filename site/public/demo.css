@@ -1,0 +1,102 @@
+/* Demo-only styles. The landing page's style.css supplies the palette. */
+body.demo { max-width: 68rem; padding-bottom: 1rem; }
+
+.notice {
+	border-left: 3px solid var(--accent);
+	background: var(--code-bg);
+	padding: 0.75rem 1rem;
+	margin: 1.5rem 0;
+	font-size: 0.95rem;
+}
+
+form label { display: block; margin: 1.25rem 0; font-family: ui-sans-serif, system-ui, sans-serif; font-size: 0.9rem; }
+form label small { display: block; color: var(--muted); font-weight: 400; margin-top: 0.3rem; }
+.optional { color: var(--muted); font-weight: 400; }
+
+input, select, textarea {
+	display: block;
+	width: 100%;
+	margin-top: 0.35rem;
+	padding: 0.55rem 0.65rem;
+	font: inherit;
+	font-family: ui-monospace, Menlo, monospace;
+	font-size: 0.9rem;
+	background: var(--paper);
+	color: var(--ink);
+	border: 1px solid var(--rule);
+	border-radius: 3px;
+}
+
+input:focus, select:focus, textarea:focus { outline: 2px solid var(--accent); outline-offset: 1px; }
+
+button { font: inherit; cursor: pointer; }
+.problems { color: #b3261e; font-size: 0.9rem; padding-left: 1.2rem; }
+@media (prefers-color-scheme: dark) { .problems { color: #f2b8b5; } }
+
+.bar {
+	display: flex;
+	align-items: center;
+	gap: 0.5rem;
+	padding: 0.5rem 0;
+	border-bottom: 1px solid var(--rule);
+	font-family: ui-sans-serif, system-ui, sans-serif;
+	font-size: 0.9rem;
+}
+.grow { flex: 1; }
+
+.chip {
+	background: transparent;
+	border: 1px solid var(--rule);
+	color: var(--muted);
+	border-radius: 999px;
+	padding: 0.2rem 0.7rem;
+	font-size: 0.8rem;
+}
+.chip:hover { border-color: var(--accent); color: var(--accent); }
+
+.panes { display: flex; gap: 1.25rem; align-items: flex-start; }
+.chat-pane { flex: 1; min-width: 0; }
+
+#transcript {
+	min-height: 55vh;
+	max-height: 68vh;
+	overflow-y: auto;
+	padding: 0.5rem 0;
+}
+
+.turn { margin: 1.1rem 0; }
+.turn.player { padding-left: 1rem; border-left: 3px solid var(--rule); color: var(--muted); }
+.turn.gm p:first-child { margin-top: 0; }
+.turn.gm pre { font-size: 0.8rem; line-height: 1.3; }
+
+.tools { font-family: ui-sans-serif, system-ui, sans-serif; font-size: 0.75rem; color: var(--muted); margin: 0.3rem 0 0; }
+.tools code { background: var(--code-bg); padding: 0.05rem 0.3rem; border-radius: 2px; }
+
+.error {
+	border-left: 3px solid #b3261e;
+	background: var(--code-bg);
+	padding: 0.6rem 0.8rem;
+	font-family: ui-monospace, Menlo, monospace;
+	font-size: 0.8rem;
+	white-space: pre-wrap;
+	overflow-x: auto;
+}
+
+#say-form { display: flex; gap: 0.6rem; align-items: flex-end; padding-top: 0.6rem; border-top: 1px solid var(--rule); }
+#say { flex: 1; font-family: inherit; resize: vertical; }
+#send { white-space: nowrap; }
+#send[disabled] { opacity: 0.5; cursor: default; }
+
+#map-pane { width: 22rem; flex: none; }
+#map-holder svg { width: 100%; height: auto; border: 1px solid var(--rule); border-radius: 3px; background: var(--paper); }
+
+@media (max-width: 60rem) {
+	.panes { flex-direction: column; }
+	#map-pane { width: 100%; }
+}
+
+dialog { border: 1px solid var(--rule); border-radius: 4px; background: var(--paper); color: var(--ink); max-width: 26rem; padding: 1.25rem; }
+dialog::backdrop { background: rgba(0, 0, 0, 0.45); }
+dialog h2 { margin-top: 0; font-size: 1.1rem; }
+dialog .expression { font-size: 1.3rem; text-align: center; margin: 1rem 0; }
+dialog menu { display: flex; gap: 0.6rem; justify-content: flex-end; padding: 0; margin: 1rem 0 0; }

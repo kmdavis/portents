@@ -17,7 +17,8 @@
     told is a number you can audit.
   </p>
   <nav>
-    <a class="button" href="https://github.com/kmdavis/portents">Source</a>
+    <a class="button" href="demo.html">Play the demo</a>
+    <a class="button secondary" href="https://github.com/kmdavis/portents">Source</a>
   </nav>
 </header>
 
@@ -62,12 +63,17 @@ You are at 9 of 26.</code></pre>
 </section>
 
 <section>
-  <h2>A browser demo is coming</h2>
+  <h2>Try it without installing anything</h2>
   <p>
-    It will run the whole engine in your browser and play a game with a model of your
-    choosing. You bring an API key; it stays in your browser and goes only to the provider
-    you pointed it at. There is no server in the middle, because there is no server at all
-    — this is a static page.
+    The <a href="demo.html">demo</a> runs the whole engine in your browser and plays a game
+    with a model of your choosing. You bring an API key; it stays in your browser and goes
+    only to the provider you pointed it at. There is no server in the middle, because there
+    is no server at all — this is a static page.
+  </p>
+  <p>
+    Campaign state persists in IndexedDB, so a game survives a reload. Dice the player's
+    character rolls come up as a dialog: the human rolls their own, and the result is cited
+    with a ledger id you can look up.
   </p>
 </section>
 

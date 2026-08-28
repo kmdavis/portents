@@ -18,6 +18,7 @@ import {
 	saveSettings,
 	settingsProblems,
 	SHOPIFY_BASE_URL,
+	defaultModelFor,
 } from "./setup.ts";
 
 /** A localStorage stand-in. Node has no DOM. */
@@ -107,6 +108,33 @@ describe("model catalogue", () => {
 	it("has a distinct id and label for every model", () => {
 		assert.equal(new Set(MODELS.map((m) => m.id)).size, MODELS.length, "duplicate model id");
 		assert.equal(new Set(MODELS.map((m) => m.label)).size, MODELS.length, "duplicate model label");
+	});
+});
+
+describe("default model", () => {
+	it("picks the recommended model for each vendor", () => {
+		assert.equal(defaultModelFor(detectProvider("sk-abc")), "gpt-5.6-luna");
+		assert.equal(defaultModelFor(detectProvider("sk-ant-abc")), "claude-sonnet-5");
+	});
+
+	it("picks a model matching the wire format for a proxy that fronts both", () => {
+		// The proxy offers everything, so "recommended" alone is ambiguous; the wire
+		// format decides, and a shopify- key speaks OpenAI.
+		const model = defaultModelFor(detectProvider("shopify-abc"));
+		assert.equal(model, "gpt-5.6-luna");
+	});
+
+	it("has exactly one recommended model per wire format", () => {
+		for (const wire of ["openai", "anthropic"] as const) {
+			const recommended = MODELS.filter((model) => model.wire === wire && model.recommended);
+			assert.equal(recommended.length, 1, `${wire} has ${recommended.length} recommended models`);
+		}
+	});
+
+	it("never returns an empty id", () => {
+		for (const key of ["sk-abc", "sk-ant-abc", "shopify-abc", "mystery"]) {
+			assert.ok(defaultModelFor(detectProvider(key)), `no default for ${key}`);
+		}
 	});
 });
 
