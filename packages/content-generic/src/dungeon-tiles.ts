@@ -4,7 +4,7 @@
  * Every tile is 7×7 and every connector sits at the centre of an edge, which is
  * what makes them fit together with no matching logic: a tile's east door is
  * always opposite its neighbour's west door. `standardTileProblems` from
- * `@portent/core` enforces both rules, and the tests here assert it finds
+ * `@portents/core` enforces both rules, and the tests here assert it finds
  * nothing.
  *
  * The 5×5 interior inside the wall ring is the working space. It is enough for
@@ -21,7 +21,7 @@
  * All original content. CC0.
  */
 
-import type { TileSource } from "@portent/core";
+import type { TileSource } from "@portents/core";
 
 export const dungeonTiles: readonly TileSource[] = [
 	// ── Circulation ────────────────────────────────────────────────────────────

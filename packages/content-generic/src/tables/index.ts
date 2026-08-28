@@ -1,4 +1,4 @@
-import type { Table } from "@portent/core";
+import type { Table } from "@portents/core";
 
 import { dungeonDressing } from "./dungeon-dressing.ts";
 import { dungeonRoomPurpose } from "./dungeon-room-purpose.ts";

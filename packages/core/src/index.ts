@@ -1,5 +1,5 @@
 /**
- * @portent/core — a solo tabletop RPG engine.
+ * @portents/core — a solo tabletop RPG engine.
  *
  * Deterministic generators an agent or an application drives: dice, map tiles,
  * and (as they land) decks, random tables and oracles. Nothing here calls a
@@ -7,14 +7,14 @@
  * Storage port, so the same code runs in Node and in a browser.
  *
  * ```ts
- * import { roll, formatRoll, parseTile, renderAscii, renderSvg } from "@portent/core";
- * import { dungeonTiles } from "@portent/content-generic";
+ * import { roll, formatRoll, parseTile, renderAscii, renderSvg } from "@portents/core";
+ * import { dungeonTiles } from "@portents/content-generic";
  *
  * formatRoll(roll("6#4d6kh3"));   // ability scores
  * renderSvg(parseTile(mySource)); // the same tile the ASCII shows
  * ```
  *
- * Content lives in `@portent/content`, not here. This package knows how to
+ * Content lives in `@portents/content`, not here. This package knows how to
  * parse, validate and render tiles; it ships none of them.
  */
 

@@ -1,5 +1,5 @@
 {
-  "name": "@portent/content",
+  "name": "@portents/content",
   "version": "0.0.0",
   "description": "Everything most tables need: the generic content pack plus the packs for systems in common use. Install this unless you want to pick packs by hand.",
   "keywords": [
@@ -14,10 +14,10 @@
   "author": "Kevan Davis",
   "repository": {
     "type": "git",
-    "url": "git+https://github.com/kmdavis/portent.git",
+    "url": "git+https://github.com/kmdavis/portents.git",
     "directory": "packages/content"
   },
-  "homepage": "https://github.com/kmdavis/portent/tree/main/packages/content#readme",
+  "homepage": "https://github.com/kmdavis/portents/tree/main/packages/content#readme",
   "type": "module",
   "sideEffects": false,
   "files": [
@@ -37,14 +37,14 @@
     "typecheck": "tsc -p tsconfig.json --noEmit"
   },
   "peerDependencies": {
-    "@portent/core": "workspace:*"
+    "@portents/core": "workspace:*"
   },
   "dependencies": {
-    "@portent/content-generic": "workspace:*",
-    "@portent/content-dnd": "workspace:*",
-    "@portent/content-pf": "workspace:*"
+    "@portents/content-generic": "workspace:*",
+    "@portents/content-dnd": "workspace:*",
+    "@portents/content-pf": "workspace:*"
   },
   "devDependencies": {
-    "@portent/core": "workspace:*"
+    "@portents/core": "workspace:*"
   }
 }

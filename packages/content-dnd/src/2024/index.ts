@@ -10,7 +10,7 @@
  * original wild-magic deck stands instead.
  */
 
-import type { ContentPack } from "@portent/core";
+import type { ContentPack } from "@portents/core";
 import { sheet2024 } from "../sheets.ts";
 import { SRD_5_2_1 } from "../srd.ts";
 import { guidance } from "../guidance.generated.ts";

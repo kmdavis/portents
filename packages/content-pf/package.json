@@ -1,5 +1,5 @@
 {
-  "name": "@portent/content-pf",
+  "name": "@portents/content-pf",
   "version": "0.0.0",
   "description": "Content shaped for the Pathfinder-style d20 systems: three-action combat, degrees of success, hero points. Original writing, CC0.",
   "keywords": [
@@ -13,10 +13,10 @@
   "author": "Kevan Davis",
   "repository": {
     "type": "git",
-    "url": "git+https://github.com/kmdavis/portent.git",
+    "url": "git+https://github.com/kmdavis/portents.git",
     "directory": "packages/content-pf"
   },
-  "homepage": "https://github.com/kmdavis/portent/tree/main/packages/content-pf#readme",
+  "homepage": "https://github.com/kmdavis/portents/tree/main/packages/content-pf#readme",
   "type": "module",
   "sideEffects": false,
   "files": [
@@ -37,10 +37,10 @@
     "typecheck": "tsc -p tsconfig.json --noEmit"
   },
   "peerDependencies": {
-    "@portent/core": "workspace:*"
+    "@portents/core": "workspace:*"
   },
   "devDependencies": {
-    "@portent/content-generic": "workspace:*",
-    "@portent/core": "workspace:*"
+    "@portents/content-generic": "workspace:*",
+    "@portents/core": "workspace:*"
   }
 }

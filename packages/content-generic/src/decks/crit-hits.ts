@@ -1,4 +1,4 @@
-import type { Deck } from "@portent/core";
+import type { Deck } from "@portents/core";
 
 /**
  * Critical Hit Deck
@@ -10,7 +10,7 @@ export const critHits = {
 	name: "Critical Hit Deck",
 	description: "Draw on a critical hit instead of, or as well as, rolling extra damage. Effects are written system-neutrally: 'a save' means a Dexterity/Constitution save in 5E or a basic Reflex/Fortitude save in PF2E, GM's pick. Every card is a consequence, not just a bigger number.",
 	provenance: {
-		source: "original writing for Portent",
+		source: "original writing for Portents",
 		license: "CC0-1.0",
 	},
 	cards: [

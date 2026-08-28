@@ -16,7 +16,7 @@ import { after, describe, it } from "node:test";
 import { intFlag, parseArgs, stringFlag, UsageError } from "./args.ts";
 import { buildMap, MISSING_RASTERISER, run } from "./index.ts";
 
-const scratch = mkdtempSync(join(tmpdir(), "portent-cli-"));
+const scratch = mkdtempSync(join(tmpdir(), "portents-cli-"));
 after(() => rmSync(scratch, { recursive: true, force: true }));
 
 async function cli(...argv: string[]) {
@@ -70,7 +70,7 @@ describe("argument parsing", () => {
 	});
 });
 
-describe("portent roll", () => {
+describe("portents roll", () => {
 	it("rolls and shows the breakdown", async () => {
 		const { code, stdout } = await cli("roll", "2d6+3", "--seed", "fixed");
 		assert.equal(code, 0);
@@ -146,7 +146,7 @@ describe("portent roll", () => {
 	});
 });
 
-describe("portent odds", () => {
+describe("portents odds", () => {
 	it("reports range, mean and spread", async () => {
 		const { stdout } = await cli("odds", "4d6kh3");
 		assert.match(stdout, /Range 3–18/);
@@ -168,7 +168,7 @@ describe("portent odds", () => {
 	});
 });
 
-describe("portent map", () => {
+describe("portents map", () => {
 	it("draws a grid and reports its seed", async () => {
 		const { code, stdout } = await cli("map", "--rooms", "4", "--seed", "grimhold");
 		assert.equal(code, 0);
@@ -258,7 +258,7 @@ describe("the vector output", () => {
 	});
 });
 
-describe("portent table", () => {
+describe("portents table", () => {
 	it("lists tables when given no id", async () => {
 		const { stdout } = await cli("table");
 		assert.match(stdout, /Tables/);
@@ -283,7 +283,7 @@ describe("portent table", () => {
 	});
 });
 
-describe("portent deck", () => {
+describe("portents deck", () => {
 	it("lists decks when given no id", async () => {
 		assert.match((await cli("deck")).stdout, /crit-hits/);
 	});
@@ -306,7 +306,7 @@ describe("portent deck", () => {
 	});
 });
 
-describe("portent oracle", () => {
+describe("portents oracle", () => {
 	it("answers a yes/no question by default", async () => {
 		const { stdout } = await cli("oracle", "is the gate guarded?", "--seed", "o");
 		assert.match(stdout, /is the gate guarded\?/);
@@ -349,7 +349,7 @@ describe("help and errors", () => {
 		const { code, stdout } = await cli();
 		assert.equal(code, 0);
 		assert.match(stdout, /USAGE/);
-		assert.match(stdout, /portent roll/);
+		assert.match(stdout, /portents roll/);
 	});
 
 	it("documents every command it accepts", async () => {
@@ -360,7 +360,7 @@ describe("help and errors", () => {
 	});
 
 	it("says where state lives, since this half keeps none", async () => {
-		assert.match((await cli("help")).stdout, /nothing here writes to ~\/\.portent/);
+		assert.match((await cli("help")).stdout, /nothing here writes to ~\/\.portents/);
 	});
 
 	it("prints a version", async () => {
@@ -371,7 +371,7 @@ describe("help and errors", () => {
 		const { code, stderr } = await cli("summon");
 		assert.equal(code, 2);
 		assert.match(stderr, /Unknown command "summon"/);
-		assert.match(stderr, /portent help/);
+		assert.match(stderr, /portents help/);
 	});
 
 	it("never writes to stdout and stderr at once", async () => {

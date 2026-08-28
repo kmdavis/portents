@@ -15,7 +15,7 @@
  * and the OGL has no SPDX identifier. SRD 5.2.1 is CC-BY-4.0 only.
  */
 
-import type { Attribution } from "@portent/core";
+import type { Attribution } from "@portents/core";
 
 const LICENSE_URL = "https://creativecommons.org/licenses/by/4.0/legalcode";
 

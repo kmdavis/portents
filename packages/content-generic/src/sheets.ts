@@ -12,7 +12,7 @@
  * a file the player keeps.
  */
 
-import type { SheetTemplate } from "@portent/core";
+import type { SheetTemplate } from "@portents/core";
 
 export const genericSheet: SheetTemplate = {
 	id: "generic",

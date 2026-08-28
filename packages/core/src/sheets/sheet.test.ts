@@ -80,7 +80,7 @@ describe("createSheet", () => {
 describe("the two projections", () => {
 	it("generates a Status list from frontmatter", () => {
 		const body = getSection(brannoc(), "Status")!;
-		assert.match(body, /^<!-- portent:generated status -->$/m);
+		assert.match(body, /^<!-- portents:generated status -->$/m);
 		assert.match(body, /- \*\*HP:\*\* 22\/26/);
 		assert.match(body, /- \*\*AC:\*\* 15/);
 	});
@@ -189,7 +189,7 @@ describe("drift between the two projections", () => {
 		// Someone hand-edits the prose. The frontmatter is canonical, but guessing
 		// which side they meant is how you lose a player's HP.
 		const sheet = brannoc();
-		const tampered = setSection(sheet, "Status", "<!-- portent:generated status -->\n\n- **HP:** 99/26");
+		const tampered = setSection(sheet, "Status", "<!-- portents:generated status -->\n\n- **HP:** 99/26");
 		const problems = sheetProblems(tampered);
 		assert.equal(problems.length, 1, problems.join("; "));
 		assert.match(problems[0], /"Status" section disagrees with frontmatter "status"/);
@@ -198,7 +198,7 @@ describe("drift between the two projections", () => {
 	});
 
 	it("is repaired by syncGeneratedSections, frontmatter winning", () => {
-		const tampered = setSection(brannoc(), "Status", "<!-- portent:generated status -->\n\n- **HP:** 99/26");
+		const tampered = setSection(brannoc(), "Status", "<!-- portents:generated status -->\n\n- **HP:** 99/26");
 		const repaired = syncGeneratedSections(tampered);
 		assert.deepEqual(sheetProblems(repaired), []);
 		assert.match(getSection(repaired, "Status")!, /22\/26/);

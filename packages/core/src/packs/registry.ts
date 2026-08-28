@@ -4,7 +4,7 @@
  *
  * The library holds the *mechanism* — how a deck depletes, how a dice-keyed table
  * is indexed, how the oracle's likelihood ladder works. A pack holds the *words*.
- * `@portent/content` is one pack; anyone can write another.
+ * `@portents/content` is one pack; anyone can write another.
  *
  * Lookups go through an injected registry rather than a module-level cache read
  * from disk. That is what lets the same code run in a browser, lets a caller mix

@@ -1,17 +1,17 @@
 /**
- * @portent/content — the bundled content packs.
+ * @portents/content — the bundled content packs.
  *
- * Data only. Everything here is a plain value that `@portent/core` knows how to
+ * Data only. Everything here is a plain value that `@portents/core` knows how to
  * parse, validate and render; nothing in this package has behaviour of its own.
  * That split is deliberate: content is the part people will want to fork, extend
  * and version independently of the engine.
  *
- * `@portent/core` is a peer dependency and only its *types* are imported, so this
+ * `@portents/core` is a peer dependency and only its *types* are imported, so this
  * package adds nothing to a bundle beyond the data itself.
  *
  * ```ts
- * import { createRegistry, rollTableById, yesNo } from "@portent/core";
- * import { genericContent } from "@portent/content-generic";
+ * import { createRegistry, rollTableById, yesNo } from "@portents/core";
+ * import { genericContent } from "@portents/content-generic";
  *
  * const registry = createRegistry([genericContent]);
  * rollTableById("encounters-dungeon", { registry });
@@ -22,7 +22,7 @@
  * solo system or commercial deck.
  */
 
-import type { ContentPack } from "@portent/core";
+import type { ContentPack } from "@portents/core";
 import { sheets } from "./sheets.ts";
 import { decks } from "./decks/index.ts";
 import { guidance } from "./guidance.generated.ts";
@@ -48,12 +48,5 @@ export const genericContent: ContentPack = {
 	decks,
 	tables,
 	sheets,
-	provenance: { source: "original writing for Portent", license: "CC0-1.0" },
+	provenance: { source: "original writing for Portents", license: "CC0-1.0" },
 };
-
-/**
- * @deprecated Renamed to {@link genericContent} when content was split into one
- * package per system. Kept so an in-tree import fails loudly at typecheck rather
- * than silently resolving to something else.
- */
-export const portentContent = genericContent;

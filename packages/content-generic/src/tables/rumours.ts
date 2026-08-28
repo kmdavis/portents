@@ -1,4 +1,4 @@
-import type { Table } from "@portent/core";
+import type { Table } from "@portents/core";
 
 /**
  * Rumours
@@ -10,7 +10,7 @@ export const rumours = {
 	name: "Rumours",
 	description: "Roughly a third of these should turn out to be wrong. Decide which with the oracle, not in advance.",
 	provenance: {
-		source: "original writing for Portent",
+		source: "original writing for Portents",
 		license: "CC0-1.0",
 	},
 	dice: "1d20",

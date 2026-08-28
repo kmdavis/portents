@@ -1,0 +1,38 @@
+{
+  "name": "@portents/guidance",
+  "version": "0.0.0",
+  "description": "Harness-neutral GM guidance for running a solo tabletop session with Portents.",
+  "keywords": [
+    "rpg",
+    "ttrpg",
+    "solo",
+    "gm"
+  ],
+  "license": "CC0-1.0",
+  "author": "Kevan Davis",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/kmdavis/portents.git",
+    "directory": "packages/guidance"
+  },
+  "homepage": "https://github.com/kmdavis/portents/tree/main/packages/guidance#readme",
+  "type": "module",
+  "sideEffects": false,
+  "files": [
+    "dist",
+    "guidance",
+    "README.md"
+  ],
+  "exports": {
+    ".": {
+      "development": "./src/index.ts",
+      "types": "./dist/index.d.ts",
+      "default": "./dist/index.js"
+    }
+  },
+  "scripts": {
+    "build": "tsc -p tsconfig.build.json",
+    "test": "node --conditions=development --test 'src/**/*.test.ts'",
+    "typecheck": "tsc -p tsconfig.json --noEmit"
+  }
+}

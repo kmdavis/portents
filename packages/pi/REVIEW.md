@@ -11,16 +11,16 @@ not a review.
 
 | Severity | Finding | What was wrong |
 |---|---|---|
-| critical | Typecheck resolves siblings to unbuilt dist | Resolved `@portent/core` via the `types` condition, so a clean checkout failed before anything was built. Fixed with `customConditions: ["development"]`, verified with the packages' `dist` directories deleted. |
+| critical | Typecheck resolves siblings to unbuilt dist | Resolved `@portents/core` via the `types` condition, so a clean checkout failed before anything was built. Fixed with `customConditions: ["development"]`, verified with the packages' `dist` directories deleted. |
 | critical | Silent link step leaves typecheck failing | `link-pi.mjs >/dev/null 2>&1` hid the only useful message, and made `typecheck` write symlinks as a side effect. That side effect corrupted my own verification of it. |
-| medium | A broken import silently skips the whole suite | Worse than reported: contributed `tests 0` and exited 0, so a broken `@portent/core` looked identical to a missing pi. Presence is probed directly now, and absence is reported by a test that always runs. |
+| medium | A broken import silently skips the whole suite | Worse than reported: contributed `tests 0` and exited 0, so a broken `@portents/core` looked identical to a missing pi. Presence is probed directly now, and absence is reported by a test that always runs. |
 | medium | Deck status and shuffle draw a card instead | `status`/`shuffle`/`recent` fell through to an ephemeral draw with no campaign, returning a card the GM would narrate as real. |
 | medium | Ask-roll errors still owe the next `/roll` | A bad expression returned without clearing the request. |
 | medium | Pending rolls lose their kind | An answered saving throw was filed under the generic prefix. `PendingRoll` now carries `kind`. |
 | medium | `/draw` skips the ledger entry the deck tool writes | Bypassed the append, so a player-initiated draw never reached the audit log while the counter advanced. One `drawAndRecord` helper now. |
 | medium | `setSystem` leaves a stale rules line | Wrote a new section and left the old line under the h1. One generated home for it. |
 | minor | Dynamic import in sheet tool is redundant | Now static. |
-| medium | Skill docs describe tools and commands that are gone | Fixed in the doc pass: the `edition` action and parameter, `kind: "wilderness"`, `/dnd`, `/portent-reload-content`, and the JSON-content instructions all went. A test now checks every tool call in the skills against the registered schemas. |
+| medium | Skill docs describe tools and commands that are gone | Fixed in the doc pass: the `edition` action and parameter, `kind: "wilderness"`, `/dnd`, `/portents-reload-content`, and the JSON-content instructions all went. A test now checks every tool call in the skills against the registered schemas. |
 | medium | `dungeon-tiles` is a tile set, not a drawable deck | The draw-as-you-explore recipe is replaced by generating the dungeon up front and revealing it a room at a time. |
 | minor | README says the tools are not ported yet | Rewritten. |
 

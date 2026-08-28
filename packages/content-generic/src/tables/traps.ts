@@ -1,4 +1,4 @@
-import type { Table } from "@portent/core";
+import type { Table } from "@portents/core";
 
 /**
  * Traps & Hazards
@@ -10,7 +10,7 @@ export const traps = {
 	name: "Traps & Hazards",
 	description: "Each entry names the tell, so the trap can be found by describing the room rather than by a die roll alone.",
 	provenance: {
-		source: "original writing for Portent",
+		source: "original writing for Portents",
 		license: "CC0-1.0",
 	},
 	dice: "1d12",

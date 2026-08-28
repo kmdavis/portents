@@ -1,14 +1,14 @@
 # Character creation
 
 The output of this process is a markdown file. Nothing here is finished until
-`portent_sheet { action: "create" }` has run and the file exists.
+`portents_sheet { action: "create" }` has run and the file exists.
 
 ## Order of work
 
 0. **Know which printing you are building for.** A 2024 5E character has a background
    that grants ability score increases and a species with none; a 2014 one is the other
    way round. A Remaster PF2E character has no alignment and picks a magical tradition
-   rather than a school. Check `portent_campaign { action: "brief" }` if you are unsure, and
+   rather than a school. Check `portents_campaign { action: "brief" }` if you are unsure, and
    do not mix the two.
 1. **Concept first, numbers second.** One sentence: "a disgraced temple guard who
    still says the prayers". Ask the player for it, or roll `npc-sparks` and read it as
@@ -16,7 +16,7 @@ The output of this process is a markdown file. Nothing here is finished until
 2. **Ability scores.** Offer the player a choice, and roll in front of them:
    - **Standard array** — 15, 14, 13, 12, 10, 8. Fast, balanced, no dice.
    - **Point buy** — 27 points, or PF2E's four free boosts, if they know the system.
-   - **Rolled** — `portent_ask_roll { expression: "6#4d6kh3", reason: "ability scores" }`.
+   - **Rolled** — `portents_ask_roll { expression: "6#4d6kh3", reason: "ability scores" }`.
      **One prompt, not six.** The leading `6#` repeats the expression six times and the
      player gets one `/roll` to run, six lines back, and a totals summary. Let the
      player roll their own scores; it matters to them. If the spread is miserable,
@@ -43,7 +43,7 @@ The output of this process is a markdown file. Nothing here is finished until
 
 ## The sheet's Status block
 
-`portent_sheet` maintains a `## Status` block of `- **Key:** value` lines. This is the part
+`portents_sheet` maintains a `## Status` block of `- **Key:** value` lines. This is the part
 you patch during play. Suggested keys are filled in for you by system; add what the
 build needs.
 
@@ -65,10 +65,10 @@ Add class-specific keys as needed: `Rage Uses`, `Ki Points`, `Superiority Dice`,
 `create` stubs these with `_TBD_`; fill them with `append_section` as you settle details.
 
 - **Skills & Proficiencies** — the modifiers, not just the names. You will need the
-  numbers to build `portent_ask_roll` expressions.
+  numbers to build `portents_ask_roll` expressions.
 - **Attacks & Spellcasting** (5E) / **Strikes & Spells** (PF2E) — each attack with its
   full expression, e.g. `Longbow +7, 1d8+4 piercing, 150/600 ft`. Copy these verbatim
-  into `portent_ask_roll` so the player never has to work out their own modifier.
+  into `portents_ask_roll` so the player never has to work out their own modifier.
 - **Features & Traits** / **Feats & Class Features** — including the ones the player
   will forget they have. Reminding them is part of your job.
 - **Equipment** — with quantities for anything consumable: arrows, rations, torches,
@@ -90,4 +90,4 @@ When the player levels:
 1. Patch `Level`, `HP`, `Hit Dice` or the PF2E equivalents.
 2. `set_section` for the changed sections rather than appending, so the sheet stays
    readable.
-3. Journal it: `portent_campaign { action: "journal", heading: "Level 4" }`.
+3. Journal it: `portents_campaign { action: "journal", heading: "Level 4" }`.

@@ -25,7 +25,7 @@ export interface BrowserStorageOptions {
 	readonly store?: string;
 }
 
-const DEFAULT_DATABASE = "portent";
+const DEFAULT_DATABASE = "portents";
 const DEFAULT_STORE = "files";
 
 function indexedDb(): IDBFactory {

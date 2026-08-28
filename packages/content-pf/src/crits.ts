@@ -21,9 +21,9 @@
  *   system has a standard ladder for them.
  */
 
-import type { Deck } from "@portent/core";
+import type { Deck } from "@portents/core";
 
-const provenance = { source: "original writing for Portent", license: "CC0-1.0" } as const;
+const provenance = { source: "original writing for Portents", license: "CC0-1.0" } as const;
 
 export const critHits: Deck = {
 	id: "crit-hits",

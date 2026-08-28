@@ -1,5 +1,5 @@
 {
-  "name": "@portent/content-generic",
+  "name": "@portents/content-generic",
   "version": "0.0.0",
   "description": "Generic solo-RPG content: decks, tables and dungeon tiles that work in any d20-ish fantasy game. The fallback every other content pack overrides.",
   "keywords": [
@@ -14,7 +14,7 @@
   "author": "Kevan Davis",
   "repository": {
     "type": "git",
-    "url": "git+https://github.com/kmdavis/portent.git",
+    "url": "git+https://github.com/kmdavis/portents.git",
     "directory": "packages/content-generic"
   },
   "type": "module",
@@ -38,10 +38,10 @@
     "prepublishOnly": "pnpm build"
   },
   "peerDependencies": {
-    "@portent/core": "workspace:^"
+    "@portents/core": "workspace:^"
   },
   "devDependencies": {
-    "@portent/core": "workspace:*",
+    "@portents/core": "workspace:*",
     "typescript": "^5.7.0"
   }
 }

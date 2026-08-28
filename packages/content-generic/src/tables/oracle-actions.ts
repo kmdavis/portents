@@ -1,4 +1,4 @@
-import type { Table } from "@portent/core";
+import type { Table } from "@portents/core";
 
 /**
  * Oracle: Action
@@ -10,7 +10,7 @@ export const oracleActions = {
 	name: "Oracle: Action",
 	description: "Verb half of an action/subject pair. Pair with oracle-subjects when you need a nudge rather than a yes or no.",
 	provenance: {
-		source: "original writing for Portent",
+		source: "original writing for Portents",
 		license: "CC0-1.0",
 	},
 	dice: "1d100",

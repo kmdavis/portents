@@ -1,16 +1,16 @@
-# @portent/pi
+# @portents/pi
 
-Portent as a [pi](https://pi.dev) extension: dice, decks, oracles, random
+Portents as a [pi](https://pi.dev) extension: dice, decks, oracles, random
 tables, maps and campaign state for solo tabletop play.
 
-Ten `portent_*` tools and six commands, with all the logic in `@portent/core`.
+Ten `portents_*` tools and six commands, with all the logic in `@portents/core`.
 This file is a harness adapter: tool calls in, text out.
 
 **Not cut over yet.** The prototype at `~/.pi/agent/extensions/dnd` is still the
 one running live games.
 
 Caves, wilderness hexes and settlements are not available: only the dungeon
-generator was ported, and `portent_map` says so rather than describing what it
+generator was ported, and `portents_map` says so rather than describing what it
 cannot do.
 
 ## Parity

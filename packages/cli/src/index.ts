@@ -1,5 +1,5 @@
 /**
- * `portent` — dice, oracles, decks, tables and dungeon maps at the command line.
+ * `portents` — dice, oracles, decks, tables and dungeon maps at the command line.
  *
  * Written so the whole thing is testable without a terminal: `run()` takes argv
  * and returns an exit code plus what it would have written, and the executable in
@@ -42,8 +42,8 @@ import {
 	splitRepeat,
 	createView,
 	revealAll,
-} from "@portent/core";
-import { commonContent, decks, dungeonTiles, tables } from "@portent/content";
+} from "@portents/core";
+import { commonContent, decks, dungeonTiles, tables } from "@portents/content";
 import { intFlag, parseArgs, stringFlag, UsageError } from "./args.ts";
 import { bold, cyan, dim, plain, table } from "./format.ts";
 
@@ -71,7 +71,7 @@ function sourceFor(seed: string | undefined): { rng: RandomSource; seed: string 
 	return seed === undefined ? { rng: defaultRandomSource(), seed: undefined } : { rng: seededRandomSource(seed), seed };
 }
 
-// ── portent roll ─────────────────────────────────────────────────────────────
+// ── portents roll ─────────────────────────────────────────────────────────────
 
 function cmdRoll(argv: readonly string[]): RunResult {
 	const { positional, flags } = parseArgs(argv, {
@@ -79,7 +79,7 @@ function cmdRoll(argv: readonly string[]): RunResult {
 		boolean: ["json", "verbose"],
 	});
 	const input = positional.join(" ").trim();
-	if (!input) return fail("portent roll: needs a dice expression, e.g. `portent roll 2d20kh1+5`", 2);
+	if (!input) return fail("portents roll: needs a dice expression, e.g. `portents roll 2d20kh1+5`", 2);
 
 	const dc = intFlag(flags, "dc");
 	const { rng, seed } = sourceFor(stringFlag(flags, "seed"));
@@ -128,12 +128,12 @@ function cmdRoll(argv: readonly string[]): RunResult {
 	return ok(lines.join("\n"));
 }
 
-// ── portent odds ─────────────────────────────────────────────────────────────
+// ── portents odds ─────────────────────────────────────────────────────────────
 
 function cmdOdds(argv: readonly string[]): RunResult {
 	const { positional, flags } = parseArgs(argv, { value: ["dc"], boolean: ["json"] });
 	const expression = positional.join(" ").trim();
-	if (!expression) return fail("portent odds: needs a dice expression, e.g. `portent odds 4d6kh3`", 2);
+	if (!expression) return fail("portents odds: needs a dice expression, e.g. `portents odds 4d6kh3`", 2);
 
 	const distribution = analyze(expression);
 	const dc = intFlag(flags, "dc");
@@ -159,7 +159,7 @@ function cmdOdds(argv: readonly string[]): RunResult {
 	return ok(lines.join("\n"));
 }
 
-// ── portent map ──────────────────────────────────────────────────────────────
+// ── portents map ──────────────────────────────────────────────────────────────
 
 interface MapOutput {
 	readonly ascii: string;
@@ -236,7 +236,7 @@ async function cmdMap(argv: readonly string[]): Promise<RunResult> {
  *
  * `@resvg/resvg-js` is an **optional** dependency with a native binary, so it is
  * imported only here and only when `--png` is used. Someone who never wants a
- * PNG should not be made to compile one, and `@portent/core` must not carry a
+ * PNG should not be made to compile one, and `@portents/core` must not carry a
  * native binary in its dependency tree at all.
  */
 /**
@@ -247,7 +247,7 @@ async function cmdMap(argv: readonly string[]): Promise<RunResult> {
  * lets the message itself be pinned.
  */
 export const MISSING_RASTERISER = [
-	"portent map --png needs @resvg/resvg-js, which is not installed.",
+	"portents map --png needs @resvg/resvg-js, which is not installed.",
 	"",
 	"  It is an optional dependency because it ships a native binary, so a",
 	"  text-only install does not pay for it.",
@@ -267,7 +267,7 @@ async function writePng(map: MapOutput, path: string): Promise<{ ok: true } | { 
 	return { ok: true };
 }
 
-// ── portent table / deck / oracle ────────────────────────────────────────────
+// ── portents table / deck / oracle ────────────────────────────────────────────
 
 function cmdTable(argv: readonly string[]): RunResult {
 	const { positional, flags } = parseArgs(argv, { value: ["seed", "count"], boolean: ["json", "list"] });
@@ -355,10 +355,10 @@ function cmdOracle(argv: readonly string[]): RunResult {
 
 const VERSION = "0.0.0";
 
-const HELP = `${bold("portent")} — solo tabletop dice, oracles and dungeons
+const HELP = `${bold("portents")} — solo tabletop dice, oracles and dungeons
 
 ${bold("USAGE")}
-  portent <command> [args] [flags]
+  portents <command> [args] [flags]
 
 ${bold("COMMANDS")}
 ${table([
@@ -378,17 +378,17 @@ ${table([
 ])}
 
 ${bold("EXAMPLES")}
-  portent roll 2d20kh1+5 --dc 15
-  portent roll 6#4d6kh3
-  portent odds 4d6kh3 --dc 15
-  portent map --rooms 9 --seed grimhold --out map.txt
-  portent map --seed grimhold --svg map.svg --png map.png
-  portent table encounters-dungeon --count 3
-  portent oracle "is the gate still guarded?" --likelihood unlikely
-  portent deck crit-hits --json
+  portents roll 2d20kh1+5 --dc 15
+  portents roll 6#4d6kh3
+  portents odds 4d6kh3 --dc 15
+  portents map --rooms 9 --seed grimhold --out map.txt
+  portents map --seed grimhold --svg map.svg --png map.png
+  portents table encounters-dungeon --count 3
+  portents oracle "is the gate still guarded?" --likelihood unlikely
+  portents deck crit-hits --json
 
 ${dim("Campaigns, sheets and the roll ledger live in the pi extension, which keeps")}
-${dim("state on disk. This is the stateless half: nothing here writes to ~/.portent.")}`;
+${dim("state on disk. This is the stateless half: nothing here writes to ~/.portents.")}`;
 
 // ── Entry point ──────────────────────────────────────────────────────────────
 
@@ -396,7 +396,7 @@ ${dim("state on disk. This is the stateless half: nothing here writes to ~/.port
  * Run one invocation.
  *
  * Returns rather than printing, so a test can assert on exactly what a user would
- * see. `bin/portent.mjs` is the only place that writes to a stream.
+ * see. `bin/portents.mjs` is the only place that writes to a stream.
  */
 export async function run(argv: readonly string[]): Promise<RunResult> {
 	const [command, ...rest] = argv;
@@ -427,14 +427,14 @@ export async function run(argv: readonly string[]): Promise<RunResult> {
 			default:
 				return fail(
 					`Unknown command ${JSON.stringify(command)}.\n` +
-						"Commands: roll, odds, map, table, deck, oracle. Try `portent help`.",
+						"Commands: roll, odds, map, table, deck, oracle. Try `portents help`.",
 					2,
 				);
 		}
 	} catch (error) {
 		// A usage mistake exits 2 and a genuine failure exits 1, so a script can
 		// tell "I called it wrong" from "it broke".
-		if (error instanceof UsageError) return fail(`${error.message}\nTry \`portent help\`.`, 2);
+		if (error instanceof UsageError) return fail(`${error.message}\nTry \`portents help\`.`, 2);
 		return fail(`${cyan(String(command))}: ${(error as Error).message}`, 1);
 	}
 }

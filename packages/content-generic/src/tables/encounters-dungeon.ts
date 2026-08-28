@@ -1,4 +1,4 @@
-import type { Table } from "@portent/core";
+import type { Table } from "@portents/core";
 
 /**
  * Encounters: Dungeon
@@ -10,7 +10,7 @@ export const encountersDungeon = {
 	name: "Encounters: Dungeon",
 	description: "Roll when the party makes noise, lingers, or opens something. Half of these are not fights.",
 	provenance: {
-		source: "original writing for Portent",
+		source: "original writing for Portents",
 		license: "CC0-1.0",
 	},
 	dice: "1d20",

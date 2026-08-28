@@ -1,4 +1,4 @@
-import type { Table } from "@portent/core";
+import type { Table } from "@portents/core";
 
 /**
  * Oracle: Scene Skew
@@ -10,7 +10,7 @@ export const oracleSceneSkew = {
 	name: "Oracle: Scene Skew",
 	description: "The scene you planned, bent. Keep the location and the cast; change one load-bearing assumption.",
 	provenance: {
-		source: "original writing for Portent",
+		source: "original writing for Portents",
 		license: "CC0-1.0",
 	},
 	dice: "1d12",

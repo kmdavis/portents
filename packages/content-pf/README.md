@@ -1,12 +1,12 @@
-# @portent/content-pf
+# @portents/content-pf
 
 Content for the Pathfinder-style d20 systems: three printings, original writing
 throughout.
 
 ```ts
-import { createRegistry } from "@portent/core";
-import { genericContent } from "@portent/content-generic";
-import { pf2eContent } from "@portent/content-pf";
+import { createRegistry } from "@portents/core";
+import { genericContent } from "@portents/content-generic";
+import { pf2eContent } from "@portents/content-pf";
 
 const registry = createRegistry([genericContent, pf2eContent]);
 ```

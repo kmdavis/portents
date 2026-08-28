@@ -13,8 +13,8 @@
 import assert from "node:assert/strict";
 import { describe, it } from "node:test";
 
-import { commonContent } from "@portent/content";
-import { createRegistry } from "@portent/core";
+import { commonContent } from "@portents/content";
+import { createRegistry } from "@portents/core";
 
 import { availableSystems, GUIDANCE_TOPICS, guidanceTopic, sessionGuidance } from "./guidance.ts";
 
@@ -87,7 +87,7 @@ describe("guidance content", () => {
 		for (const system of ["5e", "pf2e", "pf1e", "generic", "Some Homebrew"]) {
 			const text = guidanceFor(system);
 			assert.match(text, /The scene loop/, `${system} lost the core guidance`);
-			assert.match(text, /portent_oracle/, `${system} lost the oracle instruction`);
+			assert.match(text, /portents_oracle/, `${system} lost the oracle instruction`);
 		}
 	});
 

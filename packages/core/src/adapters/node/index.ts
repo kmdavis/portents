@@ -148,4 +148,4 @@ function wrap(error: unknown, what: string): Error {
 	return new StorageUnavailableError(`Storage failed while ${what}: ${(error as Error)?.message ?? error}`, error);
 }
 
-export { DEFAULT_HOME_DIRNAME, HOME_ENV_VAR, openHomeStorage, portentHome } from "./home.ts";
+export { DEFAULT_HOME_DIRNAME, HOME_ENV_VAR, openHomeStorage, portentsHome } from "./home.ts";

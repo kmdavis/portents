@@ -12,10 +12,17 @@ import { mkdtempSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { fileURLToPath } from "node:url";
+
+import { commonContent } from "@portents/content";
+import { type ContentRegistry, createRegistry } from "@portents/core";
+import { CORE_GUIDANCE, GUIDANCE_TOPICS, guidanceTopic } from "@portents/guidance";
+
+/** The same registry the extension builds, so these tests see the shipped prose. */
+const registry: ContentRegistry = createRegistry(commonContent);
 import { after, before, describe, it } from "node:test";
 
-const home = mkdtempSync(join(tmpdir(), "portent-ext-"));
-process.env.PORTENT_HOME = home;
+const home = mkdtempSync(join(tmpdir(), "portents-ext-"));
+process.env.PORTENTS_HOME = home;
 
 interface ToolDef {
 	name: string;
@@ -52,17 +59,23 @@ interface Harness {
 	activeSetCalls: string[][];
 }
 
-/**
- * The guidance directory.
- *
- * `fileURLToPath`, not `new URL(...).pathname`: the latter percent-encodes, so these
- * tests silently found zero files for anyone whose checkout path contained a space.
- */
 /** Stand-ins for pi's own tools, which the extension must never switch off. */
 const BUILTIN_TOOLS = ["read", "bash", "edit"];
 
-function guidanceRoot(): string {
-	return fileURLToPath(new URL("../guidance", import.meta.url));
+/**
+ * Every piece of prose this extension can put in front of a model.
+ *
+ * Taken from the packages rather than by walking a directory, which is what these
+ * tests used to do. The prose moved out of this package -- neutral guidance to
+ * `@portents/guidance`, system rules to the content packs -- and checking the shipped
+ * strings is both simpler and closer to what a session actually sees.
+ */
+function allGuidance(reg: ContentRegistry): Array<{ label: string; text: string }> {
+	return [
+		{ label: "core", text: CORE_GUIDANCE },
+		...GUIDANCE_TOPICS.map((topic) => ({ label: `topic:${topic}`, text: guidanceTopic(topic)! })),
+		...reg.guidanceIds().map((id) => ({ label: `system:${id}`, text: reg.guidanceFor(id)!.body })),
+	];
 }
 
 function makeHarness() {
@@ -166,7 +179,7 @@ describe("extension", async () => {
 		}
 
 		before(async () => {
-			await call("portent_campaign", {
+			await call("portents_campaign", {
 				action: "create",
 				name: "Harness Test",
 				system: "5e",
@@ -176,26 +189,26 @@ describe("extension", async () => {
 
 		it("registers every tool and command", () => {
 			for (const name of [
-				"portent_roll",
-				"portent_ask_roll",
-				"portent_odds",
-				"portent_deck",
-				"portent_table",
-				"portent_oracle",
-				"portent_map",
-				"portent_campaign",
-				"portent_sheet",
-				"portent_verify_roll",
+				"portents_roll",
+				"portents_ask_roll",
+				"portents_odds",
+				"portents_deck",
+				"portents_table",
+				"portents_oracle",
+				"portents_map",
+				"portents_campaign",
+				"portents_sheet",
+				"portents_verify_roll",
 			]) {
 				assert.ok(h.tools.has(name), `missing tool ${name}`);
 			}
-			for (const name of ["roll", "portent", "sheet", "draw", "oracle", "portent-status"]) {
+			for (const name of ["roll", "portents", "sheet", "draw", "oracle", "portents-status"]) {
 				assert.ok(h.commands.has(name), `missing command ${name}`);
 			}
 		});
 
-		it("uses the portent_ prefix, never the old dnd_ one", () => {
-			for (const name of h.tools.keys()) assert.match(name, /^portent_/, name);
+		it("uses the portents_ prefix, never the old dnd_ one", () => {
+			for (const name of h.tools.keys()) assert.match(name, /^portents_/, name);
 		});
 
 		it("names its own tool in every prompt guideline", () => {
@@ -209,39 +222,39 @@ describe("extension", async () => {
 		});
 
 		it("rolls dice and returns a citable ledger id", async () => {
-			const out = await call("portent_roll", { expression: "4d6kh3", reason: "ability score" });
+			const out = await call("portents_roll", { expression: "4d6kh3", reason: "ability score" });
 			assert.match(out, /`r-\d+`/, out);
 		});
 
 		it("prefixes the id by kind, so a citation carries its own checksum", async () => {
-			assert.match(await call("portent_roll", { expression: "1d20", kind: "hit" }), /`h-\d+`/);
-			assert.match(await call("portent_roll", { expression: "1d8", kind: "damage" }), /`d-\d+`/);
-			assert.match(await call("portent_roll", { expression: "1d20", kind: "death-save" }), /`k-\d+`/);
+			assert.match(await call("portents_roll", { expression: "1d20", kind: "hit" }), /`h-\d+`/);
+			assert.match(await call("portents_roll", { expression: "1d8", kind: "damage" }), /`d-\d+`/);
+			assert.match(await call("portents_roll", { expression: "1d20", kind: "death-save" }), /`k-\d+`/);
 		});
 
 		it("reports success and failure against a DC", async () => {
-			assert.match(await call("portent_roll", { expression: "1d20+100", dc: 15 }), /\*\*success\*\*/);
-			assert.match(await call("portent_roll", { expression: "1d20-100", dc: 15 }), /\*\*failure\*\*/);
+			assert.match(await call("portents_roll", { expression: "1d20+100", dc: 15 }), /\*\*success\*\*/);
+			assert.match(await call("portents_roll", { expression: "1d20-100", dc: 15 }), /\*\*failure\*\*/);
 		});
 
 		it("rolls six ability scores from one call", async () => {
-			const out = await call("portent_roll", { expression: "6#4d6kh3" });
+			const out = await call("portents_roll", { expression: "6#4d6kh3" });
 			assert.equal((out.match(/`r-\d+`/g) ?? []).length, 6, out);
 			assert.match(out, /Totals: /);
 		});
 
 		it("verifies a real id and exposes a fabricated one", async () => {
-			const rolled = await call("portent_roll", { expression: "1d20", kind: "hit", reason: "shortbow" });
+			const rolled = await call("portents_roll", { expression: "1d20", kind: "hit", reason: "shortbow" });
 			const id = /`(h-\d+)`/.exec(rolled)![1];
-			assert.match(await call("portent_verify_roll", { id }), /attack roll/);
-			assert.match(await call("portent_verify_roll", { id: "h-9999" }), /never rolled/);
+			assert.match(await call("portents_verify_roll", { id }), /attack roll/);
+			assert.match(await call("portents_verify_roll", { id: "h-9999" }), /never rolled/);
 		});
 
 		it("refuses campaign work with no campaign loaded", async () => {
 			// A fresh registration has nothing open.
 			const { pi: pi2, h: h2 } = makeHarness();
 			loaded!(pi2);
-			const tool = h2.tools.get("portent_sheet")!;
+			const tool = h2.tools.get("portents_sheet")!;
 			await assert.rejects(
 				() => tool.execute("t", { action: "list" }, undefined, undefined, makeCtx(h2)),
 				/No campaign loaded/,
@@ -252,7 +265,7 @@ describe("extension", async () => {
 			it("puts a dialog up naming the reason, expression and DC", async () => {
 				h.confirms.length = 0;
 				h.confirmAnswer = true;
-				await call("portent_ask_roll", { expression: "1d20+7", reason: "Stealth", dc: 15, kind: "skill" });
+				await call("portents_ask_roll", { expression: "1d20+7", reason: "Stealth", dc: 15, kind: "skill" });
 				assert.equal(h.confirms.length, 1);
 				assert.match(h.confirms[0].title, /Stealth/);
 				assert.match(h.confirms[0].title, /DC 15/);
@@ -261,7 +274,7 @@ describe("extension", async () => {
 
 			it("rolls on confirm and hands the result back at once", async () => {
 				h.confirmAnswer = true;
-				const out = await call("portent_ask_roll", { expression: "1d20+7", reason: "Stealth", kind: "skill" });
+				const out = await call("portents_ask_roll", { expression: "1d20+7", reason: "Stealth", kind: "skill" });
 				assert.match(out, /`s-\d+`/, out);
 				assert.match(out, /Resolve it now/);
 				assert.doesNotMatch(out, /wait/i);
@@ -269,7 +282,7 @@ describe("extension", async () => {
 
 			it("treats cancelling as a choice, not a failure", async () => {
 				h.confirmAnswer = false;
-				const out = await call("portent_ask_roll", { expression: "1d20", reason: "Stealth" });
+				const out = await call("portents_ask_roll", { expression: "1d20", reason: "Stealth" });
 				assert.match(out, /declined/);
 				assert.match(out, /do not roll it for them/);
 				assert.doesNotMatch(out, /`[a-z]-\d+`/, "a declined roll must not produce a result");
@@ -280,7 +293,7 @@ describe("extension", async () => {
 				// Otherwise the player's next unrelated /roll answers a request nobody
 				// could have rolled.
 				h.confirmAnswer = true;
-				const out = await call("portent_ask_roll", { expression: "not dice", reason: "nonsense" });
+				const out = await call("portents_ask_roll", { expression: "not dice", reason: "nonsense" });
 				assert.match(out, /Could not roll/);
 				h.messages.length = 0;
 				await h.commands.get("roll")!.handler("1d6", ctx);
@@ -293,7 +306,7 @@ describe("extension", async () => {
 
 			it("files an answered request under the kind the GM asked for", async () => {
 				await call(
-					"portent_ask_roll",
+					"portents_ask_roll",
 					{ expression: "1d20", reason: "a save", kind: "save", dc: 12 },
 					makeCtx(h, { hasUI: false }),
 				);
@@ -308,7 +321,7 @@ describe("extension", async () => {
 
 			it("falls back to a pending /roll with no UI", async () => {
 				const out = await call(
-					"portent_ask_roll",
+					"portents_ask_roll",
 					{ expression: "1d20", reason: "Stealth" },
 					makeCtx(h, { hasUI: false }),
 				);
@@ -328,13 +341,13 @@ describe("extension", async () => {
 			}
 
 			it("carries the state a compaction would lose", async () => {
-				await call("portent_campaign", {
+				await call("portents_campaign", {
 					action: "scene",
 					summary: "At the causeway.",
 					location: "Wrenfield",
 				});
-				await call("portent_campaign", { action: "clock", clock_name: "Tide", filled: 2, segments: 6 });
-				await call("portent_sheet", {
+				await call("portents_campaign", { action: "clock", clock_name: "Tide", filled: 2, segments: 6 });
+				await call("portents_sheet", {
 					action: "create",
 					character: "Brannoc",
 					status: { HP: "26/26", AC: "15" },
@@ -356,9 +369,9 @@ describe("extension", async () => {
 				// every turn of a long game.
 				const before = (await brief()).standing;
 
-				await call("portent_campaign", { action: "scene", summary: "The tide turns.", location: "Causeway" });
-				await call("portent_campaign", { action: "clock", clock_name: "Tide", filled: 5, segments: 6 });
-				await call("portent_roll", { expression: "1d20", reason: "a roll that lands in the ledger" });
+				await call("portents_campaign", { action: "scene", summary: "The tide turns.", location: "Causeway" });
+				await call("portents_campaign", { action: "clock", clock_name: "Tide", filled: 5, segments: 6 });
+				await call("portents_roll", { expression: "1d20", reason: "a roll that lands in the ledger" });
 
 				const after = await brief();
 				assert.equal(after.standing, before, "state leaked into the system prompt and broke the prompt cache");
@@ -374,7 +387,7 @@ describe("extension", async () => {
 				// The player is reading fiction, not a status block. It is for the model.
 				const { message } = await brief();
 				assert.equal(message?.display, false);
-				assert.equal(message?.customType, "portent-state");
+				assert.equal(message?.customType, "portents-state");
 			});
 
 			it("states the secrecy rule, which prompting alone keeps losing", async () => {
@@ -390,16 +403,16 @@ describe("extension", async () => {
 
 		describe("content", () => {
 			it("lists and rolls a table without leaking the mechanism", async () => {
-				assert.match(await call("portent_table", { action: "list" }), /`weather`/);
-				const out = await call("portent_table", { action: "roll", table: "weather" });
+				assert.match(await call("portents_table", { action: "list" }), /`weather`/);
+				const out = await call("portents_table", { action: "roll", table: "weather" });
 				assert.ok(out.trim().length > 0);
 				assert.doesNotMatch(out, /`[a-z]-\d+`/, "a table result must not carry a citable id");
 			});
 
 			it("draws from a deck and keeps the card gone", async () => {
-				const first = await call("portent_deck", { action: "draw", deck: "crit-hits" });
+				const first = await call("portents_deck", { action: "draw", deck: "crit-hits" });
 				assert.match(first, /left\._$/m);
-				const status = await call("portent_deck", { action: "status", deck: "crit-hits" });
+				const status = await call("portents_deck", { action: "status", deck: "crit-hits" });
 				assert.match(status, /of \d+ left/);
 			});
 
@@ -408,7 +421,7 @@ describe("extension", async () => {
 				// card that the GM would then narrate as a real result.
 				const { pi: pi2, h: h2 } = makeHarness();
 				loaded!(pi2);
-				const tool = h2.tools.get("portent_deck")!;
+				const tool = h2.tools.get("portents_deck")!;
 				for (const action of ["status", "shuffle", "recent"]) {
 					await assert.rejects(
 						() => tool.execute("t", { action, deck: "crit-hits" }, undefined, undefined, makeCtx(h2)),
@@ -419,25 +432,25 @@ describe("extension", async () => {
 			});
 
 			it("says which decks exist when asked for one that does not", async () => {
-				await assert.rejects(() => call("portent_deck", { action: "draw", deck: "nope" }), /Available: /);
+				await assert.rejects(() => call("portents_deck", { action: "draw", deck: "nope" }), /Available: /);
 			});
 
 			it("answers the oracle with no citable id", async () => {
-				const out = await call("portent_oracle", { kind: "yes_no", question: "Is the gate guarded?" });
+				const out = await call("portents_oracle", { kind: "yes_no", question: "Is the gate guarded?" });
 				assert.ok(out.trim().length > 0);
 				assert.doesNotMatch(out, /`[a-z]-\d+`/);
 			});
 
 			it("supports every oracle kind", async () => {
 				for (const kind of ["yes_no", "meaning", "how_many", "reaction", "scene", "gm_move"]) {
-					const out = await call("portent_oracle", { kind, question: "x" });
+					const out = await call("portents_oracle", { kind, question: "x" });
 					assert.ok(out.trim().length > 0, `${kind} produced nothing`);
 				}
 			});
 
 			it("generates a dungeon that is reproducible from its seed", async () => {
-				const first = await call("portent_map", { rooms: 4, seed: "fixed-seed" });
-				const second = await call("portent_map", { rooms: 4, seed: "fixed-seed" });
+				const first = await call("portents_map", { rooms: 4, seed: "fixed-seed" });
+				const second = await call("portents_map", { rooms: 4, seed: "fixed-seed" });
 				assert.equal(first, second, "same seed gave a different dungeon");
 				assert.match(first, /Seed: `fixed-seed`/);
 			});
@@ -445,8 +458,8 @@ describe("extension", async () => {
 
 		describe("the sheet", () => {
 			it("patches status with a delta and persists it", async () => {
-				await call("portent_sheet", { action: "patch_status", character: "Brannoc", status: { HP: "-7" } });
-				assert.match(await call("portent_sheet", { action: "read", character: "Brannoc" }), /19\/26/);
+				await call("portents_sheet", { action: "patch_status", character: "Brannoc", status: { HP: "-7" } });
+				assert.match(await call("portents_sheet", { action: "read", character: "Brannoc" }), /19\/26/);
 			});
 
 			it("gives a character the sections its own system asks for", async () => {
@@ -460,29 +473,29 @@ describe("extension", async () => {
 			});
 
 			it("gives a different system different sections", async () => {
-				await call("portent_campaign", { action: "create", name: "Arkham Harness", system: "Call of Cthulhu 7e" });
-				const out = await call("portent_sheet", { action: "create", character: "Ashcombe" });
+				await call("portents_campaign", { action: "create", name: "Arkham Harness", system: "Call of Cthulhu 7e" });
+				const out = await call("portents_sheet", { action: "create", character: "Ashcombe" });
 				assert.match(out, /Generic scaffold|generic/i, "should say it fell back");
 				const { readFileSync } = await import("node:fs");
 				const raw = readFileSync(join(home, "campaigns", "arkham-harness", "characters", "ashcombe.md"), "utf8");
 				assert.doesNotMatch(raw, /Attacks & Spellcasting/, "5E headings on an investigator");
 				assert.match(raw, /## Concept/);
 				// Put the 5e campaign back for the tests that follow.
-				await call("portent_campaign", { action: "load", name: "harness-test" });
+				await call("portents_campaign", { action: "load", name: "harness-test" });
 			});
 
 			it("lists characters", async () => {
-				assert.match(await call("portent_sheet", { action: "list" }), /brannoc/);
+				assert.match(await call("portents_sheet", { action: "list" }), /brannoc/);
 			});
 
 			it("appends to a section", async () => {
-				await call("portent_sheet", {
+				await call("portents_sheet", {
 					action: "append_section",
 					character: "Brannoc",
 					section: "Equipment",
 					body: "- Longbow",
 				});
-				assert.match(await call("portent_sheet", { action: "read", character: "Brannoc" }), /Longbow/);
+				assert.match(await call("portents_sheet", { action: "read", character: "Brannoc" }), /Longbow/);
 			});
 		});
 
@@ -492,7 +505,7 @@ describe("extension", async () => {
 				// left one behind: the headless ask_roll path does leave one, and
 				// depending on that made this block order-sensitive.
 				await call(
-					"portent_ask_roll",
+					"portents_ask_roll",
 					{ expression: "1d20+7", reason: "initiative", dc: 12 },
 					makeCtx(h, { hasUI: false }),
 				);
@@ -527,10 +540,10 @@ describe("extension", async () => {
 				assert.match(h.notifications.at(-1)!.text, /Bad dice expression/);
 			});
 
-			it("/portent-status lists recent rolls", async () => {
+			it("/portents-status lists recent rolls", async () => {
 				h.entries.length = 0;
-				await h.commands.get("portent-status")!.handler("", ctx);
-				const entry = h.entries.find((e) => e.customType === "portent-status");
+				await h.commands.get("portents-status")!.handler("", ctx);
+				const entry = h.entries.find((e) => e.customType === "portents-status");
 				assert.ok(entry, "no status entry appended");
 				assert.match((entry.data as { text: string }).text, /Harness Test/);
 			});
@@ -538,11 +551,11 @@ describe("extension", async () => {
 			it("/draw writes a ledger entry, like the tool does", async () => {
 				// The command bypassed the tool's append, so a card the player drew
 				// themselves never reached the audit log and the counter ran ahead.
-				const before = (await call("portent_deck", { action: "recent", deck: "npc-sparks" })).length;
+				const before = (await call("portents_deck", { action: "recent", deck: "npc-sparks" })).length;
 				await h.commands.get("draw")!.handler("npc-sparks", ctx);
 				h.entries.length = 0;
-				await h.commands.get("portent-status")!.handler("", ctx);
-				const status = (h.entries.find((e) => e.customType === "portent-status")!.data as { text: string }).text;
+				await h.commands.get("portents-status")!.handler("", ctx);
+				const status = (h.entries.find((e) => e.customType === "portents-status")!.data as { text: string }).text;
 				assert.match(status, /`c-\d+`/, `no card entry in the ledger:\n${status}`);
 				void before;
 			});
@@ -562,8 +575,8 @@ describe("extension", async () => {
 				loaded(freshPi);
 				await fresh.handlers.get("session_start")![0]({}, makeCtx(fresh));
 
-				const portentActive = fresh.activeTools.filter((name) => name.startsWith("portent_")).sort();
-				assert.deepEqual(portentActive, ["portent_campaign", "portent_roll"]);
+				const portentActive = fresh.activeTools.filter((name) => name.startsWith("portents_")).sort();
+				assert.deepEqual(portentActive, ["portents_campaign", "portents_roll"]);
 				assert.ok(fresh.tools.size >= 11, `only ${fresh.tools.size} tools registered`);
 				// Deactivating ours must not take pi's with it: setActiveTools governs
 				// built-in tools too, so a replace instead of a subtract disables the session.
@@ -575,9 +588,9 @@ describe("extension", async () => {
 			it("carries the trigger text on the tool that starts a game", async () => {
 				// This replaced a skill's frontmatter description. If it stops saying what
 				// it is for, nothing else advertises the extension at all.
-				const description = h.tools.get("portent_campaign")!.description;
+				const description = h.tools.get("portents_campaign")!.description;
 				for (const phrase of ["play D&D", "Pathfinder", "one-shot", "DM or GM", "resume"]) {
-					assert.ok(description.includes(phrase), `portent_campaign no longer mentions ${phrase}`);
+					assert.ok(description.includes(phrase), `portents_campaign no longer mentions ${phrase}`);
 				}
 			});
 
@@ -588,10 +601,10 @@ describe("extension", async () => {
 				await fresh.handlers.get("session_start")![0]({}, freshCtx);
 
 				await fresh.tools
-					.get("portent_campaign")!
+					.get("portents_campaign")!
 					.execute("t", { action: "create", name: "Activation Test", system: "5e (2024)" }, undefined, undefined, freshCtx);
 
-				for (const name of ["portent_ask_roll", "portent_deck", "portent_oracle", "portent_sheet", "portent_guidance"]) {
+				for (const name of ["portents_ask_roll", "portents_deck", "portents_oracle", "portents_sheet", "portents_guidance"]) {
 					assert.ok(fresh.activeTools.includes(name), `${name} did not activate`);
 				}
 			});
@@ -605,7 +618,7 @@ describe("extension", async () => {
 				const freshCtx = makeCtx(fresh);
 				await fresh.handlers.get("session_start")![0]({}, freshCtx);
 				await fresh.tools
-					.get("portent_campaign")!
+					.get("portents_campaign")!
 					.execute("t", { action: "create", name: "Additive Test", system: "pf2e" }, undefined, undefined, freshCtx);
 
 				const calls = fresh.activeSetCalls;
@@ -620,9 +633,9 @@ describe("extension", async () => {
 			it("re-activates on a resumed session without starting a game again", async () => {
 				const { pi: freshPi, h: fresh } = makeHarness();
 				loaded(freshPi);
-				fresh.entries.push({ customType: "portent-active-campaign", data: { slug: "harness-test" } });
+				fresh.entries.push({ customType: "portents-active-campaign", data: { slug: "harness-test" } });
 				await fresh.handlers.get("session_start")![0]({}, makeCtx(fresh));
-				assert.ok(fresh.activeTools.includes("portent_sheet"), "a resumed game came back without its tools");
+				assert.ok(fresh.activeTools.includes("portents_sheet"), "a resumed game came back without its tools");
 			});
 		});
 
@@ -647,49 +660,31 @@ describe("extension", async () => {
 				const handler = h.handlers.get("before_agent_start")![0];
 				const { systemPrompt } = (await handler({ systemPrompt: "" }, ctx)) as { systemPrompt: string };
 				// Named, so the GM knows to ask; not inlined, because it is not needed every turn.
-				assert.match(systemPrompt, /portent_guidance \{ topic: "character-creation" \}/);
+				assert.match(systemPrompt, /portents_guidance \{ topic: "character-creation" \}/);
 				assert.doesNotMatch(systemPrompt, /Rolling ability scores/, "a deep topic was inlined");
 
-				const body = (await call("portent_guidance", { topic: "character-creation" })) as string;
+				const body = (await call("portents_guidance", { topic: "character-creation" })) as string;
 				assert.match(body, /# Character creation/);
 			});
 
 			it("reports a missing topic rather than failing the turn", async () => {
 				// A GM without a reference is worse, not broken.
-				const body = (await call("portent_guidance", { topic: "combat" })) as string;
+				const body = (await call("portents_guidance", { topic: "combat" })) as string;
 				assert.ok(body.length > 100, "combat guidance is missing from the package");
 			});
 		});
 
-		it("has guidance that names only tools that exist", async () => {
+		it("has guidance that names only tools that exist", () => {
 			// A rename that misses a guidance file leaves the GM being told to call a
 			// tool that is not registered, and the failure looks like model error.
-			const { readdirSync, readFileSync, existsSync } = await import("node:fs");
-			const skillRoot = guidanceRoot();
-			assert.ok(existsSync(skillRoot), "no guidance directory");
-			const files: string[] = [];
-			const walk = (dir: string) => {
-				for (const entry of readdirSync(dir, { withFileTypes: true })) {
-					const full = join(dir, entry.name);
-					if (entry.isDirectory()) walk(full);
-					else if (entry.name.endsWith(".md")) files.push(full);
-				}
-			};
-			walk(skillRoot);
-			// core.md plus the topics. System guidance lives in the content packages now,
-			// so it is not counted here — and must not drift back.
-			assert.ok(files.length >= 4, `only ${files.length} guidance files found`);
-			assert.ok(
-				!files.some((file) => file.includes("systems")),
-				"system guidance came back into the pi package; it belongs to the content packs",
-			);
+			const documents = allGuidance(registry);
+			assert.ok(documents.length >= 10, `only ${documents.length} guidance documents`);
 
 			const referenced = new Set<string>();
-			for (const file of files) {
-				const text = readFileSync(file, "utf8");
-				assert.doesNotMatch(text, /\bdnd_/, `${file} still references a dnd_ tool`);
-				assert.doesNotMatch(text, /PI_DND_HOME/, `${file} still references the old home var`);
-				for (const match of text.matchAll(/\bportent_[a-z_]+/g)) referenced.add(match[0]);
+			for (const { label, text } of documents) {
+				assert.doesNotMatch(text, /\bdnd_/, `${label} still references a dnd_ tool`);
+				assert.doesNotMatch(text, /PI_DND_HOME/, `${label} still references the old home var`);
+				for (const match of text.matchAll(/\bportents_[a-z_]+/g)) referenced.add(match[0]);
 			}
 			assert.ok(referenced.size >= 8, `guidance only mentions ${referenced.size} tools`);
 			for (const name of referenced) {
@@ -697,23 +692,11 @@ describe("extension", async () => {
 			}
 		});
 
-		it("has guidance whose tool calls all typecheck against the real schemas", async () => {
+		it("has guidance whose tool calls all typecheck against the real schemas", () => {
 			// The rename pass caught tool names but not parameters, so the skills went
 			// on describing an `edition` argument and a `kind: "wilderness"` map that
 			// no longer existed. Checked against the registered TypeBox schemas rather
 			// than a copy of them, so this cannot drift.
-			const { readdirSync, readFileSync } = await import("node:fs");
-			const skillRoot = guidanceRoot();
-			const files: string[] = [];
-			const walk = (dir: string) => {
-				for (const entry of readdirSync(dir, { withFileTypes: true })) {
-					const full = join(dir, entry.name);
-					if (entry.isDirectory()) walk(full);
-					else if (entry.name.endsWith(".md")) files.push(full);
-				}
-			};
-			walk(skillRoot);
-
 			const paramsOf = (name: string): Set<string> => {
 				const schema = h.tools.get(name)!.parameters as { properties?: Record<string, unknown> };
 				return new Set(Object.keys(schema.properties ?? {}));
@@ -730,11 +713,9 @@ describe("extension", async () => {
 			};
 
 			const problems: string[] = [];
-			for (const file of files) {
-				const text = readFileSync(file, "utf8");
-				const label = file.split("/").at(-1);
+			for (const { label, text } of allGuidance(registry)) {
 
-				for (const match of text.matchAll(/(portent_[a-z_]+)\s*\{([^{}]*)\}/g)) {
+				for (const match of text.matchAll(/(portents_[a-z_]+)\s*\{([^{}]*)\}/g)) {
 					const [, tool, body] = match;
 					if (!h.tools.has(tool)) {
 						problems.push(`${label}: unknown tool ${tool}`);

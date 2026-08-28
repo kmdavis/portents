@@ -1,4 +1,4 @@
-import type { Table } from "@portent/core";
+import type { Table } from "@portents/core";
 
 /**
  * GM Moves
@@ -10,7 +10,7 @@ export const gmMoves = {
 	name: "GM Moves",
 	description: "What the world does when the player fails a roll, hesitates, or does something the GM has no plan for. Pick or roll; never leave a failure as 'nothing happens'.",
 	provenance: {
-		source: "original writing for Portent",
+		source: "original writing for Portents",
 		license: "CC0-1.0",
 	},
 	dice: "1d20",

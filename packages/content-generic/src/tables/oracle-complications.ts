@@ -1,4 +1,4 @@
-import type { Table } from "@portent/core";
+import type { Table } from "@portents/core";
 
 /**
  * Oracle: Complication
@@ -10,7 +10,7 @@ export const oracleComplications = {
 	name: "Oracle: Complication",
 	description: "Drawn when the oracle d100 comes up doubles. Something else is also true. Apply it now, not later.",
 	provenance: {
-		source: "original writing for Portent",
+		source: "original writing for Portents",
 		license: "CC0-1.0",
 	},
 	dice: "1d20",

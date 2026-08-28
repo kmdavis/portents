@@ -8,7 +8,7 @@
     "outDir": "dist",
     "rootDir": "src",
     "rewriteRelativeImportExtensions": true,
-    // Emitted code must resolve @portent/core the normal way, not via the
+    // Emitted code must resolve @portents/core the normal way, not via the
     // source path mapping used for typechecking.
     "paths": {}
   },

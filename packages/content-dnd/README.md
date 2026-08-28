@@ -1,11 +1,11 @@
-# @portent/content-dnd
+# @portents/content-dnd
 
 Content for fifth-edition d20 fantasy: one pack per printing.
 
 ```ts
-import { createRegistry } from "@portent/core";
-import { genericContent } from "@portent/content-generic";
-import { dnd2024Content } from "@portent/content-dnd/2024";
+import { createRegistry } from "@portents/core";
+import { genericContent } from "@portents/content-generic";
+import { dnd2024Content } from "@portents/content-dnd/2024";
 
 // Generic first: order is the override order.
 const registry = createRegistry([genericContent, dnd2024Content]);

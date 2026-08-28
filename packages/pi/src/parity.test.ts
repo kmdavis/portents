@@ -16,8 +16,8 @@ import { readFileSync } from "node:fs";
 import { dirname, join } from "node:path";
 import { describe, it } from "node:test";
 import { fileURLToPath } from "node:url";
-import { formatRoll, parse, randomSourceFrom, roll, splitRepeat } from "@portent/core";
-import type { RandomSource } from "@portent/core";
+import { formatRoll, parse, randomSourceFrom, roll, splitRepeat } from "@portents/core";
+import type { RandomSource } from "@portents/core";
 
 interface RollFixture {
 	expression: string;

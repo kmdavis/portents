@@ -9,7 +9,7 @@
  * ## Contract
  *
  * Implementations MUST satisfy all of this. `storageConformance()` in
- * `@portent/core/testing` checks every clause, and each adapter runs it.
+ * `@portents/core/testing` checks every clause, and each adapter runs it.
  *
  * **Keys** are POSIX-ish relative paths made of segments joined by `/`:
  * `grimhold/journal.md`. There is deliberately no path module involved and no

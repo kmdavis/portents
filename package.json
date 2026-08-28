@@ -1,5 +1,5 @@
 {
-  "name": "portent-workspace",
+  "name": "portents-workspace",
   "private": true,
   "type": "module",
   "packageManager": "pnpm@10.28.0",
@@ -9,18 +9,18 @@
   "scripts": {
     "test": "pnpm -r test",
     "typecheck": "pnpm -r typecheck",
-    "check:browser": "pnpm --filter @portent/core check:browser",
+    "check:browser": "pnpm --filter @portents/core check:browser",
     "check": "pnpm typecheck && pnpm test && pnpm check:browser",
     "manual": "node manual/build.mjs",
     "build:guidance": "node scripts/build-guidance.mjs"
   },
   "devDependencies": {
-    "@portent/core": "workspace:*",
+    "@portents/core": "workspace:*",
     "@types/node": "^26.3.0",
     "esbuild": "^0.25.0",
     "typescript": "^5.7.0",
-    "@portent/content-generic": "workspace:*",
-    "@portent/content": "workspace:*"
+    "@portents/content-generic": "workspace:*",
+    "@portents/content": "workspace:*"
   },
   "license": "MIT"
 }

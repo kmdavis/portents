@@ -44,9 +44,9 @@ import {
 	splitRepeat,
 	systemClock,
 	type Table,
-} from "@portent/core";
-import { BrowserStorage } from "@portent/core/browser";
-import { commonContent, dungeonTiles } from "@portent/content";
+} from "@portents/core";
+import { BrowserStorage } from "@portents/core/browser";
+import { commonContent, dungeonTiles } from "@portents/content";
 
 export interface SessionOptions {
 	/**
@@ -94,7 +94,7 @@ export class WebSession {
 			// throws when read from, so eager construction would be harmless too. An
 			// earlier comment here claimed the laziness was load-bearing, and a
 			// mutation test showed it was not.
-			storage: options.storage ?? new BrowserStorage({ database: options.database ?? "portent" }),
+			storage: options.storage ?? new BrowserStorage({ database: options.database ?? "portents" }),
 			clock: systemClock,
 			random: options.seed === undefined ? undefined : seededRandomSource(options.seed),
 			registry: this.registry,

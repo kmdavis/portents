@@ -8,13 +8,13 @@ importers:
 
   .:
     devDependencies:
-      '@portent/content':
+      '@portents/content':
         specifier: workspace:*
         version: link:packages/content
-      '@portent/content-generic':
+      '@portents/content-generic':
         specifier: workspace:*
         version: link:packages/content-generic
-      '@portent/core':
+      '@portents/core':
         specifier: workspace:*
         version: link:packages/core
       '@types/node':
@@ -29,10 +29,10 @@ importers:
 
   packages/cli:
     dependencies:
-      '@portent/content':
+      '@portents/content':
         specifier: workspace:*
         version: link:../content
-      '@portent/core':
+      '@portents/core':
         specifier: workspace:*
         version: link:../core
     optionalDependencies:
@@ -42,32 +42,32 @@ importers:
 
   packages/content:
     dependencies:
-      '@portent/content-dnd':
+      '@portents/content-dnd':
         specifier: workspace:*
         version: link:../content-dnd
-      '@portent/content-generic':
+      '@portents/content-generic':
         specifier: workspace:*
         version: link:../content-generic
-      '@portent/content-pf':
+      '@portents/content-pf':
         specifier: workspace:*
         version: link:../content-pf
     devDependencies:
-      '@portent/core':
+      '@portents/core':
         specifier: workspace:*
         version: link:../core
 
   packages/content-dnd:
     devDependencies:
-      '@portent/content-generic':
+      '@portents/content-generic':
         specifier: workspace:*
         version: link:../content-generic
-      '@portent/core':
+      '@portents/core':
         specifier: workspace:*
         version: link:../core
 
   packages/content-generic:
     devDependencies:
-      '@portent/core':
+      '@portents/core':
         specifier: workspace:*
         version: link:../core
       typescript:
@@ -76,10 +76,10 @@ importers:
 
   packages/content-pf:
     devDependencies:
-      '@portent/content-generic':
+      '@portents/content-generic':
         specifier: workspace:*
         version: link:../content-generic
-      '@portent/core':
+      '@portents/core':
         specifier: workspace:*
         version: link:../core
 
@@ -92,7 +92,13 @@ importers:
         specifier: ^5.7.0
         version: 5.9.3
 
+  packages/guidance: {}
+
   packages/pi:
+    dependencies:
+      '@portents/guidance':
+        specifier: workspace:*
+        version: link:../guidance
     devDependencies:
       '@earendil-works/pi-ai':
         specifier: ^0.84.3
@@ -100,10 +106,10 @@ importers:
       '@earendil-works/pi-coding-agent':
         specifier: ^0.84.3
         version: 0.84.3(ws@8.21.3)
-      '@portent/content':
+      '@portents/content':
         specifier: workspace:*
         version: link:../content
-      '@portent/core':
+      '@portents/core':
         specifier: workspace:*
         version: link:../core
       typebox:
@@ -112,10 +118,10 @@ importers:
 
   packages/web:
     devDependencies:
-      '@portent/content':
+      '@portents/content':
         specifier: workspace:*
         version: link:../content
-      '@portent/core':
+      '@portents/core':
         specifier: workspace:*
         version: link:../core
       fake-indexeddb:

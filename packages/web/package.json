@@ -1,7 +1,7 @@
 {
-  "name": "@portent/web",
+  "name": "@portents/web",
   "version": "0.0.0",
-  "description": "Browser and edge integration for Portent: a storage-agnostic session facade over the engine. No UI.",
+  "description": "Browser and edge integration for Portents: a storage-agnostic session facade over the engine. No UI.",
   "keywords": [
     "rpg",
     "ttrpg",
@@ -12,10 +12,10 @@
   "author": "Kevan Davis",
   "repository": {
     "type": "git",
-    "url": "git+https://github.com/kmdavis/portent.git",
+    "url": "git+https://github.com/kmdavis/portents.git",
     "directory": "packages/web"
   },
-  "homepage": "https://github.com/kmdavis/portent/tree/main/packages/web#readme",
+  "homepage": "https://github.com/kmdavis/portents/tree/main/packages/web#readme",
   "type": "module",
   "sideEffects": false,
   "files": [
@@ -35,12 +35,12 @@
     "typecheck": "tsc -p tsconfig.json --noEmit && tsc -p tsconfig.test.json --noEmit"
   },
   "peerDependencies": {
-    "@portent/content": "workspace:*",
-    "@portent/core": "workspace:*"
+    "@portents/content": "workspace:*",
+    "@portents/core": "workspace:*"
   },
   "devDependencies": {
-    "@portent/content": "workspace:*",
-    "@portent/core": "workspace:*",
+    "@portents/content": "workspace:*",
+    "@portents/core": "workspace:*",
     "fake-indexeddb": "^6.2.5"
   }
 }

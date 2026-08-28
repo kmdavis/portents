@@ -3,7 +3,7 @@
 	"compilerOptions": {
 		"rootDir": "src",
 		"noEmit": true,
-		// Resolve @portent/* to their sources, the same "development" export
+		// Resolve @portents/* to their sources, the same "development" export
 		// condition the test runner uses. Without this, typecheck needs the sibling
 		// packages built first, so a clean checkout fails on missing dist/*.d.ts.
 		"customConditions": ["development"]

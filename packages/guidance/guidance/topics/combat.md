@@ -9,14 +9,14 @@ which. Design fights to resolve in three or four rounds.
 
 ## Before the first roll
 
-1. **Draw the enemy's plan.** `portent_deck { deck: "monster-tactics" }`. This is the single
+1. **Draw the enemy's plan.** `portents_deck { deck: "monster-tactics" }`. This is the single
    highest-value habit in this file — it stops every fight being "they walk up and hit you".
 2. **State the stakes and the exits.** Say out loud what happens if the player loses, and
    what escape looks like. A fight the player cannot flee is a different kind of scene.
 3. **Describe the terrain in three concrete features.** Cover, height, hazard. If the
-   room came from `portent_map`, use what is on the grid.
-4. **Initiative.** `portent_ask_roll { expression: "1d20+3", reason: "initiative" }` for the
-   player, `portent_roll` for the enemy, then write the order out and keep it in every round
+   room came from `portents_map`, use what is on the grid.
+4. **Initiative.** `portents_ask_roll { expression: "1d20+3", reason: "initiative" }` for the
+   player, `portents_roll` for the enemy, then write the order out and keep it in every round
    header.
 
 ## Round structure
@@ -54,7 +54,7 @@ number as the printed stat block.
 ## Making the fight matter
 
 - **Give enemies a reason to stop.** Most creatures do not fight to the death. Morale
-  check at half strength: `portent_oracle { kind: "reaction" }` or a straight `portent_roll`.
+  check at half strength: `portents_oracle { kind: "reaction" }` or a straight `portents_roll`.
 - **Change the situation on round two.** Reinforcements, terrain collapse, a hostage,
   the fire spreading, a second objective. A static fight is a spreadsheet.
 - **Use conditions rather than only damage.** Frightened, grappled, prone, blinded,

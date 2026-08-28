@@ -1,5 +1,5 @@
 {
-  "name": "@portent/content-dnd",
+  "name": "@portents/content-dnd",
   "version": "0.0.0",
   "description": "Content for fifth-edition d20 fantasy: both printings, with tables adapted from the System Reference Documents under CC-BY-4.0.",
   "keywords": [
@@ -14,10 +14,10 @@
   "author": "Kevan Davis",
   "repository": {
     "type": "git",
-    "url": "git+https://github.com/kmdavis/portent.git",
+    "url": "git+https://github.com/kmdavis/portents.git",
     "directory": "packages/content-dnd"
   },
-  "homepage": "https://github.com/kmdavis/portent/tree/main/packages/content-dnd#readme",
+  "homepage": "https://github.com/kmdavis/portents/tree/main/packages/content-dnd#readme",
   "type": "module",
   "sideEffects": false,
   "files": [
@@ -50,10 +50,10 @@
     "notice": "node scripts/notice.mjs"
   },
   "peerDependencies": {
-    "@portent/core": "workspace:*"
+    "@portents/core": "workspace:*"
   },
   "devDependencies": {
-    "@portent/core": "workspace:*",
-    "@portent/content-generic": "workspace:*"
+    "@portents/core": "workspace:*",
+    "@portents/content-generic": "workspace:*"
   }
 }

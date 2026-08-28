@@ -1,4 +1,4 @@
-import type { Table } from "@portent/core";
+import type { Table } from "@portents/core";
 
 /**
  * NPC: Mannerism
@@ -10,7 +10,7 @@ export const npcMannerism = {
 	name: "NPC: Mannerism",
 	description: "One playable habit per NPC. Enough to make them recognisable next session without a page of notes.",
 	provenance: {
-		source: "original writing for Portent",
+		source: "original writing for Portents",
 		license: "CC0-1.0",
 	},
 	dice: "1d20",

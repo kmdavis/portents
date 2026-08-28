@@ -3,7 +3,7 @@
 // The markdown is the source. Run `pnpm build:guidance` after changing it, or
 // `pnpm build:guidance --check` to see whether this file is stale.
 
-import type { SystemGuidance } from "@portent/core";
+import type { SystemGuidance } from "@portents/core";
 
 export const guidance: readonly SystemGuidance[] = [
 	{

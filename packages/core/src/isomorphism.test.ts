@@ -15,8 +15,8 @@
  * `document.createElement` breaks Node exactly as `node:fs` breaks the browser.
  *
  * `src/adapters/node/**` and `src/adapters/browser/**` are exempt: they are the
- * platform adapters, reached only via the `@portent/core/node` and
- * `@portent/core/browser` exports, and being platform-specific is their job.
+ * platform adapters, reached only via the `@portents/core/node` and
+ * `@portents/core/browser` exports, and being platform-specific is their job.
  */
 
 import assert from "node:assert/strict";

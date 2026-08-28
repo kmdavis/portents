@@ -66,8 +66,8 @@ describe("viewport", () => {
 	it("only defines symbols the crop actually uses", () => {
 		// A crop of pure floor should not carry a door symbol.
 		const svg = renderSvg(twoRooms, { viewport: { x: 1, y: 1, width: 3, height: 3 } });
-		assert.ok(!svg.includes("portent-cell-door"), "an unused symbol was defined");
-		assert.ok(svg.includes("portent-cell-floor"));
+		assert.ok(!svg.includes("portents-cell-door"), "an unused symbol was defined");
+		assert.ok(svg.includes("portents-cell-floor"));
 	});
 });
 

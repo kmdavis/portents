@@ -153,7 +153,7 @@ function tableRoll(id: string, options: OracleOptions): { text: string; trace: s
 	if (!options.registry) {
 		throw new Error(
 			`The oracle needs a content pack for the ${JSON.stringify(id)} table. ` +
-				"Pass { registry } built from @portent/content or your own pack.",
+				"Pass { registry } built from @portents/content or your own pack.",
 		);
 	}
 	const table = options.registry.requireTable(id);

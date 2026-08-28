@@ -10,7 +10,7 @@ import { NodeStorage } from "./index.ts";
 const roots: string[] = [];
 
 function freshRoot(): string {
-	const root = mkdtempSync(join(tmpdir(), "portent-node-storage-"));
+	const root = mkdtempSync(join(tmpdir(), "portents-node-storage-"));
 	roots.push(root);
 	return root;
 }

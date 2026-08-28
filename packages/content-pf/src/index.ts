@@ -1,5 +1,5 @@
 /**
- * `@portent/content-pf` — content for the Pathfinder-style d20 systems.
+ * `@portents/content-pf` — content for the Pathfinder-style d20 systems.
  *
  * **Everything here is original writing under CC0.** That is not an oversight:
  * unlike fifth edition, these systems have no CC-BY reference document to adapt.
@@ -20,15 +20,15 @@
  * those costs stay contained.
  *
  * ```ts
- * import { createRegistry } from "@portent/core";
- * import { genericContent } from "@portent/content-generic";
- * import { pf2eContent } from "@portent/content-pf";
+ * import { createRegistry } from "@portents/core";
+ * import { genericContent } from "@portents/content-generic";
+ * import { pf2eContent } from "@portents/content-pf";
  *
  * const registry = createRegistry([genericContent, pf2eContent]);
  * ```
  */
 
-import type { ContentPack } from "@portent/core";
+import type { ContentPack } from "@portents/core";
 import { critFumbles, critHits } from "./crits.ts";
 import { guidance } from "./guidance.generated.ts";
 import { sheetFirstEdition, sheetLegacy, sheetRemaster } from "./sheets.ts";
@@ -36,7 +36,7 @@ import { sheetFirstEdition, sheetLegacy, sheetRemaster } from "./sheets.ts";
 export { critFumbles, critHits } from "./crits.ts";
 export { sheetFirstEdition, sheetLegacy, sheetRemaster } from "./sheets.ts";
 
-const provenance = { source: "original writing for Portent", license: "CC0-1.0" } as const;
+const provenance = { source: "original writing for Portents", license: "CC0-1.0" } as const;
 
 /** The remaster: the current printing, and the default for `pf2e`. */
 export const pf2eContent: ContentPack = {

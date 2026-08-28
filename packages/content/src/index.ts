@@ -6,8 +6,8 @@
  * and get sensible content for the games most tables actually play.
  *
  * ```ts
- * import { createRegistry } from "@portent/core";
- * import { commonContent } from "@portent/content";
+ * import { createRegistry } from "@portents/core";
+ * import { commonContent } from "@portents/content";
  *
  * const registry = createRegistry(commonContent, { allowOverride: true });
  * ```
@@ -19,7 +19,7 @@
  * choose", and that stops being true once it carries a dozen niche systems.
  *
  * A system that does not meet the bar still gets a package -- it just is not
- * re-exported here. `@portent/content-<system>` is always installable directly,
+ * re-exported here. `@portents/content-<system>` is always installable directly,
  * so nothing is gatekept, only unbundled.
  *
  * ## Order matters
@@ -29,15 +29,15 @@
  * replace, say, a generic wild-magic table with its own.
  */
 
-import type { ContentPack } from "@portent/core";
-import { dnd2014Content, dnd2024Content } from "@portent/content-dnd";
-import { genericContent } from "@portent/content-generic";
-import { pf1eContent, pf2eContent, pf2eLegacyContent } from "@portent/content-pf";
+import type { ContentPack } from "@portents/core";
+import { dnd2014Content, dnd2024Content } from "@portents/content-dnd";
+import { genericContent } from "@portents/content-generic";
+import { pf1eContent, pf2eContent, pf2eLegacyContent } from "@portents/content-pf";
 
-export { genericContent } from "@portent/content-generic";
-export * from "@portent/content-generic";
-export { dnd2014Content, dnd2024Content, SRD_5_1, SRD_5_2_1 } from "@portent/content-dnd";
-export { pf1eContent, pf2eContent, pf2eLegacyContent } from "@portent/content-pf";
+export { genericContent } from "@portents/content-generic";
+export * from "@portents/content-generic";
+export { dnd2014Content, dnd2024Content, SRD_5_1, SRD_5_2_1 } from "@portents/content-dnd";
+export { pf1eContent, pf2eContent, pf2eLegacyContent } from "@portents/content-pf";
 
 /**
  * Every bundled pack, generic first.

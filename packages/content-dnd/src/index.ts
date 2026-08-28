@@ -1,13 +1,13 @@
 /**
- * `@portent/content-dnd` — content for fifth-edition d20 fantasy.
+ * `@portents/content-dnd` — content for fifth-edition d20 fantasy.
  *
  * One package, one pack per printing, because the printings share most of their
  * content and splitting them would mean fixing a typo twice.
  *
  * ```ts
- * import { createRegistry } from "@portent/core";
- * import { genericContent } from "@portent/content-generic";
- * import { dnd2024Content } from "@portent/content-dnd/2024";
+ * import { createRegistry } from "@portents/core";
+ * import { genericContent } from "@portents/content-generic";
+ * import { dnd2024Content } from "@portents/content-dnd/2024";
  *
  * // Generic first: order is the override order.
  * const registry = createRegistry([genericContent, dnd2024Content]);

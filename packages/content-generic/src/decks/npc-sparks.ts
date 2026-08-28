@@ -1,4 +1,4 @@
-import type { Deck } from "@portent/core";
+import type { Deck } from "@portents/core";
 
 /**
  * NPC Spark Deck
@@ -10,7 +10,7 @@ export const npcSparks = {
 	name: "NPC Spark Deck",
 	description: "Draw one card to invent an NPC on the spot. Each card gives a role, what they want, and what they are hiding \u2014 enough to play them immediately. Add a name with `dnd_table names-common` and a habit with `npc-mannerism`.",
 	provenance: {
-		source: "original writing for Portent",
+		source: "original writing for Portents",
 		license: "CC0-1.0",
 	},
 	cards: [

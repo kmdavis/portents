@@ -1,4 +1,4 @@
-# Attribution for @portent/content-dnd
+# Attribution for @portents/content-dnd
 
 This file is generated from the provenance each pack declares. Do not edit it
 by hand: run the package's build to regenerate it.

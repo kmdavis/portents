@@ -253,7 +253,7 @@ describe("the scene", () => {
 		const text = (await d.storage.read(campaign.keys.overview))!;
 		const { body } = parseDocument(text);
 		assert.match(body, /## Current scene/);
-		assert.match(body, /<!-- portent:generated scene -->/);
+		assert.match(body, /<!-- portents:generated scene -->/);
 		assert.match(body, /On the causeway\./);
 		assert.match(body, /\*\*Where\.\*\* Wrenfield/);
 		assert.match(body, /\*\*When\.\*\* midnight/);

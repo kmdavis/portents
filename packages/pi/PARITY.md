@@ -47,8 +47,8 @@ decisions were right.
 | `system: 5e` plus `edition: "2024"` | `system: 5e (2024)` | A system and its printing are one fact about a table. Also freeform, so an unusual system is recordable. |
 | Random 4-hex ledger ids, `r-3f9a` | sequential per campaign, `h-1`, `d-2` | Four hex digits had even odds of a duplicate at ~301 rolls. A duplicate makes a cited id resolve to the wrong entry, defeating the point of the ledger. |
 | One `kind` for every ledger entry | kind per prefix, cross-checked on lookup | A fabricated citation now resolves to the wrong kind and says so. |
-| `$PI_DND_HOME`, `~/dnd` | `$PORTENT_HOME`, `~/.portent` | One existing user, one `mv`. A compatibility shim would outlive its usefulness. |
-| `dnd_*` tool names | `portent_*` | The library is not one game system. |
+| `$PI_DND_HOME`, `~/dnd` | `$PORTENTS_HOME`, `~/.portents` | One existing user, one `mv`. A compatibility shim would outlive its usefulness. |
+| `dnd_*` tool names | `portents_*` | The library is not one game system. |
 | Requested roll printed a `/roll` command to copy | confirm dialog, result returned inline | Copy-pasting a command the GM just printed is not the player rolling their own dice, it is clerical work. |
 
 The prototype was fixed for the last of those before this port began, so the
@@ -68,7 +68,7 @@ port is at fault.
 ## Proving the fixtures bite
 
 A parity suite that cannot fail is worse than none, because it reads as evidence.
-These mutations were applied to `@portent/core` and each failed as shown:
+These mutations were applied to `@portents/core` and each failed as shown:
 
 | Mutation | Failures |
 |---|---|

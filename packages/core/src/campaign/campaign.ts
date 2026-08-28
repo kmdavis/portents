@@ -265,7 +265,7 @@ export class Campaign {
 			"",
 			"## Rules",
 			"",
-			"<!-- portent:generated system -->",
+			"<!-- portents:generated system -->",
 			"",
 			describeRules(system, edition),
 			"",
@@ -461,7 +461,7 @@ export class Campaign {
 	#syncSections(): void {
 		const scene = this.scene;
 		if (scene) {
-			const lines = ["<!-- portent:generated scene -->", "", scene.summary];
+			const lines = ["<!-- portents:generated scene -->", "", scene.summary];
 			const facts = [
 				scene.location ? `**Where.** ${scene.location}` : undefined,
 				scene.time ? `**When.** ${scene.time}` : undefined,
@@ -473,7 +473,7 @@ export class Campaign {
 
 		const clocks = this.clocks;
 		if (clocks.length > 0) {
-			const lines = ["<!-- portent:generated clocks -->", ""];
+			const lines = ["<!-- portents:generated clocks -->", ""];
 			for (const clock of clocks) {
 				const note = clock.note ? ` — ${clock.note}` : "";
 				lines.push(`- **${clock.name}** ${progressBar(clock.filled, clock.segments)} ${clock.filled}/${clock.segments}${note}`);
@@ -535,7 +535,7 @@ export class Campaign {
 		this.#body = setSectionBody(
 			this.#body,
 			"Clocks",
-			Object.keys(rest).length === 0 ? "<!-- portent:generated clocks -->\n\n_None._" : "",
+			Object.keys(rest).length === 0 ? "<!-- portents:generated clocks -->\n\n_None._" : "",
 		);
 		await this.#save();
 		return true;
@@ -569,7 +569,7 @@ export class Campaign {
 		this.#body = setSectionBody(
 			this.#body,
 			"Rules",
-			`<!-- portent:generated system -->\n\n${describeRules(system, resolved)}`,
+			`<!-- portents:generated system -->\n\n${describeRules(system, resolved)}`,
 		);
 		await this.#save();
 	}

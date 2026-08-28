@@ -5,7 +5,7 @@ to disagree with you.
 
 ## Set the likelihood before you roll, not after
 
-`portent_oracle { kind: "yes_no", likelihood: ... }` takes: certain, very likely, likely,
+`portents_oracle { kind: "yes_no", likelihood: ... }` takes: certain, very likely, likely,
 even, unlikely, very unlikely, impossible. Choose it from what the fiction has already
 established, and say why in one clause:
 
@@ -19,14 +19,14 @@ Do not save it for later — a complication banked is a complication forgotten.
 
 ## Interpreting "meaning" results
 
-`portent_oracle { kind: "meaning" }` returns an action and a subject, e.g. "conceal / a
+`portents_oracle { kind: "meaning" }` returns an action and a subject, e.g. "conceal / a
 debt". It is deliberately vague. Read it against the *current* scene and the most
 recently established fact, take the first reading that makes the situation worse or
 stranger, and commit. Do not roll again because you did not like it.
 
 ## Clocks
 
-A clock is a countdown with visible segments: `portent_campaign { action: "clock",
+A clock is a countdown with visible segments: `portents_campaign { action: "clock",
 clock_name: "The ritual completes", segments: 6 }`. Advance it when the fiction says so —
 a failed roll, a wasted day, a noisy fight. Tell the player it advanced and how many
 segments are left. When it fills, it happens; the tool drops it from the list.
@@ -45,14 +45,14 @@ the player engages with them.
 Generate the whole thing up front and reveal it a room at a time:
 
 ```
-portent_map { rooms: 6, save_as: "grimhold-upper" }
+portents_map { rooms: 6, save_as: "grimhold-upper" }
 ```
 
 The rooms are connected by construction rather than by luck, so there are no
 unreachable fragments. Then stock each room as the player reaches it, not before:
 
-1. `portent_table { table: "dungeon-room-purpose" }` for what the room was for.
-2. `portent_table { table: "dungeon-dressing" }` for the one detail they will remember.
+1. `portents_table { table: "dungeon-room-purpose" }` for what the room was for.
+2. `portents_table { table: "dungeon-dressing" }` for the one detail they will remember.
 3. Roll `encounters-dungeon` when they make noise, linger, or force something.
 
 **Note the seed in the journal.** The same seed regenerates the exact map forever, so
@@ -66,10 +66,10 @@ them a map they did not earn.
 There is no wilderness generator yet, so keep travel in prose and let the tables carry
 it. Per day, or per leg of a journey:
 
-1. `portent_table { table: "weather" }`
+1. `portents_table { table: "weather" }`
 2. A travel roll from the player if the terrain is difficult
-3. `portent_table { table: "encounters-wilderness" }` — most entries are not fights
-4. On arrival somewhere new, `portent_table { table: "quest-hooks" }` or an `npc-sparks`
+3. `portents_table { table: "encounters-wilderness" }` — most entries are not fights
+4. On arrival somewhere new, `portents_table { table: "quest-hooks" }` or an `npc-sparks`
    draw to make it worth the walk
 
 Do not narrate three uneventful days. Cut to the first thing that matters.
@@ -78,13 +78,13 @@ Do not narrate three uneventful days. Cut to the first thing that matters.
 
 The temptation is to have NPCs be helpful, because you want the story to move. Resist it:
 
-- **Roll their attitude.** `portent_oracle { kind: "reaction" }` before you decide whether
+- **Roll their attitude.** `portents_oracle { kind: "reaction" }` before you decide whether
   the NPC helps, and let a hostile result stand.
 - **Give them one want and one secret** — `npc-sparks` does this for you. Play the want
   openly and the secret only under pressure.
 - **Let them be right.** An NPC who correctly refuses the party's stupid plan is more
   memorable than one who goes along with it.
-- **Name them.** `portent_table { table: "names-common" }`. A named NPC that survives becomes
+- **Name them.** `portents_table { table: "names-common" }`. A named NPC that survives becomes
   campaign furniture; write them into `world.md` immediately or you will forget them.
 
 ## Pacing a solo session
@@ -104,8 +104,8 @@ The temptation is to have NPCs be helpful, because you want the story to move. R
 
 This is normal and good. In order:
 
-1. `portent_oracle { kind: "yes_no" }` for whether the thing they are looking for exists.
-2. `portent_table` or `portent_deck` for what is actually there.
+1. `portents_oracle { kind: "yes_no" }` for whether the thing they are looking for exists.
+2. `portents_table` or `portents_deck` for what is actually there.
 3. Say the first interesting thing the results suggest, and write it into `world.md`
    so it is canon from now on.
 
@@ -114,7 +114,7 @@ are for.
 
 ## Failing forward
 
-A failed roll should change the situation, not just deny the action. `portent_oracle
+A failed roll should change the situation, not just deny the action. `portents_oracle
 { kind: "gm_move" }` gives you twenty ways to do that. The three most useful:
 
 - They succeed, but it costs something concrete.

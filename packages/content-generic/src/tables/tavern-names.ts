@@ -1,4 +1,4 @@
-import type { Table } from "@portent/core";
+import type { Table } from "@portents/core";
 
 /**
  * Tavern Names
@@ -10,7 +10,7 @@ export const tavernNames = {
 	name: "Tavern Names",
 	description: "Composed inn and tavern signs.",
 	provenance: {
-		source: "original writing for Portent",
+		source: "original writing for Portents",
 		license: "CC0-1.0",
 	},
 	entries: [

@@ -10,7 +10,7 @@
  * a rulebook.
  */
 
-import type { SheetTemplate } from "@portent/core";
+import type { SheetTemplate } from "@portents/core";
 
 const shared = {
 	sections: [

@@ -1,20 +1,20 @@
-# @portent/cli
+# @portents/cli
 
 Dice, oracles, decks, random tables and dungeon maps at the command line.
 
 ```sh
-portent roll 2d20kh1+5 --dc 15
-portent roll 6#4d6kh3
-portent odds 4d6kh3 --dc 15
-portent map --rooms 9 --seed grimhold --svg map.svg --png map.png
-portent table encounters-dungeon --count 3
-portent oracle "is the gate still guarded?" --likelihood unlikely
-portent deck crit-hits --json
+portents roll 2d20kh1+5 --dc 15
+portents roll 6#4d6kh3
+portents odds 4d6kh3 --dc 15
+portents map --rooms 9 --seed grimhold --svg map.svg --png map.png
+portents table encounters-dungeon --count 3
+portents oracle "is the gate still guarded?" --likelihood unlikely
+portents deck crit-hits --json
 ```
 
 **This is the stateless half.** Campaigns, character sheets and the roll ledger
 live in the pi extension, which keeps state on disk. Nothing here writes to
-`~/.portent`, so a deck draw is a one-off rather than something that depletes a
+`~/.portents`, so a deck draw is a one-off rather than something that depletes a
 saved pile.
 
 ## Two conventions every command shares
@@ -23,7 +23,7 @@ saved pile.
 so every command has a machine-readable form:
 
 ```sh
-$ portent roll 2d6+3 --seed j --dc 5 --json
+$ portents roll 2d6+3 --seed j --dc 5 --json
 {
   "expression": "2d6+3",
   "seed": "j",
@@ -49,7 +49,7 @@ otherwise silently produce a different result and look like the tool misbehaving
 
 ## Maps
 
-`portent map` builds a rooms-and-corridors dungeon from 7×7 tiles, carved as a
+`portents map` builds a rooms-and-corridors dungeon from 7×7 tiles, carved as a
 spanning tree first so the result is **connected by construction** rather than by
 luck. Three outputs, all of the same dungeon:
 

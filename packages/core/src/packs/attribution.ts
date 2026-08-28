@@ -20,7 +20,7 @@
  *
  * Each content package carries its own attribution. A repo-level NOTICE would
  * mean one file accumulating the obligations of every system, which is wrong in
- * two ways: someone installing only `@portent/content-pf` would receive
+ * two ways: someone installing only `@portents/content-pf` would receive
  * obligations that do not apply to them, and someone forking one package would
  * leave the notice behind entirely.
  *
@@ -117,7 +117,7 @@ export interface Attribution {
 
 /** Where a pack's content came from, and under what licence. */
 export interface Provenance {
-	/** Free text: "original writing for Portent", or the work it came from. */
+	/** Free text: "original writing for Portents", or the work it came from. */
 	readonly source: string;
 	readonly license?: string;
 	/** Required when {@link license} is one that imposes attribution conditions. */

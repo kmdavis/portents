@@ -16,14 +16,14 @@ import "fake-indexeddb/auto";
 
 import assert from "node:assert/strict";
 import { after, before, describe, it } from "node:test";
-import { BrowserStorage } from "@portent/core/browser";
-import { storageConformanceCases } from "@portent/core/testing";
-import type { Storage } from "@portent/core";
+import { BrowserStorage } from "@portents/core/browser";
+import { storageConformanceCases } from "@portents/core/testing";
+import type { Storage } from "@portents/core";
 import { WebSession } from "./session.ts";
 
 let counter = 0;
 /** A fresh database per case, so cases cannot interfere. */
-const freshStorage = () => new BrowserStorage({ database: `portent-test-${counter++}` });
+const freshStorage = () => new BrowserStorage({ database: `portents-test-${counter++}` });
 
 describe("BrowserStorage conformance", () => {
 	// The gap this package exists to close. These are the library's own published
@@ -38,7 +38,7 @@ describe("IndexedDB persistence", () => {
 	it("survives a fresh handle to the same database", async () => {
 		// The whole point of using IndexedDB rather than memory: a closed tab is not
 		// a lost campaign.
-		const database = `portent-persist-${counter++}`;
+		const database = `portents-persist-${counter++}`;
 		const first = new BrowserStorage({ database });
 		await first.write("campaigns/x/campaign.md", "---\nname: X\n---\n");
 
@@ -47,8 +47,8 @@ describe("IndexedDB persistence", () => {
 	});
 
 	it("keeps separate databases separate", async () => {
-		const a = new BrowserStorage({ database: `portent-a-${counter++}` });
-		const b = new BrowserStorage({ database: `portent-b-${counter++}` });
+		const a = new BrowserStorage({ database: `portents-a-${counter++}` });
+		const b = new BrowserStorage({ database: `portents-b-${counter++}` });
 		await a.write("k", "from a");
 		assert.equal(await b.read("k"), undefined);
 	});

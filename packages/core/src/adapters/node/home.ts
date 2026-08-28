@@ -1,7 +1,7 @@
 /**
- * Where Portent keeps its data on a machine.
+ * Where Portents keeps its data on a machine.
  *
- * `$PORTENT_HOME`, or `~/.portent`. Node-only, because a home directory is not a
+ * `$PORTENTS_HOME`, or `~/.portents`. Node-only, because a home directory is not a
  * concept in a browser — the browser adapter keys IndexedDB the same way but has
  * no path to resolve.
  *
@@ -14,11 +14,11 @@ import { homedir } from "node:os";
 import { join, resolve } from "node:path";
 import { NodeStorage } from "./index.ts";
 
-export const HOME_ENV_VAR = "PORTENT_HOME";
-export const DEFAULT_HOME_DIRNAME = ".portent";
+export const HOME_ENV_VAR = "PORTENTS_HOME";
+export const DEFAULT_HOME_DIRNAME = ".portents";
 
 /** The resolved data directory. */
-export function portentHome(env: Record<string, string | undefined> = process.env): string {
+export function portentsHome(env: Record<string, string | undefined> = process.env): string {
 	const configured = env[HOME_ENV_VAR]?.trim();
 	if (configured) return resolve(configured);
 	return join(homedir(), DEFAULT_HOME_DIRNAME);
@@ -26,5 +26,5 @@ export function portentHome(env: Record<string, string | undefined> = process.en
 
 /** Storage rooted at the data directory. The usual entry point on a server or CLI. */
 export function openHomeStorage(env?: Record<string, string | undefined>): NodeStorage {
-	return new NodeStorage({ root: portentHome(env) });
+	return new NodeStorage({ root: portentsHome(env) });
 }

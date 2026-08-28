@@ -1,4 +1,4 @@
-import type { Deck } from "@portent/core";
+import type { Deck } from "@portents/core";
 
 /**
  * Fumble Deck
@@ -10,7 +10,7 @@ export const critFumbles = {
 	name: "Fumble Deck",
 	description: "Optional. Draw on a natural 1 for an attack. Use it on enemies as freely as on the player, or not at all \u2014 fumble decks punish martial characters more than casters, so agree before switching this on.",
 	provenance: {
-		source: "original writing for Portent",
+		source: "original writing for Portents",
 		license: "CC0-1.0",
 	},
 	cards: [

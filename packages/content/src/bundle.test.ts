@@ -1,5 +1,5 @@
 import assert from "node:assert/strict";
-import { createRegistry } from "@portent/core";
+import { createRegistry } from "@portents/core";
 import { describe, it } from "node:test";
 import { bundledSystems, commonContent, genericContent } from "./index.ts";
 

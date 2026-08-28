@@ -35,7 +35,7 @@ import {
 } from "./tile.ts";
 
 /**
- * Fixtures authored here rather than imported from @portent/content: the engine
+ * Fixtures authored here rather than imported from @portents/content: the engine
  * must be testable without any content pack, and the content pack has its own
  * tests for its own tiles.
  */
@@ -314,7 +314,7 @@ describe("SVG projection", () => {
 		const tile = parseTile({ id: 'q"uote', name: 'A <name> & "quotes"', art: ["#"] });
 		const svg = renderSvg(tile);
 		assert.match(svg, /&lt;name&gt; &amp; &quot;quotes&quot;/);
-		assert.ok(!svg.includes('data-portent-tile="q"uote"'), "unescaped id broke an attribute");
+		assert.ok(!svg.includes('data-portents-tile="q"uote"'), "unescaped id broke an attribute");
 	});
 
 	it("carries an accessible title", () => {
@@ -332,7 +332,7 @@ describe("SVG projection", () => {
 		const plain = readSvgCells(renderSvg(subject));
 		const decorated = readSvgCells(renderSvg(subject, { grid: true, legend: true }));
 		assert.deepEqual(decorated, plain, "decoration changed the cells");
-		assert.match(renderSvg(subject, { legend: true }), /data-portent="legend"/);
+		assert.match(renderSvg(subject, { legend: true }), /data-portents="legend"/);
 	});
 });
 

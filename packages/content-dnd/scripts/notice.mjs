@@ -11,7 +11,7 @@
 import { writeFileSync } from "node:fs";
 import { dirname, join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
-import { renderNotice } from "@portent/core";
+import { renderNotice } from "@portents/core";
 import { dndPacks } from "../src/index.ts";
 
 const root = resolve(dirname(fileURLToPath(import.meta.url)), "..");
@@ -22,7 +22,7 @@ for (const pack of dndPacks) {
 	if (pack.provenance) items.push({ id: `pack:${pack.id}`, provenance: pack.provenance });
 }
 
-const notice = renderNotice("@portent/content-dnd", items);
+const notice = renderNotice("@portents/content-dnd", items);
 if (notice === undefined) {
 	console.log("Nothing here requires attribution; no NOTICE.md written.");
 	process.exit(0);

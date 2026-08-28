@@ -12,7 +12,7 @@
  * system-agnostic. The override is declared on the pack that carries this.
  */
 
-import type { Table } from "@portent/core";
+import type { Table } from "@portents/core";
 import { SRD_5_2_1 } from "../srd.ts";
 
 export const traps: Table = {

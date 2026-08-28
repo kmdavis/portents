@@ -1,9 +1,9 @@
 import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import { describe, it } from "node:test";
-import { createRegistry, deckProblems } from "@portent/core";
-import { licenceConformanceCases } from "@portent/core/testing";
-import { genericContent } from "@portent/content-generic";
+import { createRegistry, deckProblems } from "@portents/core";
+import { licenceConformanceCases } from "@portents/core/testing";
+import { genericContent } from "@portents/content-generic";
 import { critFumbles, critHits, pf1eContent, pf2eContent, pf2eLegacyContent, pfPacks } from "./index.ts";
 
 const manifest = JSON.parse(readFileSync(new URL("../package.json", import.meta.url).pathname, "utf8")) as {
@@ -13,7 +13,7 @@ const manifest = JSON.parse(readFileSync(new URL("../package.json", import.meta.
 
 describe("licence conformance", () => {
 	for (const check of licenceConformanceCases({
-		packageName: "@portent/content-pf",
+		packageName: "@portents/content-pf",
 		packs: [...pfPacks],
 		// Original writing only. There is no CC-BY reference document for these
 		// systems, so CC-BY appearing here would mean something went wrong.

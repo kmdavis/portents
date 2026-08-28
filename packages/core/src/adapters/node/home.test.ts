@@ -2,28 +2,28 @@ import assert from "node:assert/strict";
 import { homedir } from "node:os";
 import { join } from "node:path";
 import { describe, it } from "node:test";
-import { DEFAULT_HOME_DIRNAME, HOME_ENV_VAR, portentHome } from "./home.ts";
+import { DEFAULT_HOME_DIRNAME, HOME_ENV_VAR, portentsHome } from "./home.ts";
 
-describe("portentHome", () => {
-	it("defaults to ~/.portent", () => {
-		assert.equal(portentHome({}), join(homedir(), ".portent"));
-		assert.equal(DEFAULT_HOME_DIRNAME, ".portent");
+describe("portentsHome", () => {
+	it("defaults to ~/.portents", () => {
+		assert.equal(portentsHome({}), join(homedir(), ".portents"));
+		assert.equal(DEFAULT_HOME_DIRNAME, ".portents");
 	});
 
-	it("honours PORTENT_HOME", () => {
-		assert.equal(portentHome({ [HOME_ENV_VAR]: "/tmp/portent-test" }), "/tmp/portent-test");
+	it("honours PORTENTS_HOME", () => {
+		assert.equal(portentsHome({ [HOME_ENV_VAR]: "/tmp/portents-test" }), "/tmp/portents-test");
 	});
 
 	it("resolves a relative override to an absolute path", () => {
-		assert.ok(portentHome({ [HOME_ENV_VAR]: "./data" }).startsWith("/"));
+		assert.ok(portentsHome({ [HOME_ENV_VAR]: "./data" }).startsWith("/"));
 	});
 
 	it("ignores a blank override", () => {
-		assert.equal(portentHome({ [HOME_ENV_VAR]: "   " }), join(homedir(), ".portent"));
+		assert.equal(portentsHome({ [HOME_ENV_VAR]: "   " }), join(homedir(), ".portents"));
 	});
 
 	it("has no fallback to the prototype's ~/dnd", () => {
 		// A deliberate break. One existing user, one mv, no shim to maintain.
-		assert.ok(!portentHome({}).endsWith("/dnd"));
+		assert.ok(!portentsHome({}).endsWith("/dnd"));
 	});
 });

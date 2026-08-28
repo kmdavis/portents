@@ -1,5 +1,5 @@
 /**
- * Portent as a pi extension: run a real tabletop session for one human player.
+ * Portents as a pi extension: run a real tabletop session for one human player.
  *
  * Three things it guarantees that prompting alone cannot:
  *
@@ -13,7 +13,7 @@
  *    the GM cannot forget whose game it is or what the player's HP is after a
  *    compaction.
  *
- * All the logic lives in `@portent/core`. This file is a harness adapter: it
+ * All the logic lives in `@portents/core`. This file is a harness adapter: it
  * turns tool calls into library calls and library results into text. Anything
  * here that starts to look like a rule of play belongs in the library instead,
  * where it can be tested without a harness.
@@ -23,7 +23,7 @@ import { StringEnum } from "@earendil-works/pi-ai";
 import type { ExtensionAPI, ExtensionContext } from "@earendil-works/pi-coding-agent";
 import { Type } from "typebox";
 
-import { availableSystems as listSystems, GUIDANCE_TOPICS, type GuidanceTopic, guidanceTopic, sessionGuidance } from "./guidance.ts";
+import { availableSystems as listSystems, GUIDANCE_TOPICS, guidanceTopic, sessionGuidance } from "./guidance.ts";
 import {
 	analyze,
 	appendToSection,
@@ -66,9 +66,9 @@ import {
 	revealAll,
 	WORLD_SECTIONS,
 	type WorldSection,
-} from "@portent/core";
-import { openHomeStorage, portentHome } from "@portent/core/node";
-import { commonContent, decks, dungeonTiles, tables } from "@portent/content";
+} from "@portents/core";
+import { openHomeStorage, portentsHome } from "@portents/core/node";
+import { commonContent, decks, dungeonTiles, tables } from "@portents/content";
 
 export default function activate(pi: ExtensionAPI): void {
 	const storage = openHomeStorage();
@@ -89,7 +89,7 @@ export default function activate(pi: ExtensionAPI): void {
 	function requireCampaign(): Campaign {
 		if (!campaign) {
 			throw new Error(
-				'No campaign loaded. Use portent_campaign with action "list" to see saved campaigns, or "create" to start one.',
+				'No campaign loaded. Use portents_campaign with action "list" to see saved campaigns, or "create" to start one.',
 			);
 		}
 		return campaign;
@@ -106,14 +106,14 @@ export default function activate(pi: ExtensionAPI): void {
 	async function showStatus(ctx: ExtensionContext): Promise<void> {
 		if (!ctx.hasUI) return;
 		if (!campaign) {
-			ctx.ui.setStatus("portent", undefined);
-			ctx.ui.setWidget("portent", []);
+			ctx.ui.setStatus("portents", undefined);
+			ctx.ui.setWidget("portents", []);
 			return;
 		}
-		ctx.ui.setStatus("portent", `🎲 ${campaign.name} (${campaign.systemLine})`);
+		ctx.ui.setStatus("portents", `🎲 ${campaign.name} (${campaign.systemLine})`);
 		const pending = campaign.pendingRoll;
 		ctx.ui.setWidget(
-			"portent",
+			"portents",
 			pending
 				? [`🎲 Owed: ${pending.expression} — ${pending.reason}${pending.dc ? ` vs DC ${pending.dc}` : ""}`]
 				: [],
@@ -195,23 +195,23 @@ export default function activate(pi: ExtensionAPI): void {
 	 * switch on. But only these two are *active*, so a session that is not a game
 	 * carries two tool definitions instead of ten.
 	 *
-	 * `portent_campaign` is the way in, and its description carries the trigger text
-	 * that used to live in a skill's frontmatter. `portent_roll` is here because
+	 * `portents_campaign` is the way in, and its description carries the trigger text
+	 * that used to live in a skill's frontmatter. `portents_roll` is here because
 	 * "roll 3d6" is a reasonable thing to ask with no campaign loaded at all.
 	 */
-	const PRE_CAMPAIGN_TOOLS = ["portent_campaign", "portent_roll"] as const;
+	const PRE_CAMPAIGN_TOOLS = ["portents_campaign", "portents_roll"] as const;
 
 	/** The rest: only meaningful once there is a campaign to act on. */
 	const PLAY_TOOLS = [
-		"portent_ask_roll",
-		"portent_odds",
-		"portent_verify_roll",
-		"portent_deck",
-		"portent_table",
-		"portent_oracle",
-		"portent_map",
-		"portent_sheet",
-		"portent_guidance",
+		"portents_ask_roll",
+		"portents_odds",
+		"portents_verify_roll",
+		"portents_deck",
+		"portents_table",
+		"portents_oracle",
+		"portents_map",
+		"portents_sheet",
+		"portents_guidance",
 	] as const;
 
 	/**
@@ -263,7 +263,7 @@ export default function activate(pi: ExtensionAPI): void {
 	pi.on("session_start", async (_event, ctx) => {
 		setCampaign(undefined);
 		for (const entry of ctx.sessionManager.getEntries()) {
-			if (entry.type === "custom" && entry.customType === "portent-active-campaign") {
+			if (entry.type === "custom" && entry.customType === "portents-active-campaign") {
 				const slug = (entry.data as { slug: string | null })?.slug;
 				if (slug) {
 					try {
@@ -300,13 +300,13 @@ export default function activate(pi: ExtensionAPI): void {
 		return [
 			"# Active tabletop session",
 			`Campaign: **${active.name}** (\`${active.slug}\`) · ${describeRules(active.system, active.edition)}`,
-			`Files: \`${portentHome()}/${active.keys.dir}\` — campaign.md, world.md, journal.md, characters/, maps/`,
+			`Files: \`${portentsHome()}/${active.keys.dir}\` — campaign.md, world.md, journal.md, characters/, maps/`,
 			"",
 			"Rules for this session that override your usual habits:",
-			"- Never state a die result, card, or random outcome you did not get from a portent_* tool.",
+			"- Never state a die result, card, or random outcome you did not get from a portents_* tool.",
 			"- **Cite the ledger id only for mechanics the player can see happening to their character**: attack rolls, damage, saves, checks against a DC. Write it inline, e.g. \`19 to hit [h-42]\`.",
-			"- **Never cite an id, name a tool, or describe the mechanism for world-generation randomness**: oracle answers, scene checks, table rolls, card draws. Those are your private scaffolding. Translate the result into fiction and say nothing about where it came from. Phrases like “the dice decided”, “the oracle says” or “scene: skewed” break the game. The ledger is the audit trail; the player can run /portent-status to look.",
-			"- Rolls that belong to the player are asked for with portent_ask_roll, never rolled for them.",
+			"- **Never cite an id, name a tool, or describe the mechanism for world-generation randomness**: oracle answers, scene checks, table rolls, card draws. Those are your private scaffolding. Translate the result into fiction and say nothing about where it came from. Phrases like “the dice decided”, “the oracle says” or “scene: skewed” break the game. The ledger is the audit trail; the player can run /portents-status to look.",
+			"- Rolls that belong to the player are asked for with portents_ask_roll, never rolled for them.",
 			"- Update the sheet and journal on disk as play happens, not at the end.",
 			"",
 			"---",
@@ -335,7 +335,7 @@ export default function activate(pi: ExtensionAPI): void {
 			if (printings.length > 0) {
 				lines.push(
 					`**Printing not recorded.** Ask the player which they want — ${printings.join(" or ")} — ` +
-						'then set it with portent_campaign action "system".',
+						'then set it with portents_campaign action "system".',
 				);
 			}
 		}
@@ -349,7 +349,7 @@ export default function activate(pi: ExtensionAPI): void {
 					: `Character: \`${character}\` — **sheet missing on disk**`,
 			);
 		} else {
-			lines.push("Character: **none yet — build one with portent_sheet before play starts**");
+			lines.push("Character: **none yet — build one with portents_sheet before play starts**");
 		}
 
 		const scene = active.scene;
@@ -383,7 +383,7 @@ export default function activate(pi: ExtensionAPI): void {
 		const digest = await volatileDigest(campaign);
 		return {
 			systemPrompt: `${event.systemPrompt}\n\n${standingBriefing(campaign)}`,
-			...(digest ? { message: { customType: "portent-state", content: digest, display: false } } : {}),
+			...(digest ? { message: { customType: "portents-state", content: digest, display: false } } : {}),
 		};
 	});
 
@@ -392,7 +392,7 @@ export default function activate(pi: ExtensionAPI): void {
 	// A skill would be loaded in every session whether or not anyone is playing, and
 	// its only real job was to be *found* when someone asks to play. A tool
 	// description does that job already, so the trigger text lives on
-	// `portent_campaign` and the GM guidance is injected when a game actually starts.
+	// `portents_campaign` and the GM guidance is injected when a game actually starts.
 	// That also retires a bug: the old skill path came from `new URL(...).pathname`,
 	// which percent-encodes, so any user whose checkout contained a space got a path
 	// that did not resolve.
@@ -402,12 +402,12 @@ export default function activate(pi: ExtensionAPI): void {
 	const ROLL_KINDS = ["roll", "hit", "damage", "skill", "save", "death-save", "initiative"] as const;
 
 	pi.registerTool({
-		name: "portent_roll",
+		name: "portents_roll",
 		label: "Roll dice",
 		description: [
 			"Roll dice and log the result to the campaign ledger. Use for anything the GM rolls:",
 			"monster attacks, damage, saves for NPCs, random checks.",
-			"Do NOT use for rolls that belong to the player — use portent_ask_roll for those.",
+			"Do NOT use for rolls that belong to the player — use portents_ask_roll for those.",
 			'Notation: 4d6kh3, 2d20kh1 (advantage), 2d20kl1 (disadvantage), 1d8+3, 1d6x (explode), 4d6r1,',
 			"1d20min10, 5d10cs>=7, d%, 4dF, floor((2d6+3)/2), 8d6 # fireball.",
 			"A leading count repeats the whole expression: 6#4d6kh3 rolls six ability scores.",
@@ -415,8 +415,8 @@ export default function activate(pi: ExtensionAPI): void {
 		].join(" "),
 		promptSnippet: "Roll dice for anything the GM decides; cite the returned id",
 		promptGuidelines: [
-			"Use portent_roll for every die the GM rolls, and never write a result you did not get back from it.",
-			"Use a leading repeat count with portent_roll for a set of identical rolls, e.g. 6#4d6kh3, rather than calling it six times.",
+			"Use portents_roll for every die the GM rolls, and never write a result you did not get back from it.",
+			"Use a leading repeat count with portents_roll for a set of identical rolls, e.g. 6#4d6kh3, rather than calling it six times.",
 		],
 		parameters: Type.Object({
 			expression: Type.String({ description: 'Dice expression, e.g. "2d20kh1+5"' }),
@@ -442,7 +442,7 @@ export default function activate(pi: ExtensionAPI): void {
 	});
 
 	pi.registerTool({
-		name: "portent_ask_roll",
+		name: "portents_ask_roll",
 		label: "Ask player to roll",
 		description: [
 			"Ask the human player to roll their own dice. Puts a dialog on their screen: they confirm to roll it,",
@@ -454,8 +454,8 @@ export default function activate(pi: ExtensionAPI): void {
 		].join(" "),
 		promptSnippet: "Ask the human player to roll; they confirm or decline in a dialog",
 		promptGuidelines: [
-			"Use portent_ask_roll for any roll belonging to the player's character rather than rolling it yourself.",
-			"portent_ask_roll returns the player's result directly, so narrate the outcome in the same turn; if it reports they declined, ask what they do instead rather than rolling it yourself.",
+			"Use portents_ask_roll for any roll belonging to the player's character rather than rolling it yourself.",
+			"portents_ask_roll returns the player's result directly, so narrate the outcome in the same turn; if it reports they declined, ask what they do instead rather than rolling it yourself.",
 		],
 		parameters: Type.Object({
 			expression: Type.String({ description: 'What they should roll, e.g. "1d20+5"' }),
@@ -531,7 +531,7 @@ export default function activate(pi: ExtensionAPI): void {
 	});
 
 	pi.registerTool({
-		name: "portent_odds",
+		name: "portents_odds",
 		label: "Dice odds",
 		description: [
 			"Probability of a dice expression: mean, spread, and the chance of meeting a DC.",
@@ -553,7 +553,7 @@ export default function activate(pi: ExtensionAPI): void {
 	});
 
 	pi.registerTool({
-		name: "portent_guidance",
+		name: "portents_guidance",
 		label: "GM guidance",
 		description: [
 			"Read deeper GM guidance on one topic. The standing guidance is already in your context;",
@@ -565,7 +565,7 @@ export default function activate(pi: ExtensionAPI): void {
 		parameters: Type.Object({
 			topic: StringEnum([...GUIDANCE_TOPICS]),
 		}),
-		async execute(_id, params: { topic: GuidanceTopic }) {
+		async execute(_id, params: { topic: string }) {
 			const body = guidanceTopic(params.topic);
 			if (!body) {
 				// Reported rather than thrown: the GM can carry on without it.
@@ -579,7 +579,7 @@ export default function activate(pi: ExtensionAPI): void {
 	});
 
 	pi.registerTool({
-		name: "portent_verify_roll",
+		name: "portents_verify_roll",
 		label: "Verify a roll",
 		description: [
 			"Look up a ledger id to confirm a roll, draw or oracle answer really happened and what it produced.",
@@ -594,7 +594,7 @@ export default function activate(pi: ExtensionAPI): void {
 	// ── Content ──────────────────────────────────────────────────────────────
 
 	pi.registerTool({
-		name: "portent_deck",
+		name: "portents_deck",
 		label: "Draw cards",
 		description: [
 			"Draw from a content deck. With a campaign loaded, each deck keeps a real draw pile: a drawn card",
@@ -602,7 +602,7 @@ export default function activate(pi: ExtensionAPI): void {
 			'Call with action "list" first if you are unsure of the deck ids.',
 		].join(" "),
 		promptGuidelines: [
-			"Use portent_deck rather than inventing card results. Keep GM-facing draws hidden and narrate only their effect; a crit or fumble card that resolves the player's own attack can be named, because they watched it happen.",
+			"Use portents_deck rather than inventing card results. Keep GM-facing draws hidden and narrate only their effect; a crit or fumble card that resolves the player's own attack can be named, because they watched it happen.",
 		],
 		parameters: Type.Object({
 			action: StringEnum(["list", "draw", "shuffle", "status", "recent"]),
@@ -675,7 +675,7 @@ export default function activate(pi: ExtensionAPI): void {
 	});
 
 	pi.registerTool({
-		name: "portent_table",
+		name: "portents_table",
 		label: "Roll a table",
 		description: [
 			"Roll on a random content table: encounters, weather, rumours, names, quest hooks, dungeon dressing,",
@@ -684,7 +684,7 @@ export default function activate(pi: ExtensionAPI): void {
 			"Prefer this over inventing content: it keeps the world's texture out of your own defaults.",
 		].join(" "),
 		promptGuidelines: [
-			"Use portent_table for random world content rather than inventing it, and keep the result behind the curtain: describe what it means in the fiction without quoting the entry, naming the table, or citing its ledger id to the player.",
+			"Use portents_table for random world content rather than inventing it, and keep the result behind the curtain: describe what it means in the fiction without quoting the entry, naming the table, or citing its ledger id to the player.",
 		],
 		parameters: Type.Object({
 			action: StringEnum(["list", "roll"]),
@@ -722,7 +722,7 @@ export default function activate(pi: ExtensionAPI): void {
 	});
 
 	pi.registerTool({
-		name: "portent_oracle",
+		name: "portents_oracle",
 		label: "Ask the oracle",
 		description: [
 			"Answer a question about the world you have not already decided, using dice instead of your own",
@@ -730,9 +730,9 @@ export default function activate(pi: ExtensionAPI): void {
 			"prepared answer for, roll for it rather than choosing whatever suits the story.",
 		].join(" "),
 		promptGuidelines: [
-			"Use portent_oracle whenever the player asks about something you have not already established, instead of deciding what is convenient.",
-			'Use portent_oracle with kind "scene" before framing a new scene, and kind "gm_move" when a roll fails and you need a consequence.',
-			"Keep portent_oracle results hidden: narrate what they mean in the fiction and never quote the answer, the label, the ledger id, or the fact that dice were consulted.",
+			"Use portents_oracle whenever the player asks about something you have not already established, instead of deciding what is convenient.",
+			'Use portents_oracle with kind "scene" before framing a new scene, and kind "gm_move" when a roll fails and you need a consequence.',
+			"Keep portents_oracle results hidden: narrate what they mean in the fiction and never quote the answer, the label, the ledger id, or the fact that dice were consulted.",
 		],
 		parameters: Type.Object({
 			kind: StringEnum(ORACLE_KINDS),
@@ -766,7 +766,7 @@ export default function activate(pi: ExtensionAPI): void {
 	});
 
 	pi.registerTool({
-		name: "portent_map",
+		name: "portents_map",
 		label: "Generate a dungeon",
 		description: [
 			"Generate a rooms-and-corridors dungeon as a text grid, built from 7x7 tiles that are connected by",
@@ -808,7 +808,7 @@ export default function activate(pi: ExtensionAPI): void {
 	// ── Campaign ─────────────────────────────────────────────────────────────
 
 	pi.registerTool({
-		name: "portent_campaign",
+		name: "portents_campaign",
 		label: "Campaign state",
 		description: [
 			"Start, resume or update a solo tabletop RPG game, and run it as GM for one human player.",
@@ -816,11 +816,11 @@ export default function activate(pi: ExtensionAPI): void {
 			"resume a solo adventure, be their DM or GM, make a character, or continue a game already in",
 			"progress.** Covers D&D 5E (both printings), Pathfinder 2E (remaster and legacy), Pathfinder 1E and",
 			"generic d20 fantasy.",
-			"Starting or loading a campaign activates the rest of the portent_* tools — dice, decks, oracles,",
+			"Starting or loading a campaign activates the rest of the portents_* tools — dice, decks, oracles,",
 			"tables, maps, character sheets — and briefs you on how to run a session, so you do not need to",
 			"know any of that in advance.",
 			"Everything a human would read is markdown under",
-			`\`${portentHome()}\`.`,
+			`\`${portentsHome()}\`.`,
 			'Actions: "list" saved campaigns; "create" a new one; "load" one into this session; "brief" to',
 			'recover context after a compaction or a break; "journal" to append what just happened; "scene" to',
 			'record where the party is; "clock" to set a countdown; "world" to append NPCs, places or threads;',
@@ -828,8 +828,8 @@ export default function activate(pi: ExtensionAPI): void {
 			"Write to the journal at the end of every scene, not at the end of the session.",
 		].join(" "),
 		promptGuidelines: [
-			'Use portent_campaign with action "brief" at the start of a resumed game, or any time you are unsure of the current state, instead of guessing from the conversation.',
-			'Use portent_campaign with action "journal" after each scene so the game survives a new session.',
+			'Use portents_campaign with action "brief" at the start of a resumed game, or any time you are unsure of the current state, instead of guessing from the conversation.',
+			'Use portents_campaign with action "journal" after each scene so the game survives a new session.',
 		],
 		parameters: Type.Object({
 			action: StringEnum(["list", "create", "load", "brief", "journal", "scene", "clock", "world", "system"]),
@@ -868,7 +868,7 @@ export default function activate(pi: ExtensionAPI): void {
 						"the player asks for the older, state which you are using in one clause, and record it.",
 					];
 					if (list.length === 0) {
-						return text([`No campaigns yet under \`${portentHome()}\`.`, ...systems].join("\n"));
+						return text([`No campaigns yet under \`${portentsHome()}\`.`, ...systems].join("\n"));
 					}
 					return text(
 						[
@@ -894,17 +894,17 @@ export default function activate(pi: ExtensionAPI): void {
 							safety: params.safety,
 						}),
 					);
-					pi.appendEntry("portent-active-campaign", { slug: created.slug });
+					pi.appendEntry("portents-active-campaign", { slug: created.slug });
 					await showStatus(ctx);
 					return text(
 						`Created **${created.name}** (\`${created.slug}\`), ${describeRules(created.system, created.edition)}.\n\n` +
-							`Files under \`${portentHome()}/${created.keys.dir}\`. Build a character with portent_sheet before play starts.`,
+							`Files under \`${portentsHome()}/${created.keys.dir}\`. Build a character with portents_sheet before play starts.`,
 					);
 				}
 				case "load": {
 					if (!params.name) throw new Error("Loading a campaign needs its slug");
 					const opened = setCampaign(await Campaign.open(deps, params.name));
-					pi.appendEntry("portent-active-campaign", { slug: opened.slug });
+					pi.appendEntry("portents-active-campaign", { slug: opened.slug });
 					await showStatus(ctx);
 					return text(await opened.brief());
 				}
@@ -958,7 +958,7 @@ export default function activate(pi: ExtensionAPI): void {
 	});
 
 	pi.registerTool({
-		name: "portent_sheet",
+		name: "portents_sheet",
 		label: "Character sheet",
 		description: [
 			"Read and write the character sheet, which is a markdown file in the campaign — never only in your",
@@ -970,8 +970,8 @@ export default function activate(pi: ExtensionAPI): void {
 			"Patch the sheet the moment something changes: damage, healing, a spent slot, a new item.",
 		].join(" "),
 		promptGuidelines: [
-			"Use portent_sheet to persist every change to the character: damage, healing, resources, inventory, level. The sheet on disk is the source of truth, not your memory of it.",
-			'Use portent_sheet with action "create" before play begins; a session must not start without a sheet on disk.',
+			"Use portents_sheet to persist every change to the character: damage, healing, resources, inventory, level. The sheet on disk is the source of truth, not your memory of it.",
+			'Use portents_sheet with action "create" before play begins; a session must not start without a sheet on disk.',
 		],
 		parameters: Type.Object({
 			action: StringEnum(["create", "read", "patch_status", "set_section", "append_section", "list"]),
@@ -1092,7 +1092,7 @@ export default function activate(pi: ExtensionAPI): void {
 				await showStatus(ctx);
 				pi.sendMessage(
 					{
-						customType: "portent-roll",
+						customType: "portents-roll",
 						content: `**Player rolled**\n${body}\n\n_Requested for: ${pending.reason}${
 							pending.dc ? ` (DC ${pending.dc})` : ""
 						}. Resolve it now._`,
@@ -1107,13 +1107,13 @@ export default function activate(pi: ExtensionAPI): void {
 			// narrate at a d6 rolled out of idle curiosity. "nextTurn" would queue it
 			// until the next ordinary message, which reads as a hung command.
 			pi.sendMessage(
-				{ customType: "portent-roll", content: `**Player rolled**\n${body}`, display: true },
+				{ customType: "portents-roll", content: `**Player rolled**\n${body}`, display: true },
 				{ deliverAs: "followUp" },
 			);
 		},
 	});
 
-	pi.registerCommand("portent", {
+	pi.registerCommand("portents", {
 		description: "Start or resume a tabletop session.",
 		getArgumentCompletions: async (prefix) => {
 			const list = await Campaign.list(deps);
@@ -1141,16 +1141,16 @@ export default function activate(pi: ExtensionAPI): void {
 				ctx.ui.notify((error as Error).message, "error");
 				return;
 			}
-			pi.appendEntry("portent-active-campaign", { slug: opened.slug });
+			pi.appendEntry("portents-active-campaign", { slug: opened.slug });
 			await showStatus(ctx);
 			pi.sendMessage(
-				{ customType: "portent-brief", content: await opened.brief(), display: true },
+				{ customType: "portents-brief", content: await opened.brief(), display: true },
 				{ deliverAs: "followUp", triggerTurn: true },
 			);
 		},
 	});
 
-	pi.registerCommand("portent-status", {
+	pi.registerCommand("portents-status", {
 		description: "Show the campaign's recent rolls and current state.",
 		handler: async (_args, ctx) => {
 			if (!campaign) {
@@ -1172,7 +1172,7 @@ export default function activate(pi: ExtensionAPI): void {
 			];
 			const problems = await campaign.problems();
 			if (problems.length > 0) lines.push("", "Problems:", ...problems.map((problem) => `- ${problem}`));
-			pi.appendEntry("portent-status", { text: lines.join("\n") });
+			pi.appendEntry("portents-status", { text: lines.join("\n") });
 			ctx.ui.notify(lines.slice(0, 3).join(" · "), "info");
 		},
 	});
@@ -1194,7 +1194,7 @@ export default function activate(pi: ExtensionAPI): void {
 				ctx.ui.notify(`No sheet on disk for ${name}.`, "error");
 				return;
 			}
-			pi.appendEntry("portent-sheet", { text: sheet.body });
+			pi.appendEntry("portents-sheet", { text: sheet.body });
 			ctx.ui.notify(`${name} — ${statusDigest(sheet)}`, "info");
 		},
 	});
@@ -1218,7 +1218,7 @@ export default function activate(pi: ExtensionAPI): void {
 				: drawEphemeral(deck, { count: 1, rng: deps.random });
 			pi.sendMessage(
 				{
-					customType: "portent-draw",
+					customType: "portents-draw",
 					content: `**Drew from ${deck.name}**\n\n${cards.map((card) => formatCard(card)).join("\n\n")}`,
 					display: true,
 				},
@@ -1241,7 +1241,7 @@ export default function activate(pi: ExtensionAPI): void {
 			}
 			pi.sendMessage(
 				{
-					customType: "portent-oracle",
+					customType: "portents-oracle",
 					content: `_Oracle, asked by the player:_ **${question}**\n\n${answer.text}`,
 					display: true,
 				},

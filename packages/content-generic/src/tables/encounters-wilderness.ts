@@ -1,4 +1,4 @@
-import type { Table } from "@portent/core";
+import type { Table } from "@portents/core";
 
 /**
  * Encounters: Wilderness
@@ -10,7 +10,7 @@ export const encountersWilderness = {
 	name: "Encounters: Wilderness",
 	description: "System-neutral wilderness encounters, weighted toward the non-hostile. Statting is the GM's job; the entry says who and why.",
 	provenance: {
-		source: "original writing for Portent",
+		source: "original writing for Portents",
 		license: "CC0-1.0",
 	},
 	dice: "1d20",

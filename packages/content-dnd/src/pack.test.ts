@@ -1,9 +1,9 @@
 import assert from "node:assert/strict";
 import { existsSync, readFileSync } from "node:fs";
 import { describe, it } from "node:test";
-import { createRegistry, rollTable, seededRandomSource, tableProblems } from "@portent/core";
-import { licenceConformanceCases } from "@portent/core/testing";
-import { genericContent } from "@portent/content-generic";
+import { createRegistry, rollTable, seededRandomSource, tableProblems } from "@portents/core";
+import { licenceConformanceCases } from "@portents/core/testing";
+import { genericContent } from "@portents/content-generic";
 import { dnd2014Content, dnd2024Content, dndPacks, SRD_5_1_STATEMENT, SRD_5_2_1_STATEMENT } from "./index.ts";
 
 const noticePath = new URL("../NOTICE.md", import.meta.url).pathname;
@@ -20,7 +20,7 @@ const items = dndPacks.flatMap((pack) => [
 
 describe("licence conformance", () => {
 	for (const check of licenceConformanceCases({
-		packageName: "@portent/content-dnd",
+		packageName: "@portents/content-dnd",
 		packs: [...dndPacks],
 		// This package exists to carry adapted SRD material, so CC-BY is expected
 		// here in a way it would not be in content-generic.

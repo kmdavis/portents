@@ -1,4 +1,4 @@
-import type { Deck } from "@portent/core";
+import type { Deck } from "@portents/core";
 
 /**
  * Wild Magic Deck
@@ -10,7 +10,7 @@ export const wildMagic = {
 	name: "Wild Magic Deck",
 	description: "Draw when magic goes wrong: a wild sorcerer's surge, a botched ritual, a cursed scroll, or a spell cast in a place where magic is unstable. Effects last a minute unless stated.",
 	provenance: {
-		source: "original writing for Portent",
+		source: "original writing for Portents",
 		license: "CC0-1.0",
 	},
 	cards: [

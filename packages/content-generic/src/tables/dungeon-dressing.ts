@@ -1,4 +1,4 @@
-import type { Table } from "@portent/core";
+import type { Table } from "@portents/core";
 
 /**
  * Dungeon: Dressing
@@ -10,7 +10,7 @@ export const dungeonDressing = {
 	name: "Dungeon: Dressing",
 	description: "One concrete sensory detail per room. Use it instead of describing another empty stone chamber.",
 	provenance: {
-		source: "original writing for Portent",
+		source: "original writing for Portents",
 		license: "CC0-1.0",
 	},
 	dice: "1d20",

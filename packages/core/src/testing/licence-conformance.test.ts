@@ -21,7 +21,7 @@ const table = (id: string, license: string) => ({
 
 function check(packs: readonly ContentPack[], name: string, options: Record<string, unknown> = {}) {
 	const cases = licenceConformanceCases({
-		packageName: "@portent/test",
+		packageName: "@portents/test",
 		packs,
 		allow: ["CC0-1.0", "CC-BY-4.0", "UNLICENSED"],
 		...options,

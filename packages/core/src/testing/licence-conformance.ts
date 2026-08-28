@@ -1,12 +1,12 @@
 /**
  * A licence conformance suite any content package can run against itself.
  *
- * Published from `@portent/core/testing` for the same reason the storage
+ * Published from `@portents/core/testing` for the same reason the storage
  * conformance suite is: the rules belong with the thing that defines them, and a
  * package that ships content should be able to prove its own paperwork without
  * the repo reaching in to police it.
  *
- * That matters for forks. Someone publishing `@portent/content-yourgame` gets the
+ * That matters for forks. Someone publishing `@portents/content-yourgame` gets the
  * same checks, including the ones about attribution they would not have thought
  * of, without copying a test file that will drift.
  *
@@ -16,12 +16,12 @@
  *
  * ```ts
  * import { describe, it } from "node:test";
- * import { licenceConformanceCases } from "@portent/core/testing";
+ * import { licenceConformanceCases } from "@portents/core/testing";
  * import { dndContent } from "./index.ts";
  *
  * describe("licences", () => {
  *   for (const c of licenceConformanceCases({
- *     packageName: "@portent/content-dnd",
+ *     packageName: "@portents/content-dnd",
  *     packs: [dndContent],
  *     allow: ["CC0-1.0", "CC-BY-4.0"],
  *   })) {
@@ -42,7 +42,7 @@ import {
 import type { ContentPack } from "../packs/registry.ts";
 
 export interface LicenceConformanceOptions {
-	/** As published, e.g. `@portent/content-dnd`. Appears in the notice. */
+	/** As published, e.g. `@portents/content-dnd`. Appears in the notice. */
 	readonly packageName: string;
 	readonly packs: readonly ContentPack[];
 	/**

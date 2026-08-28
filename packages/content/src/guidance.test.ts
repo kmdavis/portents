@@ -11,7 +11,7 @@ import { execFileSync } from "node:child_process";
 import { fileURLToPath } from "node:url";
 import { describe, it } from "node:test";
 
-import { createRegistry } from "@portent/core";
+import { createRegistry } from "@portents/core";
 
 import { bundledSystems, commonContent } from "./index.ts";
 
@@ -55,7 +55,7 @@ describe("bundled guidance", () => {
 		// runs in a normal test pass.
 		for (const id of registry.guidanceIds()) {
 			const body = registry.guidanceFor(id)!.body;
-			assert.doesNotMatch(body, /portent_/, `${id} names a portent_* tool`);
+			assert.doesNotMatch(body, /portents_/, `${id} names a portents_* tool`);
 			assert.doesNotMatch(body, /\bslash command\b/i, `${id} assumes a command-line harness`);
 		}
 	});

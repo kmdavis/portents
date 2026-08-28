@@ -1,4 +1,4 @@
-# Portent
+# Portents
 
 A solo tabletop RPG engine. Dice, oracles, decks, random tables and map tiles,
 built so that an AI game master can run a game without inventing the dice.
@@ -17,14 +17,14 @@ can be spotted.
 
 | Package | Directory | What it is |
 | --- | --- | --- |
-| `@portent/core` | [`packages/core/`](packages/core) | The engine. Runs in Node and the browser. |
-| `@portent/content` | [`packages/content/`](packages/content) | Batteries included: generic plus common systems. |
-| `@portent/content-generic` | [`packages/content-generic/`](packages/content-generic) | The generic fallback every other pack overrides. |
-| `@portent/cli` | [`packages/cli/`](packages/cli) | `portent roll`, `portent map`, and friends. |
-| `@portent/pi` | [`packages/pi/`](packages/pi) | Runs a game inside the pi coding agent. |
-| `@portent/content-dnd` | [`packages/content-dnd/`](packages/content-dnd) | Fifth edition, both printings. SRD material under CC-BY-4.0. |
-| `@portent/content-pf` | [`packages/content-pf/`](packages/content-pf) | Pathfinder-style systems, three printings. Original writing. |
-| `@portent/web` | [`packages/web/`](packages/web) | Browser/edge session facade. Storage injected. No UI. |
+| `@portents/core` | [`packages/core/`](packages/core) | The engine. Runs in Node and the browser. |
+| `@portents/content` | [`packages/content/`](packages/content) | Batteries included: generic plus common systems. |
+| `@portents/content-generic` | [`packages/content-generic/`](packages/content-generic) | The generic fallback every other pack overrides. |
+| `@portents/cli` | [`packages/cli/`](packages/cli) | `portents roll`, `portents map`, and friends. |
+| `@portents/pi` | [`packages/pi/`](packages/pi) | Runs a game inside the pi coding agent. |
+| `@portents/content-dnd` | [`packages/content-dnd/`](packages/content-dnd) | Fifth edition, both printings. SRD material under CC-BY-4.0. |
+| `@portents/content-pf` | [`packages/content-pf/`](packages/content-pf) | Pathfinder-style systems, three printings. Original writing. |
+| `@portents/web` | [`packages/web/`](packages/web) | Browser/edge session facade. Storage injected. No UI. |
 
 Content is a separate package from the engine because content is the part people
 will want to fork, extend and version independently. The engine knows how to
@@ -115,8 +115,8 @@ pnpm manual     # build the manual-check page, then open manual/index.html
 ```
 
 ```ts
-import { roll, formatRoll, parseTileSet, renderAscii, renderSvg, exitsOf } from "@portent/core";
-import { dungeonTiles } from "@portent/content";
+import { roll, formatRoll, parseTileSet, renderAscii, renderSvg, exitsOf } from "@portents/core";
+import { dungeonTiles } from "@portents/content";
 
 formatRoll(roll("2d20kh1+5"));        // advantage
 formatRoll(roll("6#4d6kh3"));         // six ability scores in one call
@@ -135,10 +135,10 @@ and a leading `6#` to repeat. Full table in [`packages/core/README.md`](packages
 ## Playing with it
 
 ```ts
-import { createRegistry, rollTableById, yesNo, sceneCheck, createPile, drawFromPile } from "@portent/core";
-import { portentContent } from "@portent/content";
+import { createRegistry, rollTableById, yesNo, sceneCheck, createPile, drawFromPile } from "@portents/core";
+import { genericContent } from "@portents/content";
 
-const registry = createRegistry([portentContent]);
+const registry = createRegistry([genericContent]);
 
 sceneCheck({ registry });                        // as expected, skewed, or interrupted
 rollTableById("encounters-dungeon", { registry });
@@ -159,9 +159,9 @@ arithmetic, not a reproduction of any published solo system.
 ## The command line
 
 ```sh
-portent roll 2d20kh1+5 --dc 15
-portent map --rooms 9 --seed grimhold --png map.png
-portent oracle "is the gate still guarded?" --likelihood unlikely
+portents roll 2d20kh1+5 --dc 15
+portents map --rooms 9 --seed grimhold --png map.png
+portents oracle "is the gate still guarded?" --likelihood unlikely
 ```
 
 Every command takes `--json` for scripting and `--seed` for reproducibility. See
@@ -169,7 +169,7 @@ Every command takes `--json` for scripting and `--seed` for reproducibility. See
 
 ## Where data lives
 
-`$PORTENT_HOME`, or `~/.portent` by default. Campaign files, character sheets and
+`$PORTENTS_HOME`, or `~/.portents` by default. Campaign files, character sheets and
 maps are markdown you can read, edit and put in git.
 
 Character sheets keep their machine-readable values in frontmatter and their
@@ -184,11 +184,11 @@ The engine is synchronous and depends on nothing but interfaces in
 cannot be synchronous:
 
 ```
-@portent/core          pure engine + port interfaces, no platform code
-@portent/core/memory   in-memory Storage (reference implementation)
-@portent/core/node     filesystem Storage, the only file importing node:*
-@portent/core/browser  IndexedDB Storage
-@portent/core/testing  the Storage conformance suite, so your adapter can prove itself
+@portents/core          pure engine + port interfaces, no platform code
+@portents/core/memory   in-memory Storage (reference implementation)
+@portents/core/node     filesystem Storage, the only file importing node:*
+@portents/core/browser  IndexedDB Storage
+@portents/core/testing  the Storage conformance suite, so your adapter can prove itself
 ```
 
 Three mechanisms keep that honest rather than aspirational:
@@ -248,7 +248,7 @@ Bundled content — tiles, and the decks and tables to come — is original writ
 CC0, with provenance metadata on every pack. Nothing is reproduced from a
 published solo system, crit deck or rulebook.
 
-Portent supports D&D 5E and Pathfinder 2E. It is not affiliated with, endorsed
+Portents supports D&D 5E and Pathfinder 2E. It is not affiliated with, endorsed
 by, or derived from Wizards of the Coast or Paizo, and it contains no rules text
 from either.
 

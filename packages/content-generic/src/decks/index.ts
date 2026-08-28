@@ -1,4 +1,4 @@
-import type { Deck } from "@portent/core";
+import type { Deck } from "@portents/core";
 
 import { critFumbles } from "./crit-fumbles.ts";
 import { critHits } from "./crit-hits.ts";

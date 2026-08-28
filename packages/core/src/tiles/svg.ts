@@ -9,7 +9,7 @@
  *    cell registry, so **adding a cell kind without drawing it is a compile
  *    error**, not a runtime surprise.
  * 2. Every non-void cell emits exactly one `<use>` carrying `data-x`, `data-y`
- *    and `data-kind`, referencing `#portent-cell-<kind>`. The symbol actually
+ *    and `data-kind`, referencing `#portents-cell-<kind>`. The symbol actually
  *    referenced is computed from the grid, so a test can verify the *visual*
  *    choice, not just an attribute that claims one.
  * 3. Output is a plain string built with no DOM, so it works identically in Node
@@ -226,7 +226,7 @@ function escapeXml(text: string): string {
 
 /** The SVG symbol id for a cell kind. The one place this string is built. */
 export function symbolId(kind: CellKind): string {
-	return `portent-cell-${kind}`;
+	return `portents-cell-${kind}`;
 }
 
 /**
@@ -311,7 +311,7 @@ export function renderSvg(tile: Tile, opts: SvgOptions = {}): string {
 
 	const tokenMarkup =
 		tokens.length > 0
-			? `<g data-portent="tokens">${tokens
+			? `<g data-portents="tokens">${tokens
 					.map((token) => {
 						const colour = token.colour ?? TOKEN_COLOURS[token.kind] ?? theme.ink;
 						const cx = (token.x - crop.x) * cell + cell / 2;
@@ -346,7 +346,7 @@ export function renderSvg(tile: Tile, opts: SvgOptions = {}): string {
 
 	const legendMarkup =
 		legend.length > 0
-			? `<g data-portent="legend" transform="translate(0 ${gridHeight + 14})" font-size="11" fill="${theme.ink}">${legend
+			? `<g data-portents="legend" transform="translate(0 ${gridHeight + 14})" font-size="11" fill="${theme.ink}">${legend
 					.map(
 						(entry, i) =>
 							`<text x="2" y="${i * 16}" font-family="monospace">${escapeXml(entry.glyph)}</text>` +
@@ -358,13 +358,13 @@ export function renderSvg(tile: Tile, opts: SvgOptions = {}): string {
 	return (
 		`<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 ${gridWidth} ${totalHeight}" ` +
 		`width="${gridWidth}" height="${totalHeight}" role="img" ` +
-		`data-portent-tile="${escapeXml(tile.id)}" data-width="${tile.width}" data-height="${tile.height}" ` +
+		`data-portents-tile="${escapeXml(tile.id)}" data-width="${tile.width}" data-height="${tile.height}" ` +
 		`data-crop-x="${crop.x}" data-crop-y="${crop.y}" data-cols="${cols}" data-rows="${rows}" ` +
 		`data-cell-size="${cell}">` +
 		`<title>${escapeXml(opts.title ?? tile.name)}</title>` +
 		`<defs>${defs}</defs>` +
 		`<rect width="${gridWidth}" height="${totalHeight}" fill="${theme.background}"/>` +
-		`<g data-portent="cells">${uses.join("")}</g>` +
+		`<g data-portents="cells">${uses.join("")}</g>` +
 		tokenMarkup +
 		gridLines +
 		legendMarkup +

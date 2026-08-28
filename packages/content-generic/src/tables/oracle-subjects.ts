@@ -1,4 +1,4 @@
-import type { Table } from "@portent/core";
+import type { Table } from "@portents/core";
 
 /**
  * Oracle: Subject
@@ -10,7 +10,7 @@ export const oracleSubjects = {
 	name: "Oracle: Subject",
 	description: "Noun half of an action/subject pair. Read it against the fiction already on the table; the pair is a prompt, not an instruction.",
 	provenance: {
-		source: "original writing for Portent",
+		source: "original writing for Portents",
 		license: "CC0-1.0",
 	},
 	dice: "1d100",

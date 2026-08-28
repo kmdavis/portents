@@ -1,9 +1,9 @@
 /**
  * Ports — every capability the library needs from the outside world.
  *
- * The rule: `@portent/core` depends on interfaces declared here and on nothing
+ * The rule: `@portents/core` depends on interfaces declared here and on nothing
  * else. No `node:` imports, no DOM, no globals reached for inside engine logic.
- * Adapters live in `@portent/core/node`, `/browser` and `/memory`.
+ * Adapters live in `@portents/core/node`, `/browser` and `/memory`.
  *
  * ## Adding a port later, including an LLM
  *

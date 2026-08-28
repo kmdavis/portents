@@ -1,10 +1,10 @@
-# @portent/core
+# @portents/core
 
-The Portent engine: deterministic tabletop generators that run in Node and the
+The Portents engine: deterministic tabletop generators that run in Node and the
 browser. No language model, no filesystem access except through a port.
 
 ```bash
-pnpm add @portent/core
+pnpm add @portents/core
 ```
 
 ## Dice
@@ -13,7 +13,7 @@ Foundry VTT notation, parsed by recursive descent so arithmetic and parentheses
 work rather than just `NdX+M`.
 
 ```ts
-import { roll, formatRoll, analyze, chanceOf, splitRepeat } from "@portent/core";
+import { roll, formatRoll, analyze, chanceOf, splitRepeat } from "@portents/core";
 
 const result = roll("2d20kh1+5");
 result.total;                 // number
@@ -50,7 +50,7 @@ A tile is authored as ASCII art. The art is the source of truth: it is parsed
 once into a grid, and every projection reads that grid.
 
 ```ts
-import { parseTile, renderAscii, renderSvg, exitsOf, legendOf } from "@portent/core";
+import { parseTile, renderAscii, renderSvg, exitsOf, legendOf } from "@portents/core";
 
 const tile = parseTile({
   id: "pillared-hall",
@@ -74,7 +74,7 @@ exitsOf(tile);                          // [{x:3,y:0,edge:"north",…}, …] der
 legendOf(tile);                         // only the kinds this tile actually uses
 ```
 
-Tiles ship in [`@portent/content`](../content), not here. This package parses,
+Tiles ship in [`@portents/content`](../content), not here. This package parses,
 validates and renders them.
 
 ### The standard format
@@ -89,7 +89,7 @@ a wall ring. Odd matters: it gives each edge exactly one centre, so a tile's eas
 door at `(6,3)` is always opposite its neighbour's west door at `(0,3)`.
 
 ```ts
-import { standardTileProblems, assertStandardTile, standardEdges } from "@portent/core";
+import { standardTileProblems, assertStandardTile, standardEdges } from "@portents/core";
 
 standardTileProblems(tile);   // [] when it conforms
 standardEdges(tile);          // ["north", "east", "south", "west"]
@@ -107,7 +107,7 @@ is 11×7, but every standard tile must be 7×7
 ### Rotation
 
 ```ts
-import { rotateTile, rotations, withRotations } from "@portent/core";
+import { rotateTile, rotations, withRotations } from "@portents/core";
 
 rotateTile(bend, 1);      // 90° clockwise, id becomes "bend@90"
 rotations(bend);          // all four orientations
@@ -122,7 +122,7 @@ four orientations, and it is what makes generation possible from a small set.
 ### Composing a map
 
 ```ts
-import { composeTiles, renderAscii, renderSvg, tileAt } from "@portent/core";
+import { composeTiles, renderAscii, renderSvg, tileAt } from "@portents/core";
 
 const map = composeTiles([
   [hall, corridor, room],
@@ -147,8 +147,8 @@ never shows an exit that goes nowhere.
 ## Generating a dungeon
 
 ```ts
-import { generateDungeon, missingSignatures } from "@portent/core";
-import { dungeonTiles } from "@portent/content";
+import { generateDungeon, missingSignatures } from "@portents/core";
+import { dungeonTiles } from "@portents/content";
 
 const tiles = parseTileSet(dungeonTiles);
 missingSignatures(tiles);   // [] — the set can build any layout
@@ -184,7 +184,7 @@ the party.
 ## Field of view
 
 ```ts
-import { computeFov, hasLineOfSight, reachableCells } from "@portent/core";
+import { computeFov, hasLineOfSight, reachableCells } from "@portents/core";
 
 computeFov(map, [{ x: 12, y: 5 }], { radius: 8 });   // Set of cell keys
 computeFov(map, party.map(p => ({ x: p.x, y: p.y }))); // union of the party's sight
@@ -215,7 +215,7 @@ if this door were open?" without changing the map.
 ## What the party knows
 
 ```ts
-import { createView, withActors, moveActor, revealTile, renderAsciiView } from "@portent/core";
+import { createView, withActors, moveActor, revealTile, renderAsciiView } from "@portents/core";
 
 let view = withActors(createView(map, { sightRadius: 8 }), [
   { id: "brannoc", name: "Brannoc", x: 3, y: 18, kind: "pc" },
@@ -280,7 +280,7 @@ The core produces SVG and nothing else, because that is the one thing both
 runtimes can do with no dependency. Rasterising needs a platform.
 
 ```ts
-import { svgToPngBytes, svgToPngDataUrl, svgDimensions } from "@portent/core/browser";
+import { svgToPngBytes, svgToPngDataUrl, svgDimensions } from "@portents/core/browser";
 
 const url = await svgToPngDataUrl(svg, { scale: 2, background: "#f4ecd8" });
 ```
@@ -338,7 +338,7 @@ that renders every tile both ways, side by side, plus a random composed map.
 ## Decks
 
 ```ts
-import { createPile, drawFromPile, formatCard } from "@portent/core";
+import { createPile, drawFromPile, formatCard } from "@portents/core";
 
 let pile = createPile(deck);                       // shuffled, all cards in
 const { cards, pile: next, reshuffled } = drawFromPile(deck, pile);
@@ -362,7 +362,7 @@ been edited, rather than silently drawing the wrong cards.
 ## Random tables
 
 ```ts
-import { rollTableById, tableProblems } from "@portent/core";
+import { rollTableById, tableProblems } from "@portents/core";
 
 rollTableById("encounters-dungeon", { registry }).text;
 tableProblems(table);   // [] when the ranges are contiguous and cover the dice
@@ -386,7 +386,7 @@ fix their pack, whereas a hole in a sentence just looks like a bug.
 ## The oracle
 
 ```ts
-import { yesNo, sceneCheck, gmMove, meaning, reaction } from "@portent/core";
+import { yesNo, sceneCheck, gmMove, meaning, reaction } from "@portents/core";
 
 yesNo("Is the gate still guarded?", "likely", { registry });
 sceneCheck({ registry });   // as expected, skewed, or interrupted
@@ -407,10 +407,10 @@ which a pack lacks, so a fork knows exactly what to supply.
 ## Content packs
 
 ```ts
-import { createRegistry } from "@portent/core";
-import { portentContent } from "@portent/content";
+import { createRegistry } from "@portents/core";
+import { genericContent } from "@portents/content";
 
-const registry = createRegistry([portentContent, myPack], { allowOverride: true });
+const registry = createRegistry([genericContent, myPack], { allowOverride: true });
 ```
 
 Lookups go through an injected registry rather than a module-level cache read from
@@ -471,7 +471,7 @@ clocks:
 
 ## Clocks
 
-<!-- portent:generated clocks -->
+<!-- portents:generated clocks -->
 
 - **The tide returns** ▰▰▱▱▱▱ 2/6 — then the causeway floods
 ```
@@ -536,8 +536,8 @@ from one that rolls, unless the roll leaves a trace someone can look up
 afterwards.
 
 ```ts
-import { Ledger } from "@portent/core";
-import { openHomeStorage } from "@portent/core/adapters/node";
+import { Ledger } from "@portents/core";
+import { openHomeStorage } from "@portents/core/adapters/node";
 
 const ledger = await Ledger.open({
   storage: openHomeStorage(),
@@ -635,7 +635,7 @@ status:
 # Brannoc Thistlewood
 
 ## Status
-<!-- portent:generated status -->
+<!-- portents:generated status -->
 - **HP:** 19/26
 - **Temp HP:** 0
 - **Hit Dice:** 3d10
@@ -651,7 +651,7 @@ alternative is two places to change HP and a sheet that eventually disagrees wit
 itself.
 
 ```ts
-import { createSheet, patchStatus, stringifySheet, statusValue, sheetProblems } from "@portent/core";
+import { createSheet, patchStatus, stringifySheet, statusValue, sheetProblems } from "@portents/core";
 
 let sheet = createSheet({
   name: "Brannoc Thistlewood",
@@ -665,7 +665,7 @@ statusValue(sheet, "HP");                   // "19/26"
 sheetProblems(sheet);                       // [] when the two agree
 ```
 
-Generated sections carry a `<!-- portent:generated ... -->` marker so the tools
+Generated sections carry a `<!-- portents:generated ... -->` marker so the tools
 know what they own and a human knows what not to edit. If someone edits one
 anyway, `sheetProblems` **reports the disagreement rather than resolving it** —
 the file is the user's, and guessing which side they meant is how you lose
@@ -705,11 +705,11 @@ the twelve status keys a real 5E sheet uses.
 The engine is synchronous. Persistence is the one async seam, behind a port:
 
 ```ts
-import { MemoryStorage } from "@portent/core/memory";
-import { NodeStorage } from "@portent/core/node";
-import { BrowserStorage } from "@portent/core/browser";
+import { MemoryStorage } from "@portents/core/memory";
+import { NodeStorage } from "@portents/core/node";
+import { BrowserStorage } from "@portents/core/browser";
 
-const store = new NodeStorage({ root: "~/portent" });
+const store = new NodeStorage({ root: "~/portents" });
 await store.write("grimhold/journal.md", "# Journal\n");
 await store.append("grimhold/journal.md", "They arrived at dusk.\n");
 await store.list("grimhold/");   // lexicographic
@@ -728,7 +728,7 @@ same contract the bundled ones do:
 
 ```ts
 import { describe, it } from "node:test";
-import { detectCaseSensitivity, storageConformanceCases } from "@portent/core/testing";
+import { detectCaseSensitivity, storageConformanceCases } from "@portents/core/testing";
 
 const make = () => new MyStorage();
 const caseSensitive = await detectCaseSensitivity(make);
@@ -753,7 +753,7 @@ Every function that consumes randomness takes the source as an argument, and the
 global is read once, at the port boundary:
 
 ```ts
-import { roll, seededRandomSource } from "@portent/core";
+import { roll, seededRandomSource } from "@portents/core";
 
 roll("6d20", { rng: seededRandomSource("grimhold") }); // same result, forever, anywhere
 ```

@@ -1,5 +1,5 @@
 /**
- * `@portent/web` — browser and edge integration for Portent.
+ * `@portents/web` — browser and edge integration for Portents.
  *
  * **No UI, and no agent.** This package is the seam a UI sits on: a session
  * facade over the engine that persists through whatever `Storage` it is handed.
@@ -10,7 +10,7 @@
  * cannot tell the difference.
  *
  * ```ts
- * import { WebSession } from "@portent/web";
+ * import { WebSession } from "@portents/web";
  *
  * // In a browser: IndexedDB, no arguments needed.
  * const session = new WebSession();

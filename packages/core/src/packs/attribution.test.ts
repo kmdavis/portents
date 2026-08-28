@@ -13,7 +13,7 @@ import {
 	requiresAttribution,
 } from "./attribution.ts";
 
-const original: Provenance = { source: "original writing for Portent", license: "CC0-1.0" };
+const original: Provenance = { source: "original writing for Portents", license: "CC0-1.0" };
 
 /**
  * A realistic CC-BY block.
@@ -161,7 +161,7 @@ describe("rendering a notice", () => {
 
 	it("returns nothing for a package of purely original work", () => {
 		// An empty NOTICE would claim compliance with nothing.
-		assert.equal(renderNotice("@portent/content-generic", [{ id: "table:a", provenance: original }]), undefined);
+		assert.equal(renderNotice("@portents/content-generic", [{ id: "table:a", provenance: original }]), undefined);
 	});
 
 	it("groups items by the work they came from", () => {
@@ -171,13 +171,13 @@ describe("rendering a notice", () => {
 			id: `table:${id}`,
 			provenance: { source: "SRD", license: "CC-BY-4.0" as const, attribution: adapted },
 		}));
-		const notice = renderNotice("@portent/content-dnd", items)!;
+		const notice = renderNotice("@portents/content-dnd", items)!;
 		assert.equal((notice.match(/### System Reference Document/g) ?? []).length, 1);
 		assert.match(notice, /Applies to: `table:a`, `table:b`, `table:c`/);
 	});
 
 	it("says the unlisted content is CC0, so the notice is not read as exhaustive", () => {
-		const notice = renderNotice("@portent/content-dnd", [
+		const notice = renderNotice("@portents/content-dnd", [
 			{ id: "t", provenance: { source: "SRD", license: "CC-BY-4.0", attribution: adapted } },
 		])!;
 		assert.match(notice, /Content not listed here is original writing/);

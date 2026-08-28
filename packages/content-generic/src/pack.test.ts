@@ -1,7 +1,7 @@
 /**
  * Tests for the pack as a whole.
  *
- * Individual mechanisms are tested in `@portent/core`. What matters here is that
+ * Individual mechanisms are tested in `@portents/core`. What matters here is that
  * this data is well formed, internally consistent, and complete enough for the
  * things that depend on it: the oracle needs six specific tables, and every
  * `{{table:...}}` reference has to resolve or a GM gets a sentence with a hole
@@ -11,7 +11,7 @@
 import assert from "node:assert/strict";
 import { existsSync, readFileSync } from "node:fs";
 import { describe, it } from "node:test";
-import { licenceConformanceCases } from "@portent/core/testing";
+import { licenceConformanceCases } from "@portents/core/testing";
 import {
 	createRegistry,
 	deckProblems,
@@ -23,7 +23,7 @@ import {
 	rollTable,
 	tableProblems,
 	tableReferences,
-} from "@portent/core";
+} from "@portents/core";
 import { decks } from "./decks/index.ts";
 import { genericContent } from "./index.ts";
 import { tables } from "./tables/index.ts";
@@ -55,7 +55,7 @@ describe("the pack loads", () => {
 
 });
 
-// The licence rules now come from @portent/core/testing, so a fork publishing its
+// The licence rules now come from @portents/core/testing, so a fork publishing its
 // own pack gets the same checks -- including the attribution ones it would not
 // have thought to write -- instead of copying a test file that drifts.
 const noticePath = new URL("../NOTICE.md", import.meta.url).pathname;
@@ -65,7 +65,7 @@ const manifest = JSON.parse(readFileSync(new URL("../package.json", import.meta.
 
 describe("licence conformance", () => {
 	for (const check of licenceConformanceCases({
-	packageName: "@portent/content-generic",
+	packageName: "@portents/content-generic",
 	packs: [genericContent],
 	// Original writing only. A third-party licence appearing here should fail:
 	// adapted content belongs in a package that exists to carry it.

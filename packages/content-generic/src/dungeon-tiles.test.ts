@@ -1,7 +1,7 @@
 /**
  * Tests for the tile pack itself, as opposed to the engine that parses it.
  *
- * The engine's own equivalence tests live in `@portent/core`. What matters here
+ * The engine's own equivalence tests live in `@portents/core`. What matters here
  * is that this data conforms: every tile is 7×7, every connector is centred,
  * every registry kind is exercised, and the two projections agree about each
  * tile in the pack.
@@ -32,7 +32,7 @@ import {
 	STANDARD_TILE_SIZE,
 	standardEdges,
 	standardTileProblems,
-} from "@portent/core";
+} from "@portents/core";
 import { dungeonTiles } from "./dungeon-tiles.ts";
 
 const tiles = parseTileSet(dungeonTiles);

@@ -2,7 +2,7 @@
  * In-memory Storage. The reference implementation and the one tests use.
  *
  * Isomorphic — it touches nothing outside the process — so it lives in the core
- * rather than in a platform adapter, and it is what `@portent/core/testing`
+ * rather than in a platform adapter, and it is what `@portents/core/testing`
  * compares the real adapters against.
  */
 

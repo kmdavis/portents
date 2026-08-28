@@ -23,7 +23,7 @@
  * # Brannoc Thistlewood
  *
  * ## Status
- * <!-- portent:generated status -->
+ * <!-- portents:generated status -->
  * - **HP:** 22/26
  * - **AC:** 15
  *
@@ -65,7 +65,7 @@ export const GENERATED_SECTIONS = [
 
 export type GeneratedKey = (typeof GENERATED_SECTIONS)[number]["key"];
 
-const MARKER_PREFIX = "<!-- portent:generated ";
+const MARKER_PREFIX = "<!-- portents:generated ";
 
 function marker(key: string): string {
 	return `${MARKER_PREFIX}${key} -->`;

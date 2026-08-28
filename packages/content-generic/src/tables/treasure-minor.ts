@@ -1,4 +1,4 @@
-import type { Table } from "@portent/core";
+import type { Table } from "@portents/core";
 
 /**
  * Treasure: Minor Finds
@@ -10,7 +10,7 @@ export const treasureMinor = {
 	name: "Treasure: Minor Finds",
 	description: "Small hoards and pocket loot. Every entry is a thing with a history, not a number of coins.",
 	provenance: {
-		source: "original writing for Portent",
+		source: "original writing for Portents",
 		license: "CC0-1.0",
 	},
 	dice: "1d20",

@@ -3,7 +3,7 @@
 	<head>
 		<meta charset="utf-8" />
 		<meta name="viewport" content="width=device-width, initial-scale=1" />
-		<title>Portent — manual check</title>
+		<title>Portents — manual check</title>
 		<style>
 			:root {
 				--ink: #1b1f24;
@@ -115,7 +115,7 @@
 		</style>
 	</head>
 	<body>
-		<h1>Portent — manual check</h1>
+		<h1>Portents — manual check</h1>
 		<p class="lede">
 			The things a test suite cannot judge. Automated tests already prove the SVG and the ASCII
 			describe the same grid, cell for cell. What they cannot tell you is whether the picture
@@ -128,7 +128,7 @@
 		</p>
 
 		<div id="load-error" class="status bad" hidden>
-			Could not load <code>manual/dist/portent.js</code>. Run <code>pnpm manual</code> first.
+			Could not load <code>manual/dist/portents.js</code>. Run <code>pnpm manual</code> first.
 		</div>
 
 		<div class="controls">
@@ -195,7 +195,7 @@
 			<label>Scale <input id="png-scale" type="range" min="1" max="4" step="0.5" value="2" /><span id="png-scale-value">2</span>×</label>
 			<label><input id="png-transparent" type="checkbox" /> transparent background</label>
 			<button id="png-render">Render PNG</button>
-			<a id="png-download" download="portent-map.png" hidden>Download</a>
+			<a id="png-download" download="portents-map.png" hidden>Download</a>
 		</div>
 		<div id="png-status"></div>
 		<figure class="panel"><figcaption>PNG</figcaption><div id="png-out"></div></figure>
@@ -237,15 +237,15 @@
 		<p class="hint">Formatting check: dropped dice struck through, labels carried, totals bold.</p>
 		<div id="dice"></div>
 
-		<script src="./dist/portent.js" onerror="document.getElementById('load-error').hidden = false"></script>
+		<script src="./dist/portents.js" onerror="document.getElementById('load-error').hidden = false"></script>
 		<script>
 			(function () {
-				if (typeof Portent === "undefined") {
+				if (typeof Portents === "undefined") {
 					document.getElementById("load-error").hidden = false;
 					return;
 				}
 
-				const P = Portent;
+				const P = Portents;
 				const el = (id) => document.getElementById(id);
 				const themes = { parchment: P.parchmentTheme, slate: P.slateTheme };
 				const tiles = P.parseTileSet(P.dungeonTiles);

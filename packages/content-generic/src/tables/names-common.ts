@@ -1,4 +1,4 @@
-import type { Table } from "@portent/core";
+import type { Table } from "@portents/core";
 
 /**
  * Names: Human / Common
@@ -10,7 +10,7 @@ export const namesCommon = {
 	name: "Names: Human / Common",
 	description: "Given name plus a byname. Fine for humans, halflings and most townsfolk.",
 	provenance: {
-		source: "original writing for Portent",
+		source: "original writing for Portents",
 		license: "CC0-1.0",
 	},
 	entries: [

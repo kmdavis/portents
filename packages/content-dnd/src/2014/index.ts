@@ -10,7 +10,7 @@
  * than shipping nothing.
  */
 
-import type { ContentPack } from "@portent/core";
+import type { ContentPack } from "@portents/core";
 import { guidance } from "../guidance.generated.ts";
 import { sheet2014 } from "../sheets.ts";
 
@@ -21,5 +21,5 @@ export const dnd2014Content: ContentPack = {
 	guidance: guidance.filter((entry) => entry.id === "dnd-5e-2014"),
 	name: "Fifth edition, 2014 printing",
 	sheets: [sheet2014],
-	provenance: { source: "original writing for Portent", license: "CC0-1.0" },
+	provenance: { source: "original writing for Portents", license: "CC0-1.0" },
 };

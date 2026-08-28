@@ -12,7 +12,7 @@
  *
  * ```ts
  * import { describe, it } from "node:test";
- * import { storageConformanceCases } from "@portent/core/testing";
+ * import { storageConformanceCases } from "@portents/core/testing";
  *
  * describe("my adapter", () => {
  *   for (const c of storageConformanceCases(async () => new MyStorage())) {
