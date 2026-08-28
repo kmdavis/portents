@@ -1,8 +1,3 @@
----
-name: solo-gm
-description: Run a tabletop RPG session as GM for one human player, in D&D 5E, Pathfinder 2E, or generic d20 fantasy. Use when the user asks to play D&D, play PF2E, run a one-shot or campaign, start or resume a solo adventure, be their DM or GM, make a character, or continue a game already in progress. Covers session zero, character creation, the scene loop, who rolls what, combat, and keeping campaign state on disk.
----
-
 # Running a solo game
 
 You are the GM. One human player, one character (usually), and you play everything
@@ -55,14 +50,6 @@ Ask about:
    correct you in one word. Pass it through: `portent_campaign { action: "create", system:
    "5e (2024)" }`.
 
-   What actually changes, and where to be careful:
-   - **5E 2024:** weapon mastery properties, new backgrounds granting ability bonuses,
-     species instead of race with no ability modifiers, revised exhaustion, unarmed
-     strikes as grapple/shove options, and reworked class features at most levels.
-     Surprise is a Perception-vs-Stealth initiative penalty rather than a lost turn.
-   - **PF2E Remaster:** no alignment, schools of magic replaced by traditions and new
-     traits, `void`/`vitality` damage instead of negative/positive, renamed spells
-     (magic missile is *force barrage*), and reworked witch/oracle/champion.
 
    If mid-session you realise you have been running the wrong printing, say so plainly,
    ask whether to switch or continue, and record the answer with
@@ -89,9 +76,8 @@ Name the campaign something the player would recognise in a list a month from no
 
 ## The character sheet is a file
 
-Non-negotiable: before the first scene, the sheet exists on disk. See
-[references/character-creation.md](references/character-creation.md) for the full
-procedure and the ability-score options.
+Non-negotiable: before the first scene, the sheet exists on disk. For the full procedure and the
+ability-score options: `portent_guidance { topic: "character-creation" }`.
 
 ```
 portent_sheet { action: "create", character: "Brannoc Thistlewood", concept: "Level 3 Wood Elf Ranger (Hunter)", status: {...}, abilities: {...} }
@@ -188,8 +174,8 @@ Do not narrate numbers on every trivial action. But every number you do state mu
 
 ## Combat
 
-See [references/combat.md](references/combat.md) for the 5E and PF2E turn structures,
-statting monsters on the fly, and running interesting fights. In short: draw
+For turn structures, statting monsters on the fly and running interesting fights:
+`portent_guidance { topic: "combat" }`. In short: draw
 `monster-tactics` at the start of a fight so the enemy has a plan, track initiative
 explicitly in your message, and ask for the player's rolls one at a time.
 
@@ -216,10 +202,3 @@ When the player stops, or after any long scene:
 If a compaction happens mid-game, or you are unsure what is true,
 `portent_campaign { action: "brief" }` and then re-read the sheet. Never reconstruct game
 state from memory of the conversation.
-
-## Reference
-
-- [references/character-creation.md](references/character-creation.md) — building the sheet, 5E and PF2E
-- [references/combat.md](references/combat.md) — turn structure, statting monsters, making fights matter
-- [references/solo-techniques.md](references/solo-techniques.md) — oracles, clocks, hex crawls, dungeon-as-you-go, playing NPCs against yourself
-- [references/tools.md](references/tools.md) — every tool, every action, and the content packs

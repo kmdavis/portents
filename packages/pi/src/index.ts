@@ -22,6 +22,8 @@
 import { StringEnum } from "@earendil-works/pi-ai";
 import type { ExtensionAPI, ExtensionContext } from "@earendil-works/pi-coding-agent";
 import { Type } from "typebox";
+
+import { GUIDANCE_TOPICS, type GuidanceTopic, guidanceTopic, sessionGuidance } from "./guidance.ts";
 import {
 	analyze,
 	appendToSection,
@@ -183,20 +185,95 @@ export default function activate(pi: ExtensionAPI): void {
 		return { body: results.map((result) => result.text).join("\n") + summariseBatch(totals), totals };
 	}
 
+	// ── Tool activation ──────────────────────────────────────────────────────
+
+	/**
+	 * What is active before a game starts.
+	 *
+	 * Every tool is registered up front -- pi needs them in `getAllTools()` to use
+	 * native deferred loading, which keeps the prompt prefix cached when the rest
+	 * switch on. But only these two are *active*, so a session that is not a game
+	 * carries two tool definitions instead of ten.
+	 *
+	 * `portent_campaign` is the way in, and its description carries the trigger text
+	 * that used to live in a skill's frontmatter. `portent_roll` is here because
+	 * "roll 3d6" is a reasonable thing to ask with no campaign loaded at all.
+	 */
+	const PRE_CAMPAIGN_TOOLS = ["portent_campaign", "portent_roll"] as const;
+
+	/** The rest: only meaningful once there is a campaign to act on. */
+	const PLAY_TOOLS = [
+		"portent_ask_roll",
+		"portent_odds",
+		"portent_verify_roll",
+		"portent_deck",
+		"portent_table",
+		"portent_oracle",
+		"portent_map",
+		"portent_sheet",
+		"portent_guidance",
+	] as const;
+
+	/**
+	 * Switch the play tools on. Idempotent, and additive on purpose.
+	 *
+	 * pi's docs are explicit that a non-additive change to the active set loses
+	 * deferred loading, so this never removes anything -- including on a campaign
+	 * switch, where the tools are already right.
+	 */
+	function activatePlayTools() {
+		const active = pi.getActiveTools();
+		const missing = PLAY_TOOLS.filter((name) => !active.includes(name));
+		if (missing.length > 0) pi.setActiveTools([...active, ...missing]);
+	}
+
+	/**
+	 * Take the play tools back out, leaving everything else alone.
+	 *
+	 * **Subtracts rather than replaces.** `pi.setActiveTools()` governs built-in tools
+	 * as well as ours, so passing the pre-campaign list literally would switch off
+	 * read, bash and everything else in the session. The only safe form is
+	 * "whatever is active now, minus mine".
+	 *
+	 * This is the one non-additive call, which costs native deferred loading. It runs
+	 * at session start before any model request, so there is no prefix to invalidate.
+	 */
+	function deactivatePlayTools() {
+		const active = pi.getActiveTools();
+		if (active.some((name) => (PLAY_TOOLS as readonly string[]).includes(name))) {
+			pi.setActiveTools(active.filter((name) => !(PLAY_TOOLS as readonly string[]).includes(name)));
+		}
+	}
+
+	/**
+	 * The single funnel for "a campaign is now loaded".
+	 *
+	 * Every assignment goes through here so activation cannot be forgotten at one of
+	 * the four call sites that load or create one.
+	 */
+	function setCampaign<T extends Campaign | undefined>(next: T): T {
+		campaign = next;
+		if (next) activatePlayTools();
+		else deactivatePlayTools();
+		return next;
+	}
+
 	// ── Session lifecycle ────────────────────────────────────────────────────
 
 	pi.on("session_start", async (_event, ctx) => {
-		campaign = undefined;
+		setCampaign(undefined);
 		for (const entry of ctx.sessionManager.getEntries()) {
 			if (entry.type === "custom" && entry.customType === "portent-active-campaign") {
 				const slug = (entry.data as { slug: string | null })?.slug;
 				if (slug) {
 					try {
-						campaign = await Campaign.open(deps, slug);
+						// A resumed game re-activates the play tools, so picking a session back
+						// up does not require starting a campaign again to get them.
+						setCampaign(await Campaign.open(deps, slug));
 					} catch {
 						// A campaign deleted between sessions is not an error worth
-						// crashing a session over; the banner will say none is loaded.
-						campaign = undefined;
+						// crashing a session over; the briefing will say none is loaded.
+						setCampaign(undefined);
 					}
 				}
 			}
@@ -205,15 +282,53 @@ export default function activate(pi: ExtensionAPI): void {
 	});
 
 	/**
-	 * The banner. Re-injected every turn, which is the whole point: after a
-	 * compaction the transcript is gone but this is not.
+	 * The standing half of the briefing: everything that does not change while a
+	 * campaign is loaded.
+	 *
+	 * This goes in the system prompt, and it is **byte-identical every turn** for as
+	 * long as the campaign and system hold. That is the whole point. The system
+	 * prompt is the front of the request, so anything volatile in it invalidates the
+	 * provider's cached prefix on every single turn -- which is exactly what an
+	 * earlier version of this file did, by putting HP, clocks and the last five
+	 * ledger ids in here. A long session then pays full input price per turn on a
+	 * transcript that only grows.
+	 *
+	 * The rule that came out of it: stable content at the front, volatile content at
+	 * the end. See {@link volatileDigest}.
 	 */
-	async function banner(active: Campaign): Promise<string> {
-		const lines = [
+	function standingBriefing(active: Campaign): string {
+		return [
 			"# Active tabletop session",
 			`Campaign: **${active.name}** (\`${active.slug}\`) · ${describeRules(active.system, active.edition)}`,
 			`Files: \`${portentHome()}/${active.keys.dir}\` — campaign.md, world.md, journal.md, characters/, maps/`,
-		];
+			"",
+			"Rules for this session that override your usual habits:",
+			"- Never state a die result, card, or random outcome you did not get from a portent_* tool.",
+			"- **Cite the ledger id only for mechanics the player can see happening to their character**: attack rolls, damage, saves, checks against a DC. Write it inline, e.g. \`19 to hit [h-42]\`.",
+			"- **Never cite an id, name a tool, or describe the mechanism for world-generation randomness**: oracle answers, scene checks, table rolls, card draws. Those are your private scaffolding. Translate the result into fiction and say nothing about where it came from. Phrases like “the dice decided”, “the oracle says” or “scene: skewed” break the game. The ledger is the audit trail; the player can run /portent-status to look.",
+			"- Rolls that belong to the player are asked for with portent_ask_roll, never rolled for them.",
+			"- Update the sheet and journal on disk as play happens, not at the end.",
+			"",
+			"---",
+			"",
+			sessionGuidance(active.system, active.edition),
+		].join("\n");
+	}
+
+	/**
+	 * The changing half: state as of this turn.
+	 *
+	 * Delivered as an injected message rather than in the system prompt, so it lands
+	 * at the END of the request where it cannot invalidate the prefix in front of it.
+	 * pi stores injected messages in the session, so this still survives a
+	 * compaction -- which was the reason the whole briefing was re-injected in the
+	 * first place.
+	 *
+	 * Returns undefined when there is nothing worth saying, so a quiet turn injects
+	 * nothing at all.
+	 */
+	async function volatileDigest(active: Campaign): Promise<string | undefined> {
+		const lines: string[] = [];
 
 		if (knownSystem(active.system) && !active.edition) {
 			const printings = KNOWN_SYSTEMS.find((system) => system.id === active.system.toLowerCase())?.editions ?? [];
@@ -259,26 +374,28 @@ export default function activate(pi: ExtensionAPI): void {
 			lines.push(`Recent results: ${recent.map((entry) => `\`${entry.id}\` ${entry.result}`).join(" · ")}`);
 		}
 
-		lines.push(
-			"",
-			"Rules for this session that override your usual habits:",
-			"- Never state a die result, card, or random outcome you did not get from a portent_* tool.",
-			"- **Cite the ledger id only for mechanics the player can see happening to their character**: attack rolls, damage, saves, checks against a DC. Write it inline, e.g. `19 to hit [h-42]`.",
-			"- **Never cite an id, name a tool, or describe the mechanism for world-generation randomness**: oracle answers, scene checks, table rolls, card draws. Those are your private scaffolding. Translate the result into fiction and say nothing about where it came from. Phrases like “the dice decided”, “the oracle says” or “scene: skewed” break the game. The ledger is the audit trail; the player can run /portent-status to look.",
-			"- Rolls that belong to the player are asked for with portent_ask_roll, never rolled for them.",
-			"- Update the sheet and journal on disk as play happens, not at the end.",
-		);
-		return lines.join("\n");
+		if (lines.length === 0) return undefined;
+		return [`## Session state — ${active.name}`, ...lines].join("\n");
 	}
 
 	pi.on("before_agent_start", async (event, _ctx) => {
 		if (!campaign) return;
-		return { systemPrompt: `${event.systemPrompt}\n\n${await banner(campaign)}` };
+		const digest = await volatileDigest(campaign);
+		return {
+			systemPrompt: `${event.systemPrompt}\n\n${standingBriefing(campaign)}`,
+			...(digest ? { message: { customType: "portent-state", content: digest, display: false } } : {}),
+		};
 	});
 
-	pi.on("resources_discover", async (_event, _ctx) => ({
-		skillPaths: [new URL("../skills", import.meta.url).pathname],
-	}));
+	// No skill is contributed, deliberately.
+	//
+	// A skill would be loaded in every session whether or not anyone is playing, and
+	// its only real job was to be *found* when someone asks to play. A tool
+	// description does that job already, so the trigger text lives on
+	// `portent_campaign` and the GM guidance is injected when a game actually starts.
+	// That also retires a bug: the old skill path came from `new URL(...).pathname`,
+	// which percent-encodes, so any user whose checkout contained a space got a path
+	// that did not resolve.
 
 	// ── Rolling ──────────────────────────────────────────────────────────────
 
@@ -432,6 +549,32 @@ export default function activate(pi: ExtensionAPI): void {
 				lines.push(`Chance of ${params.dc} or more: **${(chance * 100).toFixed(1)}%**`);
 			}
 			return text(lines.join("\n\n"));
+		},
+	});
+
+	pi.registerTool({
+		name: "portent_guidance",
+		label: "GM guidance",
+		description: [
+			"Read deeper GM guidance on one topic. The standing guidance is already in your context;",
+			"this is the detail that is not needed every turn.",
+			`Topics: ${GUIDANCE_TOPICS.join(", ")}.`,
+			"Read a topic when it is about to matter — character-creation before building a sheet,",
+			"combat at the start of a fight — rather than up front.",
+		].join(" "),
+		parameters: Type.Object({
+			topic: StringEnum([...GUIDANCE_TOPICS]),
+		}),
+		async execute(_id, params: { topic: GuidanceTopic }) {
+			const body = guidanceTopic(params.topic);
+			if (!body) {
+				// Reported rather than thrown: the GM can carry on without it.
+				return text(
+					`No guidance file for **${params.topic}** is installed. Run the session on the standing ` +
+						"guidance you already have, and tell the player the reference is missing if it matters.",
+				);
+			}
+			return text(body);
 		},
 	});
 
@@ -668,7 +811,15 @@ export default function activate(pi: ExtensionAPI): void {
 		name: "portent_campaign",
 		label: "Campaign state",
 		description: [
-			"Create, load and update the campaign on disk. Everything a human would read is markdown under",
+			"Start, resume or update a solo tabletop RPG game, and run it as GM for one human player.",
+			"**Use this when the player asks to play D&D or Pathfinder, run a one-shot or a campaign, start or",
+			"resume a solo adventure, be their DM or GM, make a character, or continue a game already in",
+			"progress.** Covers D&D 5E (both printings), Pathfinder 2E (remaster and legacy), Pathfinder 1E and",
+			"generic d20 fantasy.",
+			"Starting or loading a campaign activates the rest of the portent_* tools — dice, decks, oracles,",
+			"tables, maps, character sheets — and briefs you on how to run a session, so you do not need to",
+			"know any of that in advance.",
+			"Everything a human would read is markdown under",
 			`\`${portentHome()}\`.`,
 			'Actions: "list" saved campaigns; "create" a new one; "load" one into this session; "brief" to',
 			'recover context after a compaction or a break; "journal" to append what just happened; "scene" to',
@@ -719,26 +870,28 @@ export default function activate(pi: ExtensionAPI): void {
 				case "create": {
 					if (!params.name) throw new Error("Creating a campaign needs a name");
 					if (!params.system) throw new Error('Creating a campaign needs a system, e.g. "5e (2024)"');
-					campaign = await Campaign.create(deps, {
-						name: params.name,
-						system: params.system,
-						premise: params.premise,
-						tone: params.tone,
-						safety: params.safety,
-					});
-					pi.appendEntry("portent-active-campaign", { slug: campaign.slug });
+					const created = setCampaign(
+						await Campaign.create(deps, {
+							name: params.name,
+							system: params.system,
+							premise: params.premise,
+							tone: params.tone,
+							safety: params.safety,
+						}),
+					);
+					pi.appendEntry("portent-active-campaign", { slug: created.slug });
 					await showStatus(ctx);
 					return text(
-						`Created **${campaign.name}** (\`${campaign.slug}\`), ${describeRules(campaign.system, campaign.edition)}.\n\n` +
-							`Files under \`${portentHome()}/${campaign.keys.dir}\`. Build a character with portent_sheet before play starts.`,
+						`Created **${created.name}** (\`${created.slug}\`), ${describeRules(created.system, created.edition)}.\n\n` +
+							`Files under \`${portentHome()}/${created.keys.dir}\`. Build a character with portent_sheet before play starts.`,
 					);
 				}
 				case "load": {
 					if (!params.name) throw new Error("Loading a campaign needs its slug");
-					campaign = await Campaign.open(deps, params.name);
-					pi.appendEntry("portent-active-campaign", { slug: campaign.slug });
+					const opened = setCampaign(await Campaign.open(deps, params.name));
+					pi.appendEntry("portent-active-campaign", { slug: opened.slug });
 					await showStatus(ctx);
-					return text(await campaign.brief());
+					return text(await opened.brief());
 				}
 				case "brief":
 					return text(await requireCampaign().brief());
@@ -966,16 +1119,17 @@ export default function activate(pi: ExtensionAPI): void {
 				);
 				return;
 			}
+			let opened: Campaign;
 			try {
-				campaign = await Campaign.open(deps, slug);
+				opened = setCampaign(await Campaign.open(deps, slug));
 			} catch (error) {
 				ctx.ui.notify((error as Error).message, "error");
 				return;
 			}
-			pi.appendEntry("portent-active-campaign", { slug: campaign.slug });
+			pi.appendEntry("portent-active-campaign", { slug: opened.slug });
 			await showStatus(ctx);
 			pi.sendMessage(
-				{ customType: "portent-brief", content: await campaign.brief(), display: true },
+				{ customType: "portent-brief", content: await opened.brief(), display: true },
 				{ deliverAs: "followUp", triggerTurn: true },
 			);
 		},

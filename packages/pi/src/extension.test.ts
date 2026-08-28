@@ -11,6 +11,7 @@ import assert from "node:assert/strict";
 import { mkdtempSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
+import { fileURLToPath } from "node:url";
 import { after, before, describe, it } from "node:test";
 
 const home = mkdtempSync(join(tmpdir(), "portent-ext-"));
@@ -47,6 +48,21 @@ interface Harness {
 	notifications: Array<{ text: string; level: string }>;
 	confirms: Array<{ title: string; message: string }>;
 	confirmAnswer: boolean;
+	activeTools: string[];
+	activeSetCalls: string[][];
+}
+
+/**
+ * The guidance directory.
+ *
+ * `fileURLToPath`, not `new URL(...).pathname`: the latter percent-encodes, so these
+ * tests silently found zero files for anyone whose checkout path contained a space.
+ */
+/** Stand-ins for pi's own tools, which the extension must never switch off. */
+const BUILTIN_TOOLS = ["read", "bash", "edit"];
+
+function guidanceRoot(): string {
+	return fileURLToPath(new URL("../guidance", import.meta.url));
 }
 
 function makeHarness() {
@@ -61,9 +77,25 @@ function makeHarness() {
 		notifications: [],
 		confirms: [],
 		confirmAnswer: true,
+		activeTools: [...BUILTIN_TOOLS],
+		activeSetCalls: [],
 	};
 	const pi = {
-		registerTool: (tool: ToolDef) => h.tools.set(tool.name, tool),
+		registerTool: (tool: ToolDef) => {
+			h.tools.set(tool.name, tool);
+			// pi makes a newly registered tool active; the extension has to opt out.
+			if (!h.activeTools.includes(tool.name)) h.activeTools.push(tool.name);
+		},
+		// Mirrors pi's contract: names must already be registered, and the extension is
+		// expected to read the current set before adding to it.
+		getActiveTools: () => [...h.activeTools],
+		setActiveTools: (names: string[]) => {
+			h.activeSetCalls.push([...names]);
+			// pi ignores unknown names, but its built-ins ARE known to it even though this
+			// harness never sees them registered. Treating them as unknown made the
+			// harness itself delete read/bash/edit, which looked like an extension bug.
+			h.activeTools = names.filter((name) => h.tools.has(name) || BUILTIN_TOOLS.includes(name));
+		},
 		registerCommand: (name: string, def: CommandDef) => h.commands.set(name, def),
 		on: (event: string, handler: (e: unknown, c: unknown) => unknown) => {
 			h.handlers.set(event, [...(h.handlers.get(event) ?? []), handler]);
@@ -329,11 +361,14 @@ describe(
 			});
 		});
 
-		describe("the banner", () => {
-			async function renderBanner() {
+		describe("the briefing", () => {
+			/** Both halves of what before_agent_start returns, kept apart. */
+			async function brief() {
 				const handler = h.handlers.get("before_agent_start")![0];
-				const result = (await handler({ systemPrompt: "BASE" }, ctx)) as { systemPrompt: string } | undefined;
-				return result?.systemPrompt ?? "";
+				const result = (await handler({ systemPrompt: "BASE" }, ctx)) as
+					| { systemPrompt?: string; message?: { content: string; customType: string; display: boolean } }
+					| undefined;
+				return { standing: result?.systemPrompt ?? "", state: result?.message?.content ?? "", message: result?.message };
 			}
 
 			it("carries the state a compaction would lose", async () => {
@@ -348,23 +383,52 @@ describe(
 					character: "Brannoc",
 					status: { HP: "26/26", AC: "15" },
 				});
-				const banner = await renderBanner();
-				assert.match(banner, /^BASE/);
-				assert.match(banner, /Harness Test/);
-				assert.match(banner, /At the causeway\./);
-				assert.match(banner, /Tide 2\/6/);
-				assert.match(banner, /Brannoc/);
-				assert.match(banner, /HP 26\/26/);
+				const { standing, state } = await brief();
+				assert.match(standing, /^BASE/);
+				assert.match(standing, /Harness Test/);
+				// The volatile facts still reach the model, just not through the prompt prefix.
+				assert.match(state, /At the causeway\./);
+				assert.match(state, /Tide 2\/6/);
+				assert.match(state, /Brannoc/);
+				assert.match(state, /HP 26\/26/);
+			});
+
+			it("keeps the system prompt byte-identical while state churns", async () => {
+				// The regression test for a real defect: HP, clocks and the last five
+				// ledger ids used to live in the system prompt, so every roll changed the
+				// front of the request and invalidated the provider's cached prefix on
+				// every turn of a long game.
+				const before = (await brief()).standing;
+
+				await call("portent_campaign", { action: "scene", summary: "The tide turns.", location: "Causeway" });
+				await call("portent_campaign", { action: "clock", clock_name: "Tide", filled: 5, segments: 6 });
+				await call("portent_roll", { expression: "1d20", reason: "a roll that lands in the ledger" });
+
+				const after = await brief();
+				assert.equal(after.standing, before, "state leaked into the system prompt and broke the prompt cache");
+				// ...and the churn is genuinely visible somewhere. HP is asserted without
+				// patching it, so this test does not mutate a sheet other tests read.
+				assert.match(after.state, /HP 26\/26/);
+				assert.match(after.state, /Tide 5\/6/);
+				assert.match(after.state, /The tide turns\./);
+				assert.match(after.state, /Recent results:/);
+			});
+
+			it("hides the state message from the transcript", async () => {
+				// The player is reading fiction, not a status block. It is for the model.
+				const { message } = await brief();
+				assert.equal(message?.display, false);
+				assert.equal(message?.customType, "portent-state");
 			});
 
 			it("states the secrecy rule, which prompting alone keeps losing", async () => {
-				const banner = await renderBanner();
-				assert.match(banner, /Never cite an id, name a tool, or describe the mechanism/);
-				assert.match(banner, /oracle answers, scene checks, table rolls, card draws/);
+				const { standing } = await brief();
+				assert.match(standing, /Never cite an id, name a tool, or describe the mechanism/);
+				assert.match(standing, /oracle answers, scene checks, table rolls, card draws/);
 			});
 
 			it("tells the GM to cite ids for the player's own mechanics", async () => {
-				assert.match(await renderBanner(), /Cite the ledger id only for mechanics the player can see/);
+				assert.match((await brief()).standing, /Cite the ledger id only for mechanics the player can see/);
 			});
 		});
 
@@ -533,12 +597,120 @@ describe(
 			});
 		});
 
-		it("has skills that name only tools that exist", async () => {
-			// A rename that misses a skill file leaves the GM being told to call a
+		describe("lazy tool activation", () => {
+			it("exposes only the way in before a game starts", async () => {
+				// The reason this exists: a coding session should not carry ten tabletop
+				// tools. Everything is registered so pi can defer-load it; almost nothing
+				// is active.
+				const { pi: freshPi, h: fresh } = makeHarness();
+				loaded!(freshPi);
+				await fresh.handlers.get("session_start")![0]({}, makeCtx(fresh));
+
+				const portentActive = fresh.activeTools.filter((name) => name.startsWith("portent_")).sort();
+				assert.deepEqual(portentActive, ["portent_campaign", "portent_roll"]);
+				assert.ok(fresh.tools.size >= 11, `only ${fresh.tools.size} tools registered`);
+				// Deactivating ours must not take pi's with it: setActiveTools governs
+				// built-in tools too, so a replace instead of a subtract disables the session.
+				for (const builtin of BUILTIN_TOOLS) {
+					assert.ok(fresh.activeTools.includes(builtin), `deactivation removed the built-in ${builtin}`);
+				}
+			});
+
+			it("carries the trigger text on the tool that starts a game", async () => {
+				// This replaced a skill's frontmatter description. If it stops saying what
+				// it is for, nothing else advertises the extension at all.
+				const description = h.tools.get("portent_campaign")!.description;
+				for (const phrase of ["play D&D", "Pathfinder", "one-shot", "DM or GM", "resume"]) {
+					assert.ok(description.includes(phrase), `portent_campaign no longer mentions ${phrase}`);
+				}
+			});
+
+			it("activates the rest when a campaign starts", async () => {
+				const { pi: freshPi, h: fresh } = makeHarness();
+				loaded!(freshPi);
+				const freshCtx = makeCtx(fresh);
+				await fresh.handlers.get("session_start")![0]({}, freshCtx);
+
+				await fresh.tools
+					.get("portent_campaign")!
+					.execute("t", { action: "create", name: "Activation Test", system: "5e (2024)" }, undefined, undefined, freshCtx);
+
+				for (const name of ["portent_ask_roll", "portent_deck", "portent_oracle", "portent_sheet", "portent_guidance"]) {
+					assert.ok(fresh.activeTools.includes(name), `${name} did not activate`);
+				}
+			});
+
+			it("only ever adds once a game is under way", async () => {
+				// pi's docs: a non-additive change loses native deferred loading. One
+				// subtraction at startup is deliberate and free (no request has been made
+				// yet); every call after it must be a superset of the one before.
+				const { pi: freshPi, h: fresh } = makeHarness();
+				loaded!(freshPi);
+				const freshCtx = makeCtx(fresh);
+				await fresh.handlers.get("session_start")![0]({}, freshCtx);
+				await fresh.tools
+					.get("portent_campaign")!
+					.execute("t", { action: "create", name: "Additive Test", system: "pf2e" }, undefined, undefined, freshCtx);
+
+				const calls = fresh.activeSetCalls;
+				assert.ok(calls.length >= 2, `expected a subtraction then an addition, got ${calls.length} calls`);
+				for (let i = 1; i < calls.length; i++) {
+					for (const name of calls[i - 1]) {
+						assert.ok(calls[i].includes(name), `call ${i} dropped ${name}, losing deferred loading`);
+					}
+				}
+			});
+
+			it("re-activates on a resumed session without starting a game again", async () => {
+				const { pi: freshPi, h: fresh } = makeHarness();
+				loaded!(freshPi);
+				fresh.entries.push({ customType: "portent-active-campaign", data: { slug: "harness-test" } });
+				await fresh.handlers.get("session_start")![0]({}, makeCtx(fresh));
+				assert.ok(fresh.activeTools.includes("portent_sheet"), "a resumed game came back without its tools");
+			});
+		});
+
+		describe("guidance", () => {
+			it("puts the standing guidance in the system prompt", async () => {
+				const handler = h.handlers.get("before_agent_start")![0];
+				const result = (await handler({ systemPrompt: "BASE" }, ctx)) as { systemPrompt: string };
+				assert.match(result.systemPrompt, /Running a solo game/);
+				assert.match(result.systemPrompt, /The scene loop/);
+			});
+
+			it("includes the printing in play and not the other one", async () => {
+				const handler = h.handlers.get("before_agent_start")![0];
+				const { systemPrompt } = (await handler({ systemPrompt: "" }, ctx)) as { systemPrompt: string };
+				// The harness campaign is 5e (2024).
+				assert.match(systemPrompt, /System guidance: 5e-2024/);
+				assert.match(systemPrompt, /[Ww]eapon mastery/);
+				assert.doesNotMatch(systemPrompt, /force barrage/, "PF2E guidance leaked into a 5E game");
+			});
+
+			it("keeps the deep topics out of the prompt and behind the tool", async () => {
+				const handler = h.handlers.get("before_agent_start")![0];
+				const { systemPrompt } = (await handler({ systemPrompt: "" }, ctx)) as { systemPrompt: string };
+				// Named, so the GM knows to ask; not inlined, because it is not needed every turn.
+				assert.match(systemPrompt, /portent_guidance \{ topic: "character-creation" \}/);
+				assert.doesNotMatch(systemPrompt, /Rolling ability scores/, "a deep topic was inlined");
+
+				const body = (await call("portent_guidance", { topic: "character-creation" })) as string;
+				assert.match(body, /# Character creation/);
+			});
+
+			it("reports a missing topic rather than failing the turn", async () => {
+				// A GM without a reference is worse, not broken.
+				const body = (await call("portent_guidance", { topic: "combat" })) as string;
+				assert.ok(body.length > 100, "combat guidance is missing from the package");
+			});
+		});
+
+		it("has guidance that names only tools that exist", async () => {
+			// A rename that misses a guidance file leaves the GM being told to call a
 			// tool that is not registered, and the failure looks like model error.
 			const { readdirSync, readFileSync, existsSync } = await import("node:fs");
-			const skillRoot = new URL("../skills", import.meta.url).pathname;
-			assert.ok(existsSync(skillRoot), "no skills directory");
+			const skillRoot = guidanceRoot();
+			assert.ok(existsSync(skillRoot), "no guidance directory");
 			const files: string[] = [];
 			const walk = (dir: string) => {
 				for (const entry of readdirSync(dir, { withFileTypes: true })) {
@@ -548,7 +720,7 @@ describe(
 				}
 			};
 			walk(skillRoot);
-			assert.ok(files.length >= 5, `only ${files.length} skill files found`);
+			assert.ok(files.length >= 8, `only ${files.length} guidance files found`);
 
 			const referenced = new Set<string>();
 			for (const file of files) {
@@ -557,19 +729,19 @@ describe(
 				assert.doesNotMatch(text, /PI_DND_HOME/, `${file} still references the old home var`);
 				for (const match of text.matchAll(/\bportent_[a-z_]+/g)) referenced.add(match[0]);
 			}
-			assert.ok(referenced.size >= 8, `skills only mention ${referenced.size} tools`);
+			assert.ok(referenced.size >= 8, `guidance only mentions ${referenced.size} tools`);
 			for (const name of referenced) {
-				assert.ok(h.tools.has(name), `skills reference ${name}, which is not registered`);
+				assert.ok(h.tools.has(name), `guidance references ${name}, which is not registered`);
 			}
 		});
 
-		it("has skills whose tool calls all typecheck against the real schemas", async () => {
+		it("has guidance whose tool calls all typecheck against the real schemas", async () => {
 			// The rename pass caught tool names but not parameters, so the skills went
 			// on describing an `edition` argument and a `kind: "wilderness"` map that
 			// no longer existed. Checked against the registered TypeBox schemas rather
 			// than a copy of them, so this cannot drift.
 			const { readdirSync, readFileSync } = await import("node:fs");
-			const skillRoot = new URL("../skills", import.meta.url).pathname;
+			const skillRoot = guidanceRoot();
 			const files: string[] = [];
 			const walk = (dir: string) => {
 				for (const entry of readdirSync(dir, { withFileTypes: true })) {

@@ -1,5 +1,8 @@
 # Combat
 
+System-specific turn structure is in this campaign's system guidance, which is
+already in your context. This file is the part that does not change with the rules.
+
 Solo combat has a specific failure mode: a lone character against four goblins is either
 trivial or lethal, with very little in between, and it takes twenty exchanges to find out
 which. Design fights to resolve in three or four rounds.
@@ -29,32 +32,7 @@ Ask for the player's rolls **one at a time**: attack first, then damage only if 
 Asking for "attack and damage" together means telling them the AC, and it wastes their
 roll when they miss.
 
-## 5E specifics
 
-- Action, bonus action, movement, one free object interaction, reaction.
-- Advantage/disadvantage: `2d20kh1` and `2d20kl1`. Use these liberally as your main
-  dial instead of inventing situational modifiers.
-- Death saves: three failures dies, three successes stabilises, a natural 20 is back up
-  at 1 HP. These are the player's rolls: `portent_ask_roll { expression: "1d20", reason: "death save" }`.
-  Patch the `Death Saves` status key after each one.
-- Concentration: when the player takes damage while concentrating, ask for a CON save
-  at DC 10 or half the damage, whichever is higher. Track what they are concentrating on
-  in the sheet's Status block so you remember to ask.
-- Crits: double the dice, not the modifier. Optionally draw `crit-hits` instead.
-
-## PF2E specifics
-
-- Three actions per turn, plus a reaction. Most things cost one action; casting usually
-  costs two.
-- **Multiple attack penalty:** second attack in a turn is at -5, third at -10 (-4/-8 with
-  agile). This is the main reason PF2E turns are interesting; enforce it.
-- **Four degrees of success:** beat the DC by 10 for a critical success, fail by 10 for a
-  critical failure. A natural 20 improves the degree by one step, a natural 1 worsens it.
-  The dice tool reports natural 20s and 1s, so you can apply this without guessing.
-- Dying/Wounded: dying increases with each hit while down; wounded makes the next one
-  worse. Track both in the Status block.
-- Hero points: one at the start, more for good play. Spending one rerolls a check;
-  spending all of them recovers from dying. Remind the player they have them.
 
 ## Statting monsters on the fly
 
