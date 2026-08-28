@@ -70,6 +70,21 @@ export interface SystemGuidance {
 	readonly body: string;
 }
 
+/**
+ * A human-readable name for one guidance entry.
+ *
+ * Taken from the document's own `#` heading, so the name a player is offered is the
+ * name the guidance itself uses. Falls back to the id.
+ *
+ * This exists because offering `aliases[0]` looked fine and was not: the first alias
+ * for fifth edition is the bare `5e`, so a model told to offer the available systems
+ * announced the game as "5e" and then explained to the player that "this installation
+ * labels the newer rules simply 5e". The heading says "D&D 5E — 2024 printing".
+ */
+export function guidanceTitle(entry: SystemGuidance): string {
+	return entry.body.match(/^#\s+(.+)$/m)?.[1]?.trim() ?? entry.id;
+}
+
 /** One deliberate replacement of another pack's entry. */
 export interface ContentOverride {
 	readonly kind: "deck" | "table" | "sheet" | "guidance";

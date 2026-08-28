@@ -15,7 +15,7 @@
  */
 
 import { CORE_GUIDANCE, GUIDANCE_TOPICS, guidanceTopic } from "@portents/guidance";
-import type { ContentRegistry } from "@portents/core";
+import { type ContentRegistry, guidanceTitle } from "@portents/core";
 
 export { GUIDANCE_TOPICS, guidanceTopic };
 
@@ -67,10 +67,9 @@ export function availableSystems(registry: ContentRegistry): string[] {
 		.guidanceIds()
 		.map((id) => {
 			const found = registry.guidanceFor(id);
-			// The first alias is the canonical system line; the id is a fallback.
-			const canonical = found?.aliases[0] ?? id;
-			const heading = found?.body.match(/^#\s+(.+)$/m)?.[1];
-			return heading ? `\`${canonical}\` — ${heading}` : `\`${canonical}\``;
+			if (!found) return `\`${id}\``;
+			// Title for speaking to the player, alias for passing back as a parameter.
+			return `${guidanceTitle(found)} — pass \`system: "${found.aliases[0]}"\``;
 		})
 		.sort();
 }

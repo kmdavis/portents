@@ -17,10 +17,14 @@
     "@portents/web": "workspace:*",
     "ai": "^7.0.74",
     "@ai-sdk/openai": "^4.0.45",
-    "@ai-sdk/anthropic": "^4.0.40"
+    "@ai-sdk/anthropic": "^4.0.40",
+    "marked": "^18.0.10",
+    "dompurify": "^3.4.14"
   },
   "devDependencies": {
     "esbuild": "^0.25.0",
-    "typescript": "^5.9.2"
+    "typescript": "^5.9.2",
+    "jsdom": "^28.0.1",
+    "@types/jsdom": "^28.0.0"
   }
 }

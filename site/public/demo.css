@@ -100,3 +100,36 @@ dialog::backdrop { background: rgba(0, 0, 0, 0.45); }
 dialog h2 { margin-top: 0; font-size: 1.1rem; }
 dialog .expression { font-size: 1.3rem; text-align: center; margin: 1rem 0; }
 dialog menu { display: flex; gap: 0.6rem; justify-content: flex-end; padding: 0; margin: 1rem 0 0; }
+
+/* The GM is thinking. Three dots, because a spinner that spins forever is
+   indistinguishable from one that has stopped. */
+.waiting { display: flex; gap: 0.35rem; padding: 1.1rem 0 0.4rem; }
+.waiting span {
+	width: 0.45rem;
+	height: 0.45rem;
+	border-radius: 50%;
+	background: var(--accent);
+	opacity: 0.3;
+	animation: pulse 1.2s ease-in-out infinite;
+}
+.waiting span:nth-child(2) { animation-delay: 0.15s; }
+.waiting span:nth-child(3) { animation-delay: 0.3s; }
+
+@keyframes pulse {
+	0%, 60%, 100% { opacity: 0.25; transform: translateY(0); }
+	30% { opacity: 1; transform: translateY(-0.2rem); }
+}
+
+@media (prefers-reduced-motion: reduce) {
+	.waiting span { animation: none; opacity: 0.55; }
+}
+
+/* Markdown from the GM. marked emits real lists now, so they need spacing. */
+.turn.gm ul, .turn.gm ol { margin: 0.6rem 0; padding-left: 1.4rem; }
+.turn.gm li { margin: 0.25rem 0; }
+.turn.gm li > p { margin: 0; }
+.turn.gm h1, .turn.gm h2, .turn.gm h3 { font-size: 1.05rem; margin: 1rem 0 0.4rem; border: 0; }
+.turn.gm blockquote { margin: 0.7rem 0; padding-left: 0.9rem; border-left: 3px solid var(--rule); color: var(--muted); }
+.turn.gm table { font-size: 0.9rem; }
+.turn.gm hr { border: 0; border-top: 1px solid var(--rule); margin: 1rem 0; }
+#say[disabled] { opacity: 0.6; }

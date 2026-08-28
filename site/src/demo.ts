@@ -9,9 +9,13 @@
 
 import { BrowserStorage } from "@portents/core/browser";
 import { WebSession } from "@portents/web";
+import DOMPurify from "dompurify";
+import { marked } from "marked";
+
 import type { ModelMessage } from "ai";
 
 import { buildModel, runTurn, stateDigest, systemPrompt } from "./agent.ts";
+import { renderMarkdown } from "./markdown.ts";
 import {
 	clearSettings,
 	defaultModelFor,
@@ -124,54 +128,17 @@ function scrollDown(): void {
 }
 
 /**
- * Render the GM's prose.
+ * Render the GM's prose as markdown.
  *
- * Markdown is handled with a deliberately tiny transform rather than a library: bold,
- * inline code, fenced blocks and paragraphs. That covers what the guidance actually
- * asks the GM to produce, and keeps a parser out of the bundle.
+ * `marked` and `DOMPurify` rather than the small transform this used to have. That
+ * transform handled bold, code and paragraphs, and silently dropped lists -- which the
+ * guidance asks the GM to produce constantly ("ask five questions, in one message"), so
+ * the first real session came back as a wall of run-together numbers.
  *
- * Text is assigned through `textContent` on created elements, never `innerHTML`, so a
- * model that emits a script tag emits a visible script tag.
+ * The policy and the render step live in `markdown.ts`, where they are tested.
  */
 function renderProse(target: HTMLElement, text: string): void {
-	target.replaceChildren();
-	for (const block of text.split(/\n{2,}/)) {
-		if (!block.trim()) continue;
-
-		const fenced = block.match(/^```[a-z]*\n([\s\S]*?)\n?```$/);
-		if (fenced) {
-			const pre = document.createElement("pre");
-			const code = document.createElement("code");
-			code.textContent = fenced[1];
-			pre.append(code);
-			target.append(pre);
-			continue;
-		}
-
-		// A map grid arrives as plain lines of wall characters; showing it as prose
-		// destroys it, so anything that looks like a grid gets monospaced.
-		if (/^[#.+<>ST~\s]{12,}$/.test(block) && block.includes("\n")) {
-			const pre = document.createElement("pre");
-			const code = document.createElement("code");
-			code.textContent = block;
-			pre.append(code);
-			target.append(pre);
-			continue;
-		}
-
-		const paragraph = document.createElement("p");
-		let rest = block;
-		const pattern = /\*\*([^*]+)\*\*|`([^`]+)`/;
-		for (let match = pattern.exec(rest); match; match = pattern.exec(rest)) {
-			paragraph.append(rest.slice(0, match.index));
-			const element = document.createElement(match[1] ? "strong" : "code");
-			element.textContent = match[1] ?? match[2];
-			paragraph.append(element);
-			rest = rest.slice(match.index + match[0].length);
-		}
-		paragraph.append(rest);
-		target.append(paragraph);
-	}
+	target.innerHTML = renderMarkdown(text, marked as never, DOMPurify as never);
 }
 
 /**
@@ -243,18 +210,29 @@ function updateChrome(): void {
 	campaignLabel.textContent = campaign ? `${campaign.name} · ${campaign.systemLine}` : "No campaign";
 }
 
-async function send(text: string): Promise<void> {
+async function send(text: string, options: { show?: boolean } = {}): Promise<void> {
 	if (busy || !settings) return;
 	busy = true;
 	sendButton.disabled = true;
+	sayBox.disabled = true;
 
 	if (text) {
-		renderProse(addTurn("player"), text);
+		if (options.show !== false) renderProse(addTurn("player"), text);
 		history.push({ role: "user", content: text });
 	}
 
+	// The digest is passed for this call only, never pushed into history. Persisting it
+	// would leave a growing pile of stale snapshots -- last turn's HP, the turn before
+	// that's -- and the model has no way to know which is current.
 	const digest = await stateDigest(session);
-	if (digest) history.push({ role: "user", content: digest });
+	const messages = digest ? [...history, { role: "user" as const, content: digest }] : history;
+
+	const waiting = document.createElement("div");
+	waiting.className = "waiting";
+	waiting.setAttribute("aria-label", "The GM is thinking");
+	waiting.append(...[0, 1, 2].map(() => document.createElement("span")));
+	transcript.append(waiting);
+	scrollDown();
 
 	const traces: ToolTrace[] = [];
 	const tools = portentsTools(session, (trace) => traces.push(trace));
@@ -294,10 +272,11 @@ async function send(text: string): Promise<void> {
 		const produced = await runTurn({
 			model: buildModel(settings),
 			system: systemPrompt(session.registry, session),
-			messages: history,
+			messages,
 			tools,
 			handlers: {
 				onText: (delta) => {
+					waiting.remove();
 					prose += delta;
 					renderProse(turn, prose);
 					scrollDown();
@@ -314,8 +293,12 @@ async function send(text: string): Promise<void> {
 	} catch (error) {
 		showError(error instanceof Error ? `${error.name}: ${error.message}` : String(error));
 	} finally {
+		waiting.remove();
+		// An empty turn leaves an empty bubble, which reads as a broken reply.
+		if (!prose.trim() && turn.childElementCount === 0) turn.remove();
 		busy = false;
 		sendButton.disabled = false;
+		sayBox.disabled = false;
 		updateChrome();
 		sayBox.focus();
 	}
@@ -350,9 +333,14 @@ function showGame(): void {
 	sayBox.focus();
 
 	if (transcript.childElementCount === 0) {
-		// The opening turn is the model's, not ours: it should check for saved games
-		// before asking anything, which is what the guidance tells it to do.
-		void send("");
+		// The GM opens, but it needs something to open in reply to: a turn with no
+		// messages at all is rejected by the API before it reaches a model, which is
+		// exactly what "messages must not be empty" was. Sent but not shown, so the
+		// transcript starts with the GM rather than with an instruction nobody typed.
+		void send(
+			"Begin. Check for saved campaigns first, then greet me and either resume one or run session zero.",
+			{ show: false },
+		);
 	}
 }
 

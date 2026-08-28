@@ -9,7 +9,7 @@
  * Everything returns a string, because that is what goes back to the model.
  */
 
-import { stringifySheet } from "@portents/core";
+import { guidanceTitle, stringifySheet } from "@portents/core";
 import type { WebSession } from "@portents/web";
 
 /** Require a value the model should have supplied, with the message it needs to see. */
@@ -35,9 +35,16 @@ export async function campaignAction(session: WebSession, params: CampaignParams
 	switch (params.action) {
 		case "list": {
 			const saved = await session.listCampaigns();
+			// Title first, then the exact system line to pass to "create". Offering only
+			// the alias made a model announce the game as "5e" and tell the player that
+			// was what this installation called it.
 			const systems = session.registry
 				.guidanceIds()
-				.map((id) => session.registry.guidanceFor(id)?.aliases[0] ?? id)
+				.map((id) => {
+					const entry = session.registry.guidanceFor(id);
+					if (!entry) return id;
+					return `${guidanceTitle(entry)} — pass \`system: "${entry.aliases[0]}"\``;
+				})
 				.sort();
 			const lines = saved.length
 				? ["Campaigns:", ...saved.map((entry) => `- \`${entry.slug}\` — ${entry.name} (${entry.systemLine ?? entry.system})`)]
@@ -45,8 +52,11 @@ export async function campaignAction(session: WebSession, params: CampaignParams
 			return [
 				...lines,
 				"",
-				`Systems available: ${systems.join(", ")}.`,
-				"Where a system has more than one printing the newer one is the default.",
+				"Systems available:",
+				...systems.map((line) => `- ${line}`),
+				"",
+				"Where a system has more than one printing the newer one is the default. Use the title when",
+				"you speak to the player, not the short code.",
 			].join("\n");
 		}
 
