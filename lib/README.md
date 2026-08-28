@@ -419,6 +419,90 @@ and lets a test supply three fake tables instead of the whole corpus. Duplicate
 ids throw unless `allowOverride` is set, because a silent override is how someone
 wonders why their custom table is being ignored.
 
+## Character sheets
+
+One markdown file that is both machine-readable and human-readable, because it
+has to be: a GM needs to read HP without guessing, a player needs to read the
+whole character without a parser.
+
+```markdown
+---
+name: Brannoc Thistlewood
+system: 5e
+status:
+  HP: 19/26
+  Temp HP: 0
+  Hit Dice: 3d10
+---
+
+# Brannoc Thistlewood
+
+## Status
+<!-- portent:generated status -->
+- **HP:** 19/26
+- **Temp HP:** 0
+- **Hit Dice:** 3d10
+
+## Equipment
+
+- Longbow, 20 arrows
+```
+
+**The frontmatter is canonical and the prose is generated from it** — the same
+shape as the map tiles, one source of truth and two projections, because the
+alternative is two places to change HP and a sheet that eventually disagrees with
+itself.
+
+```ts
+import { createSheet, patchStatus, stringifySheet, statusValue, sheetProblems } from "@portent/core";
+
+let sheet = createSheet({
+  name: "Brannoc Thistlewood",
+  meta: { system: "5e", edition: "2024" },
+  status: { HP: "26/26", "Hit Dice": "3d10" },
+  sections: ["Equipment", "Notes"],
+});
+
+sheet = patchStatus(sheet, { HP: "-7" });   // frontmatter and prose both updated
+statusValue(sheet, "HP");                   // "19/26"
+sheetProblems(sheet);                       // [] when the two agree
+```
+
+Generated sections carry a `<!-- portent:generated ... -->` marker so the tools
+know what they own and a human knows what not to edit. If someone edits one
+anyway, `sheetProblems` **reports the disagreement rather than resolving it** —
+the file is the user's, and guessing which side they meant is how you lose
+someone's HP. `syncGeneratedSections` rewrites the prose from the frontmatter when
+that is what they want.
+
+Nothing here is D&D-specific. `status` and `abilities` are whatever keys the
+system needs, and section names are the caller's:
+
+```ts
+createSheet({
+  name: "Prof. Ashcombe",
+  status: { HP: "11/11", Sanity: "58/58", Luck: 45 },
+  sections: ["Occupation", "Skills", "Backstory"],
+});
+```
+
+### Frontmatter
+
+Not a YAML parser. It reads a deliberately small subset and **rejects everything
+else with a line number**, rather than half-understanding an anchor and quietly
+producing the wrong sheet. What it emits is valid YAML, so Obsidian can read a
+sheet; what it accepts is much narrower, so its behaviour is predictable.
+
+Supported: scalars, quoted strings, numbers, booleans, inline and block lists of
+scalars, and **one** level of nesting. Keys may contain spaces, because a sheet
+needs `Temp HP` and `Hit Dice`. Rejected, each naming the line: tabs, CRLF,
+deeper nesting, lists of maps, inline maps, anchors, aliases, `|` and `>` blocks,
+`null`, and duplicate keys.
+
+Round-tripping is tested against a corpus chosen to break a naive emitter:
+`"2024"`, `"true"`, `22/26`, `1d8+3`, `- x`, `a: b`, `Longbow +7 # 150 ft`, and
+the twelve status keys a real 5E sheet uses.
+
 ## Storage
 
 The engine is synchronous. Persistence is the one async seam, behind a port:

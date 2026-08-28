@@ -153,6 +153,16 @@ too; alone, the temptation is to decide whatever suits the story, and then nobod
 is playing. The likelihood ladder and the doubles-mean-a-twist rule are original
 arithmetic, not a reproduction of any published solo system.
 
+## Where data lives
+
+`$PORTENT_HOME`, or `~/.portent` by default. Campaign files, character sheets and
+maps are markdown you can read, edit and put in git.
+
+Character sheets keep their machine-readable values in frontmatter and their
+prose generated from it, so the file serves a parser and a person without the two
+drifting apart. Generated sections are marked, and a hand-edit that puts them out
+of sync is **reported rather than silently resolved**.
+
 ## How it stays portable
 
 The engine is synchronous and depends on nothing but interfaces in

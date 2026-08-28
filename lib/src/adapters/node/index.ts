@@ -147,3 +147,5 @@ function wrap(error: unknown, what: string): Error {
 	if ((error as Error)?.name === "InvalidKeyError") return error as Error;
 	return new StorageUnavailableError(`Storage failed while ${what}: ${(error as Error)?.message ?? error}`, error);
 }
+
+export { DEFAULT_HOME_DIRNAME, HOME_ENV_VAR, openHomeStorage, portentHome } from "./home.ts";

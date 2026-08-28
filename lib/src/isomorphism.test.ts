@@ -173,7 +173,13 @@ describe("the core is isomorphic", () => {
 				`${rel} imports a node: module but is not part of the Node adapter`,
 			);
 		}
-		assert.deepEqual(offenders, ["adapters/node/index.ts"], "the set of Node-only files changed");
+		// Listed explicitly so adding a Node-only file is a deliberate act with a
+		// test to update, rather than something that slips in unnoticed.
+		assert.deepEqual(
+			offenders,
+			["adapters/node/home.ts", "adapters/node/index.ts"],
+			"the set of Node-only files changed",
+		);
 	});
 
 	it("keeps every DOM reference inside the browser adapter", () => {
@@ -209,5 +215,28 @@ describe("the core is isomorphic", () => {
 			["ports/random.ts"],
 			"a global is being read somewhere new; keep that at an adapter or port boundary",
 		);
+	});
+});
+
+describe("the guard itself", () => {
+	// It has already produced one useful false positive: a local variable named
+	// `document`. Shadowing a browser global in a library that must run in
+	// browsers is worth flagging, so tripping on it is the intended behaviour and
+	// the fix is to rename the local.
+	it("bans DOM globals by name, so a shadowing local trips it deliberately", () => {
+		const domRule = BANNED.find((rule) => rule.what === "a DOM global");
+		assert.ok(domRule, "the DOM rule went missing");
+		assert.ok(domRule.pattern.test("const data = document.data;"));
+		assert.ok(domRule.pattern.test("window.location"));
+		// A word merely containing the name is fine.
+		assert.ok(!domRule.pattern.test("const documents = [];"));
+		assert.ok(!domRule.pattern.test("stringifyDocument(doc)"));
+	});
+
+	it("bans node: imports by shape, not by module name", () => {
+		const nodeRule = BANNED.find((rule) => rule.what === 'an import from "node:…"');
+		assert.ok(nodeRule);
+		assert.ok(nodeRule.pattern.test('import { readFile } from "node:fs";'));
+		assert.ok(!nodeRule.pattern.test('import { parseTile } from "./tile.ts";'));
 	});
 });
