@@ -1,0 +1,36 @@
+{
+  "name": "@portent/cli",
+  "version": "0.0.0",
+  "description": "Command-line dice, oracles, decks, tables and dungeon maps for solo tabletop play.",
+  "keywords": ["rpg", "ttrpg", "dice", "oracle", "solo", "dungeon", "cli"],
+  "license": "MIT",
+  "author": "Kevan Davis",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/kmdavis/portent.git",
+    "directory": "cli"
+  },
+  "type": "module",
+  "bin": { "portent": "./bin/portent.mjs" },
+  "files": ["dist", "bin", "README.md"],
+  "exports": {
+    ".": {
+      "development": "./src/index.ts",
+      "types": "./dist/index.d.ts",
+      "default": "./dist/index.js"
+    }
+  },
+  "scripts": {
+    "build": "tsc -p tsconfig.build.json",
+    "test": "node --conditions=development --test 'src/**/*.test.ts'",
+    "typecheck": "tsc -p tsconfig.json --noEmit"
+  },
+  "dependencies": {
+    "@portent/content": "workspace:*",
+    "@portent/core": "workspace:*"
+  },
+  "optionalDependencies": {
+    "@resvg/resvg-js": "^2.6.2"
+  },
+  "engines": { "node": ">=22.6" }
+}

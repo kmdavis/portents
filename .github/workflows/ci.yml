@@ -34,7 +34,7 @@ jobs:
         run: pnpm check:browser
 
       - name: Build
-        run: pnpm --filter @portent/core build
+        run: pnpm -r build
 
   # ext4 is case-sensitive and macOS APFS is not. The storage conformance suite
   # detects which and asserts accordingly, so running both catches a regression

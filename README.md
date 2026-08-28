@@ -153,6 +153,17 @@ too; alone, the temptation is to decide whatever suits the story, and then nobod
 is playing. The likelihood ladder and the doubles-mean-a-twist rule are original
 arithmetic, not a reproduction of any published solo system.
 
+## The command line
+
+```sh
+portent roll 2d20kh1+5 --dc 15
+portent map --rooms 9 --seed grimhold --png map.png
+portent oracle "is the gate still guarded?" --likelihood unlikely
+```
+
+Every command takes `--json` for scripting and `--seed` for reproducibility. See
+[cli/README.md](cli/README.md).
+
 ## Where data lives
 
 `$PORTENT_HOME`, or `~/.portent` by default. Campaign files, character sheets and
