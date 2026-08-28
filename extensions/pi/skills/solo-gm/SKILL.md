@@ -39,11 +39,11 @@ picked in two lines.
 
 Ask about:
 
-1. **System and edition** — 5E, PF2E, or generic. If they do not care, use 5E.
+1. **System and printing** — 5E, PF2E, or generic. If they do not care, use 5E.
 
    **Both systems have a current printing and an older one, and the current one is the
    default.** Do not quietly pick the older rules because you happen to know them
-   better, and do not leave the edition unstated.
+   better, and do not leave the printing unstated.
 
    | System | Default | Older |
    | --- | --- | --- |
@@ -53,7 +53,7 @@ Ask about:
    State which you are using in one clause when you confirm the setup: "5E, 2024 rules".
    If the player says a bare "D&D" or "5e", take the 2024 rules and say so, so they can
    correct you in one word. Pass it through: `portent_campaign { action: "create", system:
-   "5e", edition: "2024" }`.
+   "5e (2024)" }`.
 
    What actually changes, and where to be careful:
    - **5E 2024:** weapon mastery properties, new backgrounds granting ability bonuses,
@@ -66,7 +66,8 @@ Ask about:
 
    If mid-session you realise you have been running the wrong printing, say so plainly,
    ask whether to switch or continue, and record the answer with
-   `portent_campaign { action: "edition", edition: "..." }`.
+   `portent_campaign { action: "system", system: "5e (2014)" }` -- the system and its
+   printing are one string.
 
 2. **Tone and content** — the register they want (grim, heroic, comic, mystery), and
    anything to keep off the table. Ask this plainly and briefly; write the answer into
@@ -81,7 +82,7 @@ Ask about:
 Then:
 
 ```
-portent_campaign { action: "create", name: "...", system: "5e", edition: "2024", premise: "...", tone: "...", safety: "..." }
+portent_campaign { action: "create", name: "...", system: "5e (2024)", premise: "...", tone: "...", safety: "..." }
 ```
 
 Name the campaign something the player would recognise in a list a month from now.

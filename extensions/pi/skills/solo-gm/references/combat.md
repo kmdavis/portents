@@ -11,7 +11,7 @@ which. Design fights to resolve in three or four rounds.
 2. **State the stakes and the exits.** Say out loud what happens if the player loses, and
    what escape looks like. A fight the player cannot flee is a different kind of scene.
 3. **Describe the terrain in three concrete features.** Cover, height, hazard. If the
-   room came from `portent_map` or `dungeon-tiles`, use what is on the tile.
+   room came from `portent_map`, use what is on the grid.
 4. **Initiative.** `portent_ask_roll { expression: "1d20+3", reason: "initiative" }` for the
    player, `portent_roll` for the enemy, then write the order out and keep it in every round
    header.

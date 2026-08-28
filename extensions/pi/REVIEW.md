@@ -20,6 +20,8 @@ not a review.
 | medium | `/draw` skips the ledger entry the deck tool writes | Bypassed the append, so a player-initiated draw never reached the audit log while the counter advanced. One `drawAndRecord` helper now. |
 | medium | `setSystem` leaves a stale rules line | Wrote a new section and left the old line under the h1. One generated home for it. |
 | minor | Dynamic import in sheet tool is redundant | Now static. |
+| medium | Skill docs describe tools and commands that are gone | Fixed in the doc pass: the `edition` action and parameter, `kind: "wilderness"`, `/dnd`, `/portent-reload-content`, and the JSON-content instructions all went. A test now checks every tool call in the skills against the registered schemas. |
+| medium | `dungeon-tiles` is a tile set, not a drawable deck | The draw-as-you-explore recipe is replaced by generating the dungeon up front and revealing it a room at a time. |
 | minor | README says the tools are not ported yet | Rewritten. |
 
 ## Taken, but as follow-up work
@@ -30,8 +32,6 @@ than rushed into this one.
 
 | Severity | Finding | Why deferred |
 |---|---|---|
-| medium | Skill docs describe tools and commands that are gone | The rename pass caught tool names but not behaviour: the skills still describe a wilderness map and a printing-change action that no longer work that way. Needs the skills read end to end against the current tools, not another find-and-replace. |
-| medium | `dungeon-tiles` is a tile set, not a drawable deck | A skill recipe tells the GM to draw from it. Real, and it throws. Same fix as above: it is a documentation error, and the doc pass should be one change. |
 | medium | Skills never load from a path with a space | `new URL(...).pathname` percent-encodes. Wants `fileURLToPath`, plus a test that a spaced path resolves -- and I want the test to be a real temporary directory rather than a mocked path. |
 | medium | New sheets ignore the campaign's system | `createCharacter` stamps 5E section headings onto a Cthulhu sheet. The fix is a per-system section list, which is a content decision rather than an adapter one. |
 | medium | Parity never checks the messages it pins | The rejection fixtures assert that both sides throw, not that they say the same thing. Tightening it means deciding whether message text is part of the contract; I think it is, which makes this a fixture recapture. |

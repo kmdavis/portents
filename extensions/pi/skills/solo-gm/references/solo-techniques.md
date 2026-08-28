@@ -40,30 +40,36 @@ Three clocks is plenty. Good ones:
 Clocks are how solo play gets tension without an adversarial GM. They tick whether or not
 the player engages with them.
 
-## Dungeon as you go
+## Dungeons
 
-Rather than generating a whole dungeon:
+Generate the whole thing up front and reveal it a room at a time:
 
-1. `portent_deck { deck: "dungeon-tiles" }` each time the player opens an unexplored exit.
-2. `portent_table { table: "dungeon-room-purpose" }` for what the room was for.
-3. `portent_table { table: "dungeon-dressing" }` for the one detail they will remember.
-4. Roll `encounters-dungeon` when they make noise, linger, or force something.
+```
+portent_map { rooms: 6, save_as: "grimhold-upper" }
+```
 
-The tile deck depletes, so the dungeon has a natural size. When the pile runs low, start
-closing the map: dead ends, the stair down, the way back out.
+The rooms are connected by construction rather than by luck, so there are no
+unreachable fragments. Then stock each room as the player reaches it, not before:
 
-For a dungeon you want to keep and revisit, use `portent_map { kind: "dungeon", save_as:
-"grimhold-upper" }` instead and stock the rooms up front. Note the seed in the journal
-and the exact map regenerates forever.
+1. `portent_table { table: "dungeon-room-purpose" }` for what the room was for.
+2. `portent_table { table: "dungeon-dressing" }` for the one detail they will remember.
+3. Roll `encounters-dungeon` when they make noise, linger, or force something.
+
+**Note the seed in the journal.** The same seed regenerates the exact map forever, so
+the dungeon survives a lost file.
+
+Reveal rooms as they are entered. Describing a corridor the player has not walked hands
+them a map they did not earn.
 
 ## Hex crawls and travel
 
-`portent_map { kind: "wilderness" }` gives a hex grid with keyed sites. Per day or per hex:
+There is no wilderness generator yet, so keep travel in prose and let the tables carry
+it. Per day, or per leg of a journey:
 
 1. `portent_table { table: "weather" }`
 2. A travel roll from the player if the terrain is difficult
 3. `portent_table { table: "encounters-wilderness" }` — most entries are not fights
-4. If they reach a keyed site, `portent_table { table: "quest-hooks" }` or a `npc-sparks`
+4. On arrival somewhere new, `portent_table { table: "quest-hooks" }` or an `npc-sparks`
    draw to make it worth the walk
 
 Do not narrate three uneventful days. Cut to the first thing that matters.

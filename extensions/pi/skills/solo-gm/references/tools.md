@@ -10,7 +10,7 @@
 | `portent_deck` | Cards: dungeon tiles, crits, fumbles, NPC sparks, tactics, wild magic, playing cards. |
 | `portent_table` | Random content: encounters, weather, rumours, names, hooks, dressing, traps, treasure. |
 | `portent_oracle` | Anything about the world you have not already decided. |
-| `portent_map` | Seeded ASCII dungeon, cave, wilderness, settlement. |
+| `portent_map` | Seeded ASCII dungeon, connected by construction. Dungeons only. |
 | `portent_campaign` | Create/load a campaign, brief, journal, scene, clocks, world notes, edition. |
 | `portent_sheet` | The character sheet on disk. |
 | `portent_verify_roll` | Audit a ledger id when a result is challenged. |
@@ -19,11 +19,12 @@
 
 The player has these; you do not need to call them, but you should know they exist:
 
-- `/roll <expression>` — their own dice. If you asked for a roll, theirs resolves it and
-  the result arrives to you immediately. An unprompted roll arrives with their next message.
-- `/dnd [campaign]` — start or resume.
+- `/roll <expression>` — their own dice. If a request is outstanding, theirs answers it
+  and reaches you at once. An unprompted roll appears immediately too, but does not make
+  you respond: acknowledge it only if they meant something by it.
+- `/portent [campaign]` — start or resume.
 - `/sheet` — print their sheet.
-- `/draw <deck> [n]`, `/oracle <question>` — they can pull cards and ask the oracle too.
+- `/draw <deck>`, `/oracle <question>` — they can pull a card and ask the oracle too.
 - `/portent-status` — campaign state and recent ledger.
 
 ## Dice notation
@@ -62,18 +63,28 @@ say nothing about the mechanism: no ledger id, no tool name, no "the dice decide
 Mechanics landing on the player's character are the opposite: state the number and cite
 the id, because they watched it happen.
 
-## Editions
+## The system line
 
-| System | Default | Older |
-| --- | --- | --- |
-| `5e` | `2024` | `2014` |
-| `pf2e` | `remaster` | `legacy` |
+The system and its printing are **one freeform string**, not two fields:
 
-Set at creation: `portent_campaign { action: "create", system: "5e", edition: "2024" }`.
-Change later: `portent_campaign { action: "edition", edition: "2014" }`. Call it with no
-`edition` to see the current setting and the valid values. A campaign created before
-editions were tracked has none recorded, and the per-turn banner will tell you to ask
-the player.
+```
+portent_campaign { action: "create", name: "...", system: "5e (2024)" }
+portent_campaign { action: "system", system: "pf2e (legacy)" }
+```
+
+| Written | Result |
+| --- | --- |
+| `5e` | `5e (2024)` -- the newer printing always wins |
+| `5e (2014)` | kept |
+| `5e (2025)` | **error** naming the valid printings |
+| `5e (remaster)` | **error**: that is a printing of `pf2e` |
+| `Call of Cthulhu 7e` | kept as-is; unknown systems are not second-guessed |
+
+Two systems have printings this knows about: `5e` takes `2024` or `2014`, `pf2e` takes
+`remaster` or `legacy`. Anything else is recorded verbatim with whatever parenthetical it
+carries.
+
+A campaign with no printing recorded makes the per-turn banner tell you to ask the player.
 
 ## Content packs
 
@@ -81,7 +92,6 @@ Decks (`portent_deck { action: "list" }` for the live list):
 
 | Deck | What it is for |
 | --- | --- |
-| `dungeon-tiles` | Build a dungeon as the player explores. Depletes, so the dungeon ends. |
 | `crit-hits` | Consequences on a critical hit, not just extra damage. |
 | `crit-fumbles` | Optional. Agree with the player before using it. |
 | `npc-sparks` | Role + want + secret. An NPC you can play immediately. |
@@ -118,8 +128,9 @@ file over your memory.
 
 ## Adding your own content
 
-Drop a JSON file in `~/.portent/decks/` or `~/.portent/tables/` and run `/portent-reload-content`. A
-user file with the same `id` as a bundled pack replaces it.
+Content is a typed package (`@portent/content`), not loose files, and there is no reload
+command: decks and tables are compiled in. To add your own, fork that package and
+publish a pack -- the shapes are:
 
 Deck: `{ id, name, description, provenance: { source }, cards: [{ name, text, tags?, art?, count? }] }`
 

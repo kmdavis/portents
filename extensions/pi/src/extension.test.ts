@@ -528,6 +528,72 @@ describe(
 			}
 		});
 
+		it("has skills whose tool calls all typecheck against the real schemas", async () => {
+			// The rename pass caught tool names but not parameters, so the skills went
+			// on describing an `edition` argument and a `kind: "wilderness"` map that
+			// no longer existed. Checked against the registered TypeBox schemas rather
+			// than a copy of them, so this cannot drift.
+			const { readdirSync, readFileSync } = await import("node:fs");
+			const skillRoot = new URL("../skills", import.meta.url).pathname;
+			const files: string[] = [];
+			const walk = (dir: string) => {
+				for (const entry of readdirSync(dir, { withFileTypes: true })) {
+					const full = join(dir, entry.name);
+					if (entry.isDirectory()) walk(full);
+					else if (entry.name.endsWith(".md")) files.push(full);
+				}
+			};
+			walk(skillRoot);
+
+			const paramsOf = (name: string): Set<string> => {
+				const schema = h.tools.get(name)!.parameters as { properties?: Record<string, unknown> };
+				return new Set(Object.keys(schema.properties ?? {}));
+			};
+			const enumOf = (name: string, key: string): string[] | undefined => {
+				const schema = h.tools.get(name)!.parameters as {
+					properties?: Record<string, { enum?: string[]; anyOf?: Array<{ const?: string }> }>;
+				};
+				const prop = schema.properties?.[key];
+				if (!prop) return undefined;
+				if (prop.enum) return prop.enum;
+				if (prop.anyOf) return prop.anyOf.map((entry) => entry.const!).filter(Boolean);
+				return undefined;
+			};
+
+			const problems: string[] = [];
+			for (const file of files) {
+				const text = readFileSync(file, "utf8");
+				const label = file.split("/").at(-1);
+
+				for (const match of text.matchAll(/(portent_[a-z_]+)\s*\{([^{}]*)\}/g)) {
+					const [, tool, body] = match;
+					if (!h.tools.has(tool)) {
+						problems.push(`${label}: unknown tool ${tool}`);
+						continue;
+					}
+					const allowed = paramsOf(tool);
+					for (const key of body.matchAll(/([a-z_]+)\s*:/g)) {
+						if (!allowed.has(key[1])) problems.push(`${label}: ${tool} has no parameter \`${key[1]}\``);
+					}
+					for (const key of ["action", "kind"]) {
+						const used = new RegExp(`${key}\\s*:\\s*"([\\w_-]+)"`).exec(body);
+						const values = enumOf(tool, key);
+						if (used && values && !values.includes(used[1])) {
+							problems.push(`${label}: ${tool} ${key} "${used[1]}" is not one of ${values.join(", ")}`);
+						}
+					}
+				}
+
+				for (const match of text.matchAll(/`\/([a-z-]+)/g)) {
+					const name = match[1];
+					if (!h.commands.has(name) && name !== "compact") {
+						problems.push(`${label}: unknown command /${name}`);
+					}
+				}
+			}
+			assert.deepEqual(problems, [], `skills disagree with the tools:\n  ${problems.join("\n  ")}`);
+		});
+
 		it("writes only markdown a person could read, plus the pile file", async () => {
 			const { readdirSync } = await import("node:fs");
 			const dir = join(home, "campaigns", "harness-test");
