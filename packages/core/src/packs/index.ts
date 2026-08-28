@@ -12,3 +12,16 @@ export {
 	type RegistryOptions,
 	UnknownContentError,
 } from "./registry.ts";
+export {
+	ATTRIBUTION_REQUIRED,
+	type Attribution,
+	type AttributedItem,
+	CONTENT_LICENSES,
+	type ContentLicense,
+	isContentLicense,
+	packageLicenseFor,
+	provenanceProblems,
+	renderAttribution,
+	renderNotice,
+	requiresAttribution,
+} from "./attribution.ts";

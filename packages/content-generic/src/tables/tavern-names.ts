@@ -11,7 +11,7 @@ export const tavernNames = {
 	description: "Composed inn and tavern signs.",
 	provenance: {
 		source: "original writing for Portent",
-		license: "CC0",
+		license: "CC0-1.0",
 	},
 	entries: [
 		{

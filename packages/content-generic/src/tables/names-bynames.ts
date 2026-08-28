@@ -11,7 +11,7 @@ export const namesBynames = {
 	description: "Trade, place and nickname surnames.",
 	provenance: {
 		source: "original writing for Portent",
-		license: "CC0",
+		license: "CC0-1.0",
 	},
 	entries: [
 		{

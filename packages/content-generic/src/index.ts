@@ -46,7 +46,7 @@ export const genericContent: ContentPack = {
 	decks,
 	tables,
 	sheets,
-	provenance: { source: "original writing for Portent", license: "CC0" },
+	provenance: { source: "original writing for Portent", license: "CC0-1.0" },
 };
 
 /**

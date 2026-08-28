@@ -11,7 +11,7 @@ export const monsterTactics = {
 	description: "Draw at the start of a fight to decide how the enemy actually behaves. Stops every combat being 'they walk up and attack'. Draw again if the fight turns and the enemy has a reason to change plan.",
 	provenance: {
 		source: "original writing for Portent",
-		license: "CC0",
+		license: "CC0-1.0",
 	},
 	cards: [
 		{

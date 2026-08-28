@@ -12,14 +12,10 @@
  */
 
 import type { Deck } from "../decks/deck.ts";
+export type { Provenance } from "./attribution.ts";
+import type { Provenance } from "./attribution.ts";
 import { matchSheet, type SheetTemplate } from "../sheets/template.ts";
 import type { Table } from "../tables/table.ts";
-
-/** Where a pack's content came from, and under what licence. */
-export interface Provenance {
-	readonly source: string;
-	readonly license?: string;
-}
 
 /** Anything a pack can contribute. */
 export interface ContentPack {

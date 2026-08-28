@@ -11,7 +11,7 @@ export const dungeonRoomPurpose = {
 	description: "What a keyed room was built for. Stock a generated map by rolling once per room, then asking what changed since.",
 	provenance: {
 		source: "original writing for Portent",
-		license: "CC0",
+		license: "CC0-1.0",
 	},
 	dice: "1d20",
 	entries: [

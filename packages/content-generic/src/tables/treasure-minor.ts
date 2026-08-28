@@ -11,7 +11,7 @@ export const treasureMinor = {
 	description: "Small hoards and pocket loot. Every entry is a thing with a history, not a number of coins.",
 	provenance: {
 		source: "original writing for Portent",
-		license: "CC0",
+		license: "CC0-1.0",
 	},
 	dice: "1d20",
 	entries: [

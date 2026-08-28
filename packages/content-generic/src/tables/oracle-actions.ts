@@ -11,7 +11,7 @@ export const oracleActions = {
 	description: "Verb half of an action/subject pair. Pair with oracle-subjects when you need a nudge rather than a yes or no.",
 	provenance: {
 		source: "original writing for Portent",
-		license: "CC0",
+		license: "CC0-1.0",
 	},
 	dice: "1d100",
 	entries: [

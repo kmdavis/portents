@@ -11,7 +11,7 @@ export const npcMannerism = {
 	description: "One playable habit per NPC. Enough to make them recognisable next session without a page of notes.",
 	provenance: {
 		source: "original writing for Portent",
-		license: "CC0",
+		license: "CC0-1.0",
 	},
 	dice: "1d20",
 	entries: [

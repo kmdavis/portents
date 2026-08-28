@@ -9,7 +9,9 @@
  */
 
 import assert from "node:assert/strict";
+import { existsSync, readFileSync } from "node:fs";
 import { describe, it } from "node:test";
+import { licenceConformanceCases } from "@portent/core/testing";
 import {
 	createRegistry,
 	deckProblems,
@@ -51,26 +53,29 @@ describe("the pack loads", () => {
 		}
 	});
 
-	it("declares a licence for everything, and reproduces nothing proprietary", () => {
-		// A standard 54-card French deck is public domain, not my writing. Everything
-		// else is original and CC0. Nothing may be under any other licence, which is
-		// what stops a copied table from a published rulebook slipping in.
-		const allowed = new Set(["CC0", "public domain"]);
-		for (const item of [...decks, ...tables]) {
-			const licence = item.provenance?.license;
-			assert.ok(licence, `${item.id} declares no licence`);
-			assert.ok(allowed.has(licence!), `${item.id} is under ${licence}, which is not an allowed licence`);
-			if (licence === "CC0") {
-				assert.match(item.provenance!.source, /original writing/, `${item.id} claims CC0 but not authorship`);
-			}
-		}
-	});
+});
 
-	it("keeps original writing as the overwhelming majority", () => {
-		const all = [...decks, ...tables];
-		const original = all.filter((item) => item.provenance?.license === "CC0");
-		assert.ok(original.length >= all.length - 1, `${all.length - original.length} items are not original writing`);
-	});
+// The licence rules now come from @portent/core/testing, so a fork publishing its
+// own pack gets the same checks -- including the attribution ones it would not
+// have thought to write -- instead of copying a test file that drifts.
+const noticePath = new URL("../NOTICE.md", import.meta.url).pathname;
+const manifest = JSON.parse(readFileSync(new URL("../package.json", import.meta.url).pathname, "utf8")) as {
+	license: string;
+};
+
+describe("licence conformance", () => {
+	for (const check of licenceConformanceCases({
+	packageName: "@portent/content-generic",
+	packs: [genericContent],
+	// Original writing only. A third-party licence appearing here should fail:
+	// adapted content belongs in a package that exists to carry it.
+	allow: ["CC0-1.0", "public domain"],
+	declaredLicense: manifest.license,
+	noticeExists: existsSync(noticePath),
+	notice: existsSync(noticePath) ? readFileSync(noticePath, "utf8") : undefined,
+	})) {
+		it(check.name, check.run);
+	}
 });
 
 describe("every deck", () => {

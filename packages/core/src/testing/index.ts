@@ -11,3 +11,8 @@ export {
 	storageConformanceCases,
 	type StorageFactory,
 } from "./storage-conformance.ts";
+export {
+	type LicenceConformanceCase,
+	licenceConformanceCases,
+	type LicenceConformanceOptions,
+} from "./licence-conformance.ts";

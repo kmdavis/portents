@@ -11,7 +11,7 @@ export const gmMoves = {
 	description: "What the world does when the player fails a roll, hesitates, or does something the GM has no plan for. Pick or roll; never leave a failure as 'nothing happens'.",
 	provenance: {
 		source: "original writing for Portent",
-		license: "CC0",
+		license: "CC0-1.0",
 	},
 	dice: "1d20",
 	entries: [

@@ -11,7 +11,7 @@ export const dungeonDressing = {
 	description: "One concrete sensory detail per room. Use it instead of describing another empty stone chamber.",
 	provenance: {
 		source: "original writing for Portent",
-		license: "CC0",
+		license: "CC0-1.0",
 	},
 	dice: "1d20",
 	entries: [

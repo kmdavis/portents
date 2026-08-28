@@ -2,7 +2,14 @@
   "name": "@portent/content",
   "version": "0.0.0",
   "description": "Everything most tables need: the generic content pack plus the packs for systems in common use. Install this unless you want to pick packs by hand.",
-  "keywords": ["rpg", "ttrpg", "solo", "content", "tables", "decks"],
+  "keywords": [
+    "rpg",
+    "ttrpg",
+    "solo",
+    "content",
+    "tables",
+    "decks"
+  ],
   "license": "CC0-1.0",
   "author": "Kevan Davis",
   "repository": {
@@ -13,7 +20,10 @@
   "homepage": "https://github.com/kmdavis/portent/tree/main/packages/content#readme",
   "type": "module",
   "sideEffects": false,
-  "files": ["dist", "README.md"],
+  "files": [
+    "dist",
+    "README.md"
+  ],
   "exports": {
     ".": {
       "development": "./src/index.ts",
@@ -26,7 +36,13 @@
     "test": "node --conditions=development --test 'src/**/*.test.ts'",
     "typecheck": "tsc -p tsconfig.json --noEmit"
   },
-  "peerDependencies": { "@portent/core": "workspace:*" },
-  "dependencies": { "@portent/content-generic": "workspace:*" },
-  "devDependencies": { "@portent/core": "workspace:*" }
+  "peerDependencies": {
+    "@portent/core": "workspace:*"
+  },
+  "dependencies": {
+    "@portent/content-generic": "workspace:*"
+  },
+  "devDependencies": {
+    "@portent/core": "workspace:*"
+  }
 }

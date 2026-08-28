@@ -11,7 +11,7 @@ export const traps = {
 	description: "Each entry names the tell, so the trap can be found by describing the room rather than by a die roll alone.",
 	provenance: {
 		source: "original writing for Portent",
-		license: "CC0",
+		license: "CC0-1.0",
 	},
 	dice: "1d12",
 	entries: [

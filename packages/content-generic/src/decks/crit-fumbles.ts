@@ -11,7 +11,7 @@ export const critFumbles = {
 	description: "Optional. Draw on a natural 1 for an attack. Use it on enemies as freely as on the player, or not at all \u2014 fumble decks punish martial characters more than casters, so agree before switching this on.",
 	provenance: {
 		source: "original writing for Portent",
-		license: "CC0",
+		license: "CC0-1.0",
 	},
 	cards: [
 		{

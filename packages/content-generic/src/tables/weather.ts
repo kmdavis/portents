@@ -11,7 +11,7 @@ export const weather = {
 	description: "Weighted toward the unremarkable, because weather that always matters stops mattering.",
 	provenance: {
 		source: "original writing for Portent",
-		license: "CC0",
+		license: "CC0-1.0",
 	},
 	entries: [
 		{

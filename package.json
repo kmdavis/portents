@@ -22,5 +22,6 @@
     "typescript": "^5.7.0",
     "@portent/content-generic": "workspace:*",
     "@portent/content": "workspace:*"
-  }
+  },
+  "license": "MIT"
 }

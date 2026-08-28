@@ -11,7 +11,7 @@ export const critHits = {
 	description: "Draw on a critical hit instead of, or as well as, rolling extra damage. Effects are written system-neutrally: 'a save' means a Dexterity/Constitution save in 5E or a basic Reflex/Fortitude save in PF2E, GM's pick. Every card is a consequence, not just a bigger number.",
 	provenance: {
 		source: "original writing for Portent",
-		license: "CC0",
+		license: "CC0-1.0",
 	},
 	cards: [
 		{

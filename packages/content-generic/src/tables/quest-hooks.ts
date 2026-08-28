@@ -11,7 +11,7 @@ export const questHooks = {
 	description: "Each hook states who wants it, what it costs them, and why it cannot wait. Roll once for an adventure premise.",
 	provenance: {
 		source: "original writing for Portent",
-		license: "CC0",
+		license: "CC0-1.0",
 	},
 	dice: "1d20",
 	entries: [

@@ -11,7 +11,7 @@ export const namesDwarf = {
 	description: "Dwarven given name plus clan name.",
 	provenance: {
 		source: "original writing for Portent",
-		license: "CC0",
+		license: "CC0-1.0",
 	},
 	entries: [
 		{

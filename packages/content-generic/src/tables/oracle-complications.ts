@@ -11,7 +11,7 @@ export const oracleComplications = {
 	description: "Drawn when the oracle d100 comes up doubles. Something else is also true. Apply it now, not later.",
 	provenance: {
 		source: "original writing for Portent",
-		license: "CC0",
+		license: "CC0-1.0",
 	},
 	dice: "1d20",
 	entries: [

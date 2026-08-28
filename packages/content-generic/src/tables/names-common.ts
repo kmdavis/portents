@@ -11,7 +11,7 @@ export const namesCommon = {
 	description: "Given name plus a byname. Fine for humans, halflings and most townsfolk.",
 	provenance: {
 		source: "original writing for Portent",
-		license: "CC0",
+		license: "CC0-1.0",
 	},
 	entries: [
 		{

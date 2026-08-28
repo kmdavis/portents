@@ -11,7 +11,7 @@ export const encountersWilderness = {
 	description: "System-neutral wilderness encounters, weighted toward the non-hostile. Statting is the GM's job; the entry says who and why.",
 	provenance: {
 		source: "original writing for Portent",
-		license: "CC0",
+		license: "CC0-1.0",
 	},
 	dice: "1d20",
 	entries: [

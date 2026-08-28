@@ -11,7 +11,7 @@ export const oracleSceneSkew = {
 	description: "The scene you planned, bent. Keep the location and the cast; change one load-bearing assumption.",
 	provenance: {
 		source: "original writing for Portent",
-		license: "CC0",
+		license: "CC0-1.0",
 	},
 	dice: "1d12",
 	entries: [

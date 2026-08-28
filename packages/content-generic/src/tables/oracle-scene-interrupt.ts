@@ -11,7 +11,7 @@ export const oracleSceneInterrupt = {
 	description: "Not the scene you planned at all. Something takes the initiative before the party can act on their intent.",
 	provenance: {
 		source: "original writing for Portent",
-		license: "CC0",
+		license: "CC0-1.0",
 	},
 	dice: "1d12",
 	entries: [

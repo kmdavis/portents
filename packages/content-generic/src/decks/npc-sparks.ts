@@ -11,7 +11,7 @@ export const npcSparks = {
 	description: "Draw one card to invent an NPC on the spot. Each card gives a role, what they want, and what they are hiding \u2014 enough to play them immediately. Add a name with `dnd_table names-common` and a habit with `npc-mannerism`.",
 	provenance: {
 		source: "original writing for Portent",
-		license: "CC0",
+		license: "CC0-1.0",
 	},
 	cards: [
 		{

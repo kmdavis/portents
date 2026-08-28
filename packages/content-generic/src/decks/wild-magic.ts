@@ -11,7 +11,7 @@ export const wildMagic = {
 	description: "Draw when magic goes wrong: a wild sorcerer's surge, a botched ritual, a cursed scroll, or a spell cast in a place where magic is unstable. Effects last a minute unless stated.",
 	provenance: {
 		source: "original writing for Portent",
-		license: "CC0",
+		license: "CC0-1.0",
 	},
 	cards: [
 		{

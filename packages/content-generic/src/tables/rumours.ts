@@ -11,7 +11,7 @@ export const rumours = {
 	description: "Roughly a third of these should turn out to be wrong. Decide which with the oracle, not in advance.",
 	provenance: {
 		source: "original writing for Portent",
-		license: "CC0",
+		license: "CC0-1.0",
 	},
 	dice: "1d20",
 	entries: [

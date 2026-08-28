@@ -11,7 +11,7 @@ export const oracleSubjects = {
 	description: "Noun half of an action/subject pair. Read it against the fiction already on the table; the pair is a prompt, not an instruction.",
 	provenance: {
 		source: "original writing for Portent",
-		license: "CC0",
+		license: "CC0-1.0",
 	},
 	dice: "1d100",
 	entries: [

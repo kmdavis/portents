@@ -11,7 +11,7 @@ export const encountersDungeon = {
 	description: "Roll when the party makes noise, lingers, or opens something. Half of these are not fights.",
 	provenance: {
 		source: "original writing for Portent",
-		license: "CC0",
+		license: "CC0-1.0",
 	},
 	dice: "1d20",
 	entries: [
