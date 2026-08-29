@@ -13,7 +13,8 @@
  * same guarantee `pnpm check:browser` gives the library.
  */
 
-import { cpSync, mkdirSync, readdirSync, rmSync, statSync, writeFileSync } from "node:fs";
+import { createHash } from "node:crypto";
+import { cpSync, mkdirSync, readFileSync, readdirSync, rmSync, statSync, writeFileSync } from "node:fs";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 
@@ -68,6 +69,19 @@ if (entryPoints.length === 0) {
 	}
 } else {
 	await esbuild.build(options);
+
+	// GitHub Pages may cache HTML, CSS and JavaScript independently. If a deployment
+	// adds markup that depends on new CSS, new HTML plus stale CSS can be worse than the
+	// old page -- the composer wrapper once collapsed to 184px this way. Tie each demo
+	// asset URL to its content so a new HTML response cannot reuse an older asset.
+	const htmlPath = join(out, "demo.html");
+	let html = readFileSync(htmlPath, "utf8");
+	for (const asset of ["style.css", "demo.css", "demo.js"]) {
+		const content = readFileSync(join(out, asset));
+		const version = createHash("sha256").update(content).digest("hex").slice(0, 10);
+		html = html.replaceAll(`\"${asset}\"`, `\"${asset}?v=${version}\"`);
+	}
+	writeFileSync(htmlPath, html);
 }
 
 const bytes = (dir) =>

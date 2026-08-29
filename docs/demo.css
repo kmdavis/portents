@@ -68,7 +68,14 @@ button { font: inherit; cursor: pointer; }
 .chip:hover { border-color: var(--accent); color: var(--accent); }
 
 .panes { display: flex; gap: 1.25rem; flex: 1; min-height: 0; padding-top: 0.75rem; }
-.chat-pane { flex: 1; min-width: 0; display: flex; flex-direction: column; }
+.chat-pane {
+	--gm-width: 18rem;
+	--gm-gap: 1.25rem;
+	flex: 1;
+	min-width: 0;
+	display: flex;
+	flex-direction: column;
+}
 
 #transcript {
 	flex: 1;
@@ -96,8 +103,10 @@ button { font: inherit; cursor: pointer; }
 	overflow-x: auto;
 }
 
-#say-form { display: flex; gap: 0.6rem; align-items: flex-end; padding-top: 0.6rem; border-top: 1px solid var(--rule); }
-#say { flex: 1; font-family: inherit; resize: vertical; }
+#say-form { display: block; padding-top: 0.6rem; border-top: 1px solid var(--rule); }
+.composer-gutter { display: none; }
+.composer-fields { display: flex; gap: 0.6rem; align-items: flex-end; min-width: 0; }
+#say { flex: 1; min-width: 0; font-family: inherit; resize: vertical; }
 #send { white-space: nowrap; }
 #send[disabled] { opacity: 0.5; cursor: default; }
 
@@ -135,18 +144,33 @@ button { font: inherit; cursor: pointer; }
 /* Behind the screen: the GM's private working, opt-in. */
 /* The GM column is a gutter inside the transcript's own scroller, so a turn's private
    working sits level with what the player saw. One scrollbar, no offset measuring. */
-#transcript { --gm-width: 0rem; }
-#transcript.with-gm { --gm-width: 18rem; }
-
-.turn-row {
-	display: grid;
-	grid-template-columns: var(--gm-width) minmax(0, 1fr);
-	gap: 0 1.25rem;
-	align-items: start;
-}
+/* Closed means one real column, not a two-column grid whose first track is zero.
+   `display: none` removes the aside from grid placement; the player cell then becomes
+   the first item and lands in that zero-width track. That produced one word per line. */
+.turn-row { display: block; }
 
 .turn-aside { display: none; flex-direction: column; gap: 0.4rem; padding-top: 1.1rem; }
+#transcript.with-gm .turn-row {
+	display: grid;
+	grid-template-columns: var(--gm-width) minmax(0, 1fr);
+	gap: 0 var(--gm-gap);
+	align-items: start;
+}
 #transcript.with-gm .turn-aside { display: flex; padding-right: 0.85rem; }
+
+/* Match the open transcript exactly: private gutter, half-gap to the divider,
+   half-gap to the player controls. The gutter border continues the divider through
+   the composer instead of letting the input run underneath both panes. */
+#transcript.with-gm + #say-form {
+	display: grid;
+	grid-template-columns: calc(var(--gm-width) + 0.625rem) minmax(0, 1fr);
+	column-gap: 0.625rem;
+}
+#transcript.with-gm + #say-form .composer-gutter {
+	display: block;
+	border-right: 1px solid var(--rule);
+}
+#transcript.with-gm + #say-form .composer-fields { grid-column: 2; }
 
 /* The divider is drawn on the scroller rather than per row, so it is one unbroken
    line down the full height instead of a dash beside each turn. `local` attachment
@@ -195,7 +219,17 @@ button { font: inherit; cursor: pointer; }
 .gm-think summary::before { content: "▸ "; }
 .gm-think[open] summary::before { content: "▾ "; }
 .gm-think[open] summary { color: var(--accent); }
-.gm-think pre { margin-top: 0.3rem; }
+.thinking-body { margin-top: 0.35rem; }
+.thinking-body > :first-child { margin-top: 0; }
+.thinking-body > :last-child { margin-bottom: 0; }
+.thinking-body h1, .thinking-body h2, .thinking-body h3,
+.thinking-body h4, .thinking-body h5, .thinking-body h6 {
+	border: 0;
+	padding: 0;
+	margin: 0.65rem 0 0.25rem;
+	font: inherit;
+	font-weight: 700;
+}
 .gm-event pre { margin: 0.35rem 0 0; padding: 0.35rem 0.45rem; font-size: 0.7rem; white-space: pre-wrap; }
 .gm-event p { margin: 0.2rem 0 0; }
 #gm-empty { color: var(--muted); font-size: 0.8rem; }

@@ -168,6 +168,18 @@ describe("turn rows", () => {
 		assert.equal(transcript.rowCount, 3);
 	});
 
+	it("keeps the player's message and reply in the exchange the message begins", () => {
+		// The DOM caller once added the message and only then started a row, silently
+		// putting each player message beside the preceding turn's private work.
+		const { transcript } = fresh();
+		transcript.startTurn("I examine the ward.");
+		transcript.stream("Its silver lines have gone black.");
+		transcript.end();
+
+		assert.equal(transcript.rowCount, 1);
+		assert.deepEqual(transcript.order, ["turn player", "turn gm"]);
+	});
+
 	it("does not let an aside interrupt the prose block", () => {
 		// The aside is a different column, so unlike a roll it must not split narration.
 		const { transcript } = fresh();

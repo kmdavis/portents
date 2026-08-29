@@ -19,6 +19,7 @@ import { buildModel, reasoningOptions, runTurn, stateDigest, systemPrompt } from
 import { checkCitations, COMMAND_HELP, describeCitations, parseCommand } from "./commands.ts";
 import { renderMarkdown } from "./markdown.ts";
 import { ALWAYS_SHOWN, isHurt, PARTY_STAT_KEYS, statusOf } from "./party.ts";
+import { createThinkingBlock, type ThinkingBlock } from "./thinking.ts";
 import { Transcript } from "./transcript.ts";
 import {
 	clearSettings,
@@ -205,21 +206,14 @@ function logGmEvent(trace: ToolTrace): void {
  *
  * One block per turn, appended to, because reasoning arrives in many small deltas.
  */
-let openThinking: { details: HTMLElement; body: HTMLElement; text: string } | undefined;
+let openThinking: ThinkingBlock | undefined;
 
 function logThinking(delta: string): void {
 	if (!openThinking) {
-		const details = document.createElement("details");
-		details.className = "gm-event gm-think";
-		const summary = document.createElement("summary");
-		summary.textContent = "Thinking";
-		const body = document.createElement("pre");
-		details.append(summary, body);
-		view.aside(details);
-		openThinking = { details, body, text: "" };
+		openThinking = createThinkingBlock(renderProse);
+		view.aside(openThinking.details);
 	}
-	openThinking.text += delta;
-	openThinking.body.textContent = openThinking.text;
+	openThinking.append(delta);
 }
 
 function renderTraces(traces: readonly ToolTrace[]): void {
@@ -547,10 +541,12 @@ async function send(text: string, options: { show?: boolean } = {}): Promise<voi
 	sendButton.disabled = true;
 	sayBox.disabled = true;
 
-	if (text) {
-		if (options.show !== false) view.add("turn player", text);
-		history.push({ role: "user", content: text });
-	}
+	// One row per exchange. Let Transcript add the player's message while creating that
+	// row, so it cannot be attached to the preceding reply by call order.
+	view.startTurn(text && options.show !== false ? text : undefined);
+	openThinking = undefined;
+
+	if (text) history.push({ role: "user", content: text });
 
 	// The digest is passed for this call only, never pushed into history. Persisting it
 	// would leave a growing pile of stale snapshots -- last turn's HP, the turn before
@@ -564,9 +560,6 @@ async function send(text: string, options: { show?: boolean } = {}): Promise<voi
 	waiting.setAttribute("aria-label", "The GM is thinking");
 	waiting.append(...[0, 1, 2].map(() => document.createElement("span")));
 	view.pending(waiting);
-
-	view.startTurn();
-	openThinking = undefined;
 	// Ledger ids that existed before this turn, so a citation can be told apart from a
 	// result actually produced now.
 	const idsBefore = new Set((session.campaign?.ledger.recent(9999) ?? []).map((entry) => entry.id));
@@ -663,8 +656,7 @@ async function runCommand(text: string): Promise<boolean> {
 	const command = parseCommand(text);
 	if (!command) return false;
 
-	view.startTurn();
-	view.add("turn player", text);
+	view.startTurn(text);
 
 	switch (command.kind) {
 		case "roll": {

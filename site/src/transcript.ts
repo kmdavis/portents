@@ -95,7 +95,7 @@ export class Transcript {
 	 * GM's prose, its rolls, and its private working -- shares one row and therefore one
 	 * vertical position.
 	 */
-	startTurn(): void {
+	startTurn(playerMarkdown?: string): void {
 		const row = document.createElement("div");
 		row.className = "turn-row";
 		const aside = document.createElement("div");
@@ -107,6 +107,11 @@ export class Transcript {
 		this.#row = { row, aside, content };
 		this.#open = undefined;
 		this.#prose = "";
+
+		// Keep the message inseparable from creation of the exchange it begins. The DOM
+		// caller once added it first and called startTurn afterwards, silently attaching
+		// every player message to the preceding exchange.
+		if (playerMarkdown) this.add("turn player", playerMarkdown);
 	}
 
 	/**
