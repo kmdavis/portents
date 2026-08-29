@@ -1,13 +1,12 @@
 /**
- * The transcript and composer use the same two-column geometry.
+ * The transcript owns the conversation columns; the composer does not.
  *
- * This is tested at the computed-style boundary because both reported regressions were
- * selector interactions, not missing declarations:
+ * Two separate width bugs came from treating the composer as part of the pane layout:
  *
  * - hiding the GM cell with `display: none` removed it from grid placement, so the
  *   player cell moved into the deliberately zero-width first track;
- * - the composer remained a one-column flex row while the transcript opened a GM
- *   column, so it ran underneath both panes instead of lining up with the player pane.
+ * - then the composer was aligned to the player track, when the intended design was a
+ *   full-width control below the GM pane, player pane, and sidebar.
  */
 
 import assert from "node:assert/strict";
@@ -17,21 +16,16 @@ import { describe, it } from "node:test";
 import { JSDOM } from "jsdom";
 
 const css = readFileSync(new URL("../public/demo.css", import.meta.url), "utf8");
+const html = readFileSync(new URL("../public/demo.html", import.meta.url), "utf8");
 
-function layout(open: boolean) {
+function transcriptLayout(open: boolean) {
 	const dom = new JSDOM(`
 		<style>${css}</style>
-		<div class="chat-pane">
-			<div id="transcript" class="${open ? "with-gm" : ""}">
-				<div class="turn-row">
-					<div class="turn-aside"></div>
-					<div class="turn-content"></div>
-				</div>
+		<div id="transcript" class="${open ? "with-gm" : ""}">
+			<div class="turn-row">
+				<div class="turn-aside"></div>
+				<div class="turn-content"></div>
 			</div>
-			<form id="say-form">
-				<div class="composer-gutter" aria-hidden="true"></div>
-				<div class="composer-fields"><textarea id="say"></textarea><button id="send">Send</button></div>
-			</form>
 		</div>
 	`);
 	const window = dom.window;
@@ -41,7 +35,7 @@ function layout(open: boolean) {
 
 describe("transcript columns", () => {
 	it("uses one ordinary content column while the GM pane is closed", () => {
-		const { get } = layout(false);
+		const { get } = transcriptLayout(false);
 		// A zero-width grid track is not equivalent. Since the hidden aside no longer
 		// participates in placement, the content becomes the first item and lands in it.
 		assert.equal(get(".turn-row").display, "block");
@@ -49,24 +43,28 @@ describe("transcript columns", () => {
 	});
 
 	it("uses the two-column grid only while the GM pane is open", () => {
-		const { get } = layout(true);
+		const { get } = transcriptLayout(true);
 		assert.equal(get(".turn-row").display, "grid");
 		assert.notEqual(get(".turn-aside").display, "none");
 	});
 });
 
-describe("composer columns", () => {
-	it("uses the full player column while the GM pane is closed", () => {
-		const { get } = layout(false);
-		assert.equal(get("#say-form").display, "block");
-		assert.equal(get(".composer-gutter").display, "none");
-		assert.equal(get(".composer-fields").display, "flex");
+describe("full-width composer", () => {
+	it("sits below the complete pane row rather than inside the chat pane", () => {
+		// #game is a vertical flex container. A direct child after .panes spans the same
+		// game width as that entire row: private pane, player pane, and sidebar.
+		const dom = new JSDOM(html);
+		const form = dom.window.document.querySelector("#say-form")!;
+		assert.equal(form.parentElement?.id, "game");
+		assert.equal(form.previousElementSibling?.className, "panes");
 	});
 
-	it("uses the same two columns as the transcript while the GM pane is open", () => {
-		const { get } = layout(true);
-		assert.equal(get("#say-form").display, "grid");
-		assert.notEqual(get(".composer-gutter").display, "none");
-		assert.equal(get(".composer-fields").display, "flex");
+	it("contains one flex row for the textarea and button", () => {
+		const dom = new JSDOM(`<style>${css}</style><form id="say-form"><div class="composer-fields"></div></form>`);
+		const window = dom.window;
+		const form = window.getComputedStyle(window.document.querySelector("#say-form")!);
+		const fields = window.getComputedStyle(window.document.querySelector(".composer-fields")!);
+		assert.equal(form.display, "block");
+		assert.equal(fields.display, "flex");
 	});
 });

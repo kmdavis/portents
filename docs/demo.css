@@ -103,8 +103,9 @@ button { font: inherit; cursor: pointer; }
 	overflow-x: auto;
 }
 
+/* The composer belongs to the whole game, below .panes. It deliberately spans under
+   the GM gutter, public transcript, and side card in both screen states. */
 #say-form { display: block; padding-top: 0.6rem; border-top: 1px solid var(--rule); }
-.composer-gutter { display: none; }
 .composer-fields { display: flex; gap: 0.6rem; align-items: flex-end; min-width: 0; }
 #say { flex: 1; min-width: 0; font-family: inherit; resize: vertical; }
 #send { white-space: nowrap; }
@@ -157,20 +158,6 @@ button { font: inherit; cursor: pointer; }
 	align-items: start;
 }
 #transcript.with-gm .turn-aside { display: flex; padding-right: 0.85rem; }
-
-/* Match the open transcript exactly: private gutter, half-gap to the divider,
-   half-gap to the player controls. The gutter border continues the divider through
-   the composer instead of letting the input run underneath both panes. */
-#transcript.with-gm + #say-form {
-	display: grid;
-	grid-template-columns: calc(var(--gm-width) + 0.625rem) minmax(0, 1fr);
-	column-gap: 0.625rem;
-}
-#transcript.with-gm + #say-form .composer-gutter {
-	display: block;
-	border-right: 1px solid var(--rule);
-}
-#transcript.with-gm + #say-form .composer-fields { grid-column: 2; }
 
 /* The divider is drawn on the scroller rather than per row, so it is one unbroken
    line down the full height instead of a dash beside each turn. `local` attachment

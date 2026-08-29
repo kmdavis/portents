@@ -5,7 +5,7 @@
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Portents — demo</title>
 <link rel="stylesheet" href="style.css?v=8353edc383">
-<link rel="stylesheet" href="demo.css?v=1fe0702ed3">
+<link rel="stylesheet" href="demo.css?v=4d5c890c73">
 </head>
 <body class="demo">
 
@@ -61,15 +61,6 @@
     <div class="chat-pane">
       <p id="gm-header" class="card-sub">Behind the screen: every tool call and the GM's thinking, level with the exchange it belonged to. Knowing which parts of the world the dice chose is knowledge you cannot un-learn.</p>
       <div id="transcript" role="log" aria-live="polite"></div>
-      <form id="say-form">
-        <!-- When the GM pane is open this occupies its column and continues the
-             divider. Hidden otherwise, so the composer uses the full chat width. -->
-        <div class="composer-gutter" aria-hidden="true"></div>
-        <div class="composer-fields">
-          <textarea id="say" rows="2" placeholder="What do you do?" autocomplete="off"></textarea>
-          <button type="submit" id="send" class="button">Send</button>
-        </div>
-      </form>
     </div>
 
     <aside id="side-card">
@@ -91,6 +82,15 @@
       </section>
     </aside>
   </div>
+
+  <!-- A game-level control, not a chat-column control. It spans beneath the private
+       pane, public transcript, and sidebar whether Behind the screen is open or not. -->
+  <form id="say-form">
+    <div class="composer-fields">
+      <textarea id="say" rows="2" placeholder="What do you do?" autocomplete="off"></textarea>
+      <button type="submit" id="send" class="button">Send</button>
+    </div>
+  </form>
 </section>
 
 <!-- Player rolls. A dialog, because the point is that the human rolls their own dice. -->
