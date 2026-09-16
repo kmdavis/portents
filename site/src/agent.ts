@@ -7,7 +7,7 @@
 
 import { createAnthropic } from "@ai-sdk/anthropic";
 import { createOpenAI } from "@ai-sdk/openai";
-import type { ContentRegistry } from "@portents/core";
+import { statusDigest, type ContentRegistry } from "@portents/core";
 import { CORE_GUIDANCE } from "@portents/guidance";
 import type { WebSession } from "@portents/web";
 import { type LanguageModel, type ModelMessage, stepCountIs, streamText, type Tool } from "ai";
@@ -157,14 +157,30 @@ export async function stateDigest(session: WebSession): Promise<string | undefin
 	const lines = [`## Session state — ${campaign.name} (${campaign.systemLine})`];
 
 	const character = campaign.activeCharacter;
-	lines.push(character ? `Character: ${character}` : "Character: **none yet — build one before play starts**");
+	if (character) {
+		const sheet = await campaign.readCharacter(character);
+		lines.push(
+			sheet
+				? `Character: ${character} — ${statusDigest(sheet) || "no status recorded"}`
+				: `Character: ${character} — **sheet missing**`,
+		);
+	} else {
+		lines.push("Character: **none yet — build one before play starts**");
+	}
 
 	const scene = campaign.scene;
-	if (scene) lines.push(`Scene: ${[scene.summary, scene.location].filter(Boolean).join(" · ")}`);
+	if (scene) lines.push(`Scene: ${[scene.summary, scene.location, scene.time, scene.tension].filter(Boolean).join(" · ")}`);
 
 	const clocks = campaign.clocks;
 	if (clocks.length > 0) {
 		lines.push(`Clocks: ${clocks.map((clock) => `${clock.name} ${clock.filled}/${clock.segments}`).join(" · ")}`);
+	}
+
+	const pending = campaign.pendingRoll;
+	if (pending) {
+		lines.push(
+			`Waiting on the player for ${pending.expression} (${pending.reason})${pending.dc === undefined ? "" : `, DC ${pending.dc}`}. Do not assume a result.`,
+		);
 	}
 
 	const recent = campaign.ledger.recent(5);

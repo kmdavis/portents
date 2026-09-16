@@ -30,6 +30,8 @@ import {
 	Campaign,
 	type CampaignDeps,
 	chanceOf,
+	type ContentPack,
+	type ContentRegistry,
 	createPile,
 	createRegistry,
 	defaultRandomSource,
@@ -68,14 +70,29 @@ import {
 	type WorldSection,
 } from "@portents/core";
 import { openHomeStorage, portentsHome } from "@portents/core/node";
-import { commonContent, decks, dungeonTiles, tables } from "@portents/content";
+import { commonContent, dungeonTiles } from "@portents/content";
 
-export default function activate(pi: ExtensionAPI): void {
-	const storage = openHomeStorage();
-	// Built once: createRegistry validates ids, applies each pack's declared
-	// overrides, and gives the "available: ..." lists that broken references print.
-	const registry = createRegistry(commonContent);
-	const deps: CampaignDeps = { storage, clock: systemClock, random: defaultRandomSource(), registry };
+export interface PortentsExtensionOptions {
+	/** Exact registry. Mutually exclusive with extraPacks. */
+	readonly registry?: ContentRegistry;
+	/** Data-only packs appended after the batteries-included bundle. */
+	readonly extraPacks?: readonly ContentPack[];
+}
+
+/** Build an extension with additional content, while the default export stays batteries-included. */
+export function createPortentsExtension(options: PortentsExtensionOptions = {}): (pi: ExtensionAPI) => void {
+	if (options.registry && options.extraPacks) {
+		throw new Error("createPortentsExtension accepts either registry or extraPacks, not both");
+	}
+
+	return function activate(pi: ExtensionAPI): void {
+		const storage = openHomeStorage();
+		// Built once: createRegistry validates ids, applies each pack's declared
+		// overrides, and gives the "available: ..." lists that broken references print.
+		const registry = options.registry ?? createRegistry([...commonContent, ...(options.extraPacks ?? [])]);
+		const decks = registry.deckIds().map((id) => registry.requireDeck(id));
+		const tables = registry.tableIds().map((id) => registry.requireTable(id));
+		const deps: CampaignDeps = { storage, clock: systemClock, random: defaultRandomSource(), registry };
 
 	/** The open campaign, or undefined. Re-resolved on session start. */
 	let campaign: Campaign | undefined;
@@ -832,7 +849,7 @@ export default function activate(pi: ExtensionAPI): void {
 			'Use portents_campaign with action "journal" after each scene so the game survives a new session.',
 		],
 		parameters: Type.Object({
-			action: StringEnum(["list", "create", "load", "brief", "journal", "scene", "clock", "world", "system"]),
+			action: StringEnum(["list", "create", "open", "load", "brief", "journal", "scene", "clock", "world", "system"]),
 			name: Type.Optional(Type.String({ description: "Campaign name (create) or slug (load)" })),
 			system: Type.Optional(
 				Type.String({ description: 'Rules and printing, freeform: "5e (2024)", "Call of Cthulhu 7e"' }),
@@ -901,6 +918,7 @@ export default function activate(pi: ExtensionAPI): void {
 							`Files under \`${portentsHome()}/${created.keys.dir}\`. Build a character with portents_sheet before play starts.`,
 					);
 				}
+				case "open":
 				case "load": {
 					if (!params.name) throw new Error("Loading a campaign needs its slug");
 					const opened = setCampaign(await Campaign.open(deps, params.name));
@@ -941,8 +959,11 @@ export default function activate(pi: ExtensionAPI): void {
 				}
 				case "world": {
 					const active = requireCampaign();
+					if (!params.body) {
+						if (!params.section) return text(await active.readWorld());
+						return text(await active.worldSection(params.section as WorldSection));
+					}
 					if (!params.section) throw new Error(`A world note needs a section: ${WORLD_SECTIONS.join(", ")}`);
-					if (!params.body) throw new Error("A world note needs a body");
 					await active.addToWorld(params.section as WorldSection, params.body);
 					return text(`Added to **${params.section}**.`);
 				}
@@ -974,8 +995,9 @@ export default function activate(pi: ExtensionAPI): void {
 			'Use portents_sheet with action "create" before play begins; a session must not start without a sheet on disk.',
 		],
 		parameters: Type.Object({
-			action: StringEnum(["create", "read", "patch_status", "set_section", "append_section", "list"]),
+			action: StringEnum(["create", "read", "patch_status", "set_section", "append_section", "list", "set_main"]),
 			character: Type.Optional(Type.String({ description: "Character name" })),
+			main: Type.Optional(Type.Boolean({ description: "Make this character the main character" })),
 			concept: Type.Optional(Type.String({ description: 'e.g. "Level 3 Wood Elf Ranger (Hunter)"' })),
 			status: Type.Optional(
 				Type.Record(Type.String(), Type.String(), {
@@ -1007,12 +1029,15 @@ export default function activate(pi: ExtensionAPI): void {
 				// No section list here on purpose: the campaign resolves one from the
 				// content packs for its own system, and falls back to a generic scaffold.
 				// A hardcoded list stamped 5E headings onto a Call of Cthulhu character.
-				const sheet = await active.createCharacter({
-					name,
-					concept: params.concept,
-					status: params.status,
-					abilities: params.abilities,
-				});
+				const sheet = await active.createCharacter(
+					{
+						name,
+						concept: params.concept,
+						status: params.status,
+						abilities: params.abilities,
+					},
+					params.main === undefined ? {} : { active: params.main },
+				);
 				const template = active.sheetTemplate();
 				await showStatus(ctx);
 				return text(
@@ -1021,6 +1046,13 @@ export default function activate(pi: ExtensionAPI): void {
 							? `\n\n_${template.note ?? "Generic scaffold used."}_`
 							: ""),
 				);
+			}
+
+			if (params.action === "set_main") {
+				if (!(await active.readCharacter(name))) throw new Error(`No character "${name}" in this campaign.`);
+				await active.setActiveCharacter(name);
+				await showStatus(ctx);
+				return text(`**${name}** is now the main character.`);
 			}
 
 			const sheet = await active.readCharacter(name);
@@ -1249,4 +1281,7 @@ export default function activate(pi: ExtensionAPI): void {
 			);
 		},
 	});
+	};
 }
+
+export default createPortentsExtension();

@@ -203,16 +203,22 @@ export function portentsTools(session: WebSession, onTrace: (trace: ToolTrace) =
 
 		portents_campaign: tool({
 			description:
-				"Create, open and update the campaign. Actions: list, create, open, brief, journal, scene, clock. " +
-				"State persists in this browser. Write to the journal at the end of every scene.",
+				"Create, open and update the campaign. Actions: list, create, open/load, brief, journal, scene, clock, world, system. " +
+				"State persists in this browser. Write to the journal at the end of every scene; read or append legacy world.md with world.",
 			inputSchema: jsonSchema<{
 				action: string;
 				name?: string;
 				system?: string;
+				premise?: string;
+				tone?: string;
+				safety?: string;
 				heading?: string;
 				body?: string;
 				summary?: string;
 				location?: string;
+				time?: string;
+				tension?: string;
+				section?: string;
 				clock_name?: string;
 				filled?: number;
 				segments?: number;
@@ -221,15 +227,21 @@ export function portentsTools(session: WebSession, onTrace: (trace: ToolTrace) =
 				properties: {
 					action: {
 						type: "string",
-						enum: ["list", "create", "open", "brief", "journal", "scene", "clock"],
+						enum: ["list", "create", "open", "load", "brief", "journal", "scene", "clock", "world", "system"],
 						description: "What to do",
 					},
 					name: str("Campaign name (create) or slug (open)"),
 					system: str('System line, e.g. "5e (2024)"'),
+					premise: str("Campaign premise"),
+					tone: str("Desired tone"),
+					safety: str("Lines, veils, and table agreements"),
 					heading: str("Journal entry heading"),
 					body: str("Journal or world text"),
 					summary: str("Scene summary"),
 					location: str("Where the party is"),
+					time: str("When the scene is happening"),
+					tension: str("Scene mood or combat state"),
+					section: { type: "string", enum: ["NPCs", "Places", "Threads", "Factions"], description: "Legacy world.md section" },
 					clock_name: str("Clock name"),
 					filled: num("Segments filled"),
 					segments: num("Segments total"),
@@ -241,7 +253,7 @@ export function portentsTools(session: WebSession, onTrace: (trace: ToolTrace) =
 
 		portents_sheet: tool({
 			description:
-				"Read and write character sheets. Actions: create, read, patch_status, list, set_main. " +
+				"Read and write character sheets. Actions: create, read, patch_status, set_section, append_section, list, set_main. " +
 				"Patch a sheet the moment anything changes: damage, healing, a spent slot, an item. " +
 				"**Every character needs a sheet, sidekicks included** — the first one created becomes the " +
 				"main character and later ones are sidekicks, so create the player's character first. " +
@@ -249,6 +261,7 @@ export function portentsTools(session: WebSession, onTrace: (trace: ToolTrace) =
 			inputSchema: jsonSchema<{
 				action: string;
 				character?: string;
+				main?: boolean;
 				concept?: string;
 				section?: string;
 				body?: string;
@@ -259,7 +272,7 @@ export function portentsTools(session: WebSession, onTrace: (trace: ToolTrace) =
 				properties: {
 					action: {
 						type: "string",
-						enum: ["create", "read", "patch_status", "list", "set_main"],
+						enum: ["create", "read", "patch_status", "set_section", "append_section", "list", "set_main"],
 						description: "What to do",
 					},
 					character: str("Character name"),

@@ -22,6 +22,8 @@ import {
 	Campaign,
 	type CampaignDeps,
 	chanceOf,
+	type ContentPack,
+	type ContentRegistry,
 	createRegistry,
 	createView,
 	type Deck,
@@ -63,6 +65,10 @@ export interface SessionOptions {
 	readonly database?: string;
 	/** Fixed seed for reproducible output. Omit for real randomness. */
 	readonly seed?: string;
+	/** Exact prebuilt registry. Mutually exclusive with extraPacks. */
+	readonly registry?: ContentRegistry;
+	/** Data-only packs appended after the batteries-included bundle. */
+	readonly extraPacks?: readonly ContentPack[];
 }
 
 export interface RollOutcome {
@@ -85,11 +91,15 @@ export interface MapOutcome {
  * running a game should get their state persisted.
  */
 export class WebSession {
-	readonly registry = createRegistry(commonContent);
+	readonly registry: ContentRegistry;
 	readonly #deps: CampaignDeps;
 	#campaign: Campaign | undefined;
 
 	constructor(options: SessionOptions = {}) {
+		if (options.registry && options.extraPacks) {
+			throw new Error("WebSession accepts either registry or extraPacks, not both");
+		}
+		this.registry = options.registry ?? createRegistry([...commonContent, ...(options.extraPacks ?? [])]);
 		this.#deps = {
 			// `??` avoids building an adapter nobody will use. It is not what makes
 			// this work off a browser: BrowserStorage's constructor is inert and only
@@ -121,8 +131,12 @@ export class WebSession {
 		return Campaign.list(this.#deps);
 	}
 
-	async createCampaign(name: string, system: string): Promise<Campaign> {
-		this.#campaign = await Campaign.create(this.#deps, { name, system });
+	async createCampaign(
+		name: string,
+		system: string,
+		options: { premise?: string; tone?: string; safety?: string } = {},
+	): Promise<Campaign> {
+		this.#campaign = await Campaign.create(this.#deps, { name, system, ...options });
 		return this.#campaign;
 	}
 

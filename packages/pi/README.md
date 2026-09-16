@@ -13,6 +13,22 @@ Caves, wilderness hexes and settlements are not available: only the dungeon
 generator was ported, and `portents_map` says so rather than describing what it
 cannot do.
 
+## Additional content and settings
+
+The default export uses the batteries-included bundle. A small wrapper extension can
+append data-only packs:
+
+```ts
+import { createPortentsExtension } from "@portents/pi";
+import { greywaterSetting } from "@my-table/portents-greywater";
+
+export default createPortentsExtension({ extraPacks: [greywaterSetting] });
+```
+
+Pass `registry` instead when the wrapper wants to supply the exact registry. The two
+options are mutually exclusive. This is configuration, not a plugin loader: content
+packs contain data and cannot execute hooks.
+
 ## Parity
 
 This replaces a working extension with a live campaign in it, so agreement with

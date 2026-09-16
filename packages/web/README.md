@@ -43,6 +43,25 @@ for (const c of storageConformanceCases(() => new MyStorage())) it(c.name, c.run
 
 Write the adapter, run the suite, pass it to `WebSession`. Nothing else changes.
 
+## Additional content and settings
+
+Append data-only packs to the batteries-included registry:
+
+```ts
+import { greywaterSetting } from "@my-table/portents-greywater";
+
+const session = new WebSession({ extraPacks: [greywaterSetting] });
+```
+
+Or pass an exact prebuilt registry when the defaults are not wanted:
+
+```ts
+const session = new WebSession({ registry: createRegistry([myPack]) });
+```
+
+`registry` and `extraPacks` are mutually exclusive. No plugin code runs; these are the
+same plain `ContentPack` values core validates for every other consumer.
+
 ## It also closes a gap
 
 `BrowserStorage` typechecked and bundled but had no automated coverage, because

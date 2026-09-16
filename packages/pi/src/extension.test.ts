@@ -164,7 +164,33 @@ function makeCtx(h: Harness, overrides: Record<string, unknown> = {}) {
  * A normal dependency cannot be half-installed, so that distinction has no subject:
  * if the import fails now, the suite fails, which is correct.
  */
-const loaded = (await import("./index.ts")).default as (pi: unknown) => void;
+const extensionModule = await import("./index.ts");
+const loaded = extensionModule.default as (pi: unknown) => void;
+const createPortentsExtension = extensionModule.createPortentsExtension as typeof extensionModule.createPortentsExtension;
+
+describe("configured content", () => {
+	it("appends extra data-only packs through the extension factory", async () => {
+		const extra = {
+			id: "injected-test-pack",
+			tables: [{ id: "injected-table", name: "Injected", dice: "1d1", entries: [{ range: [1, 1] as const, text: "from an extra pack" }] }],
+		};
+		const { pi, h } = makeHarness();
+		createPortentsExtension({ extraPacks: [extra] })(pi as never);
+		const ctx = makeCtx(h);
+		const campaign = h.tools.get("portents_campaign")!;
+		await campaign.execute("t", { action: "create", name: "Injected Content Test", system: "generic" }, undefined, undefined, ctx);
+		const table = h.tools.get("portents_table")!;
+		const result = await table.execute("t", { action: "roll", table: "injected-table" }, undefined, undefined, ctx);
+		assert.match(result.content[0].text, /from an extra pack/);
+	});
+
+	it("rejects an exact registry combined with extra packs", () => {
+		assert.throws(
+			() => createPortentsExtension({ registry: createRegistry([]), extraPacks: [] }),
+			/either registry or extraPacks/,
+		);
+	});
+});
 
 describe("extension", async () => {
 		const { pi, h } = makeHarness();
@@ -456,6 +482,21 @@ describe("extension", async () => {
 			});
 		});
 
+		describe("campaign action parity", () => {
+			it("reads back a legacy world section it wrote", async () => {
+				await call("portents_campaign", { action: "world", section: "NPCs", body: "**Nesta.** Keeps the shrine." });
+				assert.match(await call("portents_campaign", { action: "world", section: "NPCs" }), /Nesta/);
+			});
+
+			it("accepts open as an alias for load", async () => {
+				const { pi: freshPi, h: freshHarness } = makeHarness();
+				loaded(freshPi);
+				const tool = freshHarness.tools.get("portents_campaign")!;
+				const out = await tool.execute("t", { action: "open", name: "harness-test" }, undefined, undefined, makeCtx(freshHarness));
+				assert.match(out.content[0].text, /# Harness Test/);
+			});
+		});
+
 		describe("the sheet", () => {
 			it("patches status with a delta and persists it", async () => {
 				await call("portents_sheet", { action: "patch_status", character: "Brannoc", status: { HP: "-7" } });
@@ -496,6 +537,12 @@ describe("extension", async () => {
 					body: "- Longbow",
 				});
 				assert.match(await call("portents_sheet", { action: "read", character: "Brannoc" }), /Longbow/);
+			});
+
+			it("can deliberately change the main character", async () => {
+				await call("portents_sheet", { action: "create", character: "Alric" });
+				assert.match(await call("portents_sheet", { action: "set_main", character: "Alric" }), /main character/);
+				await call("portents_sheet", { action: "set_main", character: "Brannoc" });
 			});
 		});
 

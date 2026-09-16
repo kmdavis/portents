@@ -402,6 +402,14 @@ describe("the world", () => {
 		assert.doesNotMatch(await campaign.worldSection("Threads"), /TBD/);
 	});
 
+	it("marks the campaign updated when its world changes", async () => {
+		const { campaign, d } = await fresh();
+		const before = parseDocument((await d.storage.read(campaign.keys.overview))!).data.updatedAt;
+		await campaign.addToWorld("NPCs", "**Nesta.** Keeps the shrine.");
+		const after = parseDocument((await d.storage.read(campaign.keys.overview))!).data.updatedAt;
+		assert.notEqual(after, before);
+	});
+
 	it("refuses an unknown section", async () => {
 		const { campaign } = await fresh();
 		await assert.rejects(

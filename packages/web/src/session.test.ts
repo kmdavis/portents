@@ -18,7 +18,7 @@ import assert from "node:assert/strict";
 import { after, before, describe, it } from "node:test";
 import { BrowserStorage } from "@portents/core/browser";
 import { storageConformanceCases } from "@portents/core/testing";
-import type { Storage } from "@portents/core";
+import { createRegistry, type ContentPack, type Storage } from "@portents/core";
 import { WebSession } from "./session.ts";
 
 let counter = 0;
@@ -51,6 +51,33 @@ describe("IndexedDB persistence", () => {
 		const b = new BrowserStorage({ database: `portents-b-${counter++}` });
 		await a.write("k", "from a");
 		assert.equal(await b.read("k"), undefined);
+	});
+});
+
+describe("content injection", () => {
+	const settingPack: ContentPack = {
+		id: "test-setting-pack",
+		settings: [{ schemaVersion: 1, id: "portents/test-setting", name: "Test Setting", summary: "For tests." }],
+	};
+
+	it("appends extra packs after the batteries-included content", () => {
+		const session = new WebSession({ storage: freshStorage(), extraPacks: [settingPack] });
+		assert.equal(session.registry.requireSetting("portents/test-setting").name, "Test Setting");
+		assert.ok(session.registry.deckIds().length > 0, "the default content disappeared");
+	});
+
+	it("accepts an exact prebuilt registry", () => {
+		const registry = createRegistry([settingPack]);
+		const session = new WebSession({ storage: freshStorage(), registry });
+		assert.equal(session.registry, registry);
+		assert.deepEqual(session.registry.deckIds(), [], "an exact registry was silently given defaults");
+	});
+
+	it("rejects two conflicting configuration sources", () => {
+		assert.throws(
+			() => new WebSession({ storage: freshStorage(), registry: createRegistry([]), extraPacks: [settingPack] }),
+			/either registry or extraPacks/,
+		);
 	});
 });
 
@@ -134,6 +161,18 @@ describe("the session with a campaign", () => {
 		const kinds = session.campaign!.ledger.entries.map((entry) => entry.kind);
 		assert.ok(kinds.includes("table"));
 		assert.ok(kinds.includes("oracle"));
+	});
+
+	it("persists campaign premise, tone and safety supplied by a harness", async () => {
+		const isolated = new WebSession({ storage: freshStorage() });
+		const campaign = await isolated.createCampaign("Agreements", "generic", {
+			premise: "A missing bell.",
+			tone: "Gothic mystery.",
+			safety: "Veil harm to children.",
+		});
+		assert.match((await campaign.overviewSection("Premise")) ?? "", /missing bell/);
+		assert.match((await campaign.overviewSection("Tone")) ?? "", /Gothic mystery/);
+		assert.match((await campaign.overviewSection("Table agreements")) ?? "", /Veil harm/);
 	});
 
 	it("resolves the system's own sheet scaffold", async () => {

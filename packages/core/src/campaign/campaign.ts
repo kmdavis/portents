@@ -634,6 +634,7 @@ export class Campaign {
 		}
 		const world = await this.readWorld();
 		await this.#deps.storage.write(this.#keys.world, appendToSectionBody(world, section, body));
+		await this.#save();
 	}
 
 	async worldSection(section: WorldSection): Promise<string> {

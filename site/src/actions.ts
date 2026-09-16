@@ -9,7 +9,14 @@
  * Everything returns a string, because that is what goes back to the model.
  */
 
-import { guidanceTitle, stringifySheet } from "@portents/core";
+import {
+	appendToSection,
+	guidanceTitle,
+	setSection,
+	stringifySheet,
+	WORLD_SECTIONS,
+	type WorldSection,
+} from "@portents/core";
 import type { WebSession } from "@portents/web";
 
 /** Require a value the model should have supplied, with the message it needs to see. */
@@ -22,10 +29,16 @@ export interface CampaignParams {
 	action: string;
 	name?: string;
 	system?: string;
+	premise?: string;
+	tone?: string;
+	safety?: string;
 	heading?: string;
 	body?: string;
 	summary?: string;
 	location?: string;
+	time?: string;
+	tension?: string;
+	section?: string;
 	clock_name?: string;
 	filled?: number;
 	segments?: number;
@@ -64,11 +77,13 @@ export async function campaignAction(session: WebSession, params: CampaignParams
 			const campaign = await session.createCampaign(
 				need(params.name, "Creating a campaign needs a name"),
 				need(params.system, 'Creating a campaign needs a system, e.g. "5e (2024)"'),
+				{ premise: params.premise, tone: params.tone, safety: params.safety },
 			);
 			return `Created **${campaign.name}** (\`${campaign.slug}\`), ${campaign.systemLine}. Build a character with portents_sheet before play starts.`;
 		}
 
-		case "open": {
+		case "open":
+		case "load": {
 			const campaign = await session.openCampaign(need(params.name, "Opening a campaign needs its slug"));
 			return await campaign.brief();
 		}
@@ -89,8 +104,30 @@ export async function campaignAction(session: WebSession, params: CampaignParams
 			await campaign.setScene({
 				summary: need(params.summary, "A scene needs a summary"),
 				...(params.location ? { location: params.location } : {}),
+				...(params.time ? { time: params.time } : {}),
+				...(params.tension ? { tension: params.tension } : {}),
 			});
 			return `Scene recorded: ${[params.summary, params.location].filter(Boolean).join(" · ")}`;
+		}
+
+		case "world": {
+			const campaign = requireCampaign(session);
+			if (!params.body) {
+				if (!params.section) return await campaign.readWorld();
+				if (!WORLD_SECTIONS.includes(params.section as WorldSection)) {
+					throw new Error(`A world section must be one of: ${WORLD_SECTIONS.join(", ")}`);
+				}
+				return await campaign.worldSection(params.section as WorldSection);
+			}
+			if (!params.section) throw new Error(`A world note needs a section: ${WORLD_SECTIONS.join(", ")}`);
+			await campaign.addToWorld(params.section as WorldSection, params.body);
+			return `Added to **${params.section}**.`;
+		}
+
+		case "system": {
+			const campaign = requireCampaign(session);
+			await campaign.setSystem(need(params.system, 'Recording the system needs a value, e.g. "5e (2024)"'));
+			return `System recorded: ${campaign.systemLine}`;
 		}
 
 		case "clock": {
@@ -167,6 +204,20 @@ export async function sheetAction(session: WebSession, params: SheetParams): Pro
 			if (!params.status) throw new Error("Patching a status needs status keys");
 			const sheet = await campaign.patchCharacter(name, params.status);
 			return `Patched **${name}**.\n\n${stringifySheet(sheet)}`;
+		}
+
+		case "set_section":
+		case "append_section": {
+			const name = params.character ?? campaign.activeCharacter;
+			if (!name) throw new Error("Updating a sheet needs a character");
+			const heading = need(params.section, "Updating a sheet needs a section");
+			if (params.body === undefined) throw new Error("Updating a sheet needs a body");
+			const body = params.body;
+			const sheet = await campaign.readCharacter(name);
+			if (!sheet) throw new Error(`No character ${JSON.stringify(name)} in this campaign`);
+			const next = params.action === "set_section" ? setSection(sheet, heading, body) : appendToSection(sheet, heading, body);
+			await campaign.writeCharacter(next);
+			return `Updated **${heading}** on ${name}'s sheet.`;
 		}
 
 		default:
