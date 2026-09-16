@@ -80,6 +80,7 @@ export type RoomCommand =
 	| (CommandEnvelope & { readonly type: "submit"; readonly windowId: string; readonly response: InputResponse })
 	| (CommandEnvelope & { readonly type: "advance"; readonly windowId: string })
 	| (CommandEnvelope & { readonly type: "claim-model-turn"; readonly windowId: string; readonly claimId: string })
+	| (CommandEnvelope & { readonly type: "release-model-turn"; readonly windowId: string; readonly claimId: string })
 	| (CommandEnvelope & { readonly type: "resolve-model-turn"; readonly windowId: string; readonly claimId: string });
 
 export type RoomEvent =
@@ -88,6 +89,7 @@ export type RoomEvent =
 	| { readonly type: "window-ready"; readonly windowId: string }
 	| { readonly type: "window-advanced"; readonly windowId: string; readonly participantId: string }
 	| { readonly type: "model-turn-claimed"; readonly windowId: string; readonly claimId: string }
+	| { readonly type: "model-turn-released"; readonly windowId: string; readonly claimId: string }
 	| { readonly type: "model-turn-resolved"; readonly windowId: string; readonly claimId: string };
 
 export class RoomContractError extends Error {

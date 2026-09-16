@@ -22,4 +22,8 @@ responseWindowReady({
 }); // true
 ```
 
-`all` waits for everyone required, `any` waits for one response or pass, and `ordered` waits for its active participant. A host may explicitly advance a window; silence never advances it automatically.
+`all` waits for everyone required, `any` waits for one response or pass, and `ordered` waits for its active participant. Players may revise until the model turn is claimed. A host may explicitly advance a window; silence never advances it automatically.
+
+`RoomCoordinator` enforces that state machine in one process. Every command carries a unique command ID and expected room revision. Duplicate retries replay their original result; reusing an ID for different input or submitting against a stale revision fails. A ready window permits one model-turn claim. A failed call releases that claim for retry; a successful call resolves it.
+
+This does not make shared storage safe. A hosted adapter must preserve command IDs and revisions durably, authenticate participant IDs, and claim the model turn atomically before calling a provider.

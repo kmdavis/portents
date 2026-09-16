@@ -1,4 +1,13 @@
 export {
+	createRoom,
+	createSoloRoom,
+	type CreateRoomInput,
+	RoomCommandError,
+	type RoomCommandResult,
+	type RoomErrorCode,
+	RoomCoordinator,
+} from "./coordinator.ts";
+export {
 	assertRoomState,
 	type CharacterController,
 	type InputRequest,
