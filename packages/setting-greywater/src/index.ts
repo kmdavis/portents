@@ -40,5 +40,8 @@ export const greywaterSetting: ContentPack = {
 	settings: [greywater],
 	resources,
 	imageMaps: [greywaterRegionMap],
-	provenance: { source: "original writing and artwork generated for Portents", license: "CC0-1.0" },
+	provenance: {
+		source: "original writing and AI-generated map created for Portents; see maps/README.md",
+		license: "CC0-1.0",
+	},
 };

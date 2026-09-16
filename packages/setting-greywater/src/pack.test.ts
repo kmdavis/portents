@@ -90,6 +90,14 @@ describe("the raster map asset", () => {
 		const bytes = readFileSync(join(root, greywaterRegionMap.asset.key));
 		assert.ok(bytes.byteLength < 150_000, `map is ${(bytes.byteLength / 1024).toFixed(0)} KiB`);
 	});
+
+	it("ships the generation, conversion, and licence record beside the asset", () => {
+		const provenance = readFileSync(join(root, "maps", "README.md"), "utf8");
+		assert.match(provenance, /Gemini 3 Pro/);
+		assert.match(provenance, /cwebp -q 72 -resize 1200 0/);
+		assert.match(provenance, /CC0-1\.0/);
+		assert.match(provenance, /No third-party map or setting artwork/);
+	});
 });
 
 describe("licence conformance", () => {
