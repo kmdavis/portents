@@ -5,7 +5,7 @@ import { getSection } from "@portents/core";
 import { MemoryStorage } from "@portents/core/memory";
 import { WebSession } from "@portents/web";
 
-import { campaignAction, sheetAction } from "./actions.ts";
+import { campaignAction, recallAction, rememberAction, sheetAction } from "./actions.ts";
 
 async function sessionWithCampaign(name = "Parity") {
 	const storage = new MemoryStorage();
@@ -63,6 +63,45 @@ describe("browser campaign action parity", () => {
 			time: "dusk",
 			tension: "tense",
 		});
+	});
+});
+
+describe("browser setting resources", () => {
+	it("lists loaded settings and records one at campaign creation", async () => {
+		const session = new WebSession({ storage: new MemoryStorage() });
+		assert.match(await campaignAction(session, { action: "list" }), /Greywater.*portents\/greywater/);
+		await campaignAction(session, { action: "create", name: "Setting Test", system: "generic", setting: "portents/greywater" });
+		assert.equal(session.campaign?.settingId, "portents/greywater");
+	});
+
+	it("remembers, queries, and exactly reads one campaign topic", async () => {
+		const session = new WebSession({ storage: new MemoryStorage() });
+		await campaignAction(session, { action: "create", name: "Memory Test", system: "generic", setting: "portents/greywater" });
+		const remembered = await rememberAction(session, {
+			kind: "npc",
+			name: "Nesta",
+			aliases: ["shrine keeper"],
+			links: ["portents/greywater/place/riverside-shrine"],
+			body: "Nesta guards a forged river token.",
+		});
+		assert.match(remembered, /npc\/nesta\.md/);
+		const listed = await recallAction(session, { query: "river" });
+		assert.match(listed, /Old Riverside Shrine/);
+		assert.match(listed, /Nesta/);
+		const read = await recallAction(session, { id: "campaign/memory-test/npc/nesta" });
+		assert.match(read, /forged river token/);
+		const map = await recallAction(session, { id: "portents/greywater/map/region" });
+		assert.match(map, /greywater-region\.webp/);
+		assert.match(map, /Old Riverside Shrine/);
+	});
+
+	it("updates an existing path without changing its stable id", async () => {
+		const { session } = await sessionWithCampaign("Update Memory");
+		await rememberAction(session, { kind: "npc", name: "Nesta", body: "First state." });
+		await rememberAction(session, { path: "npc/nesta.md", body: "Second state." });
+		const record = await session.campaign!.readResource("npc/nesta.md");
+		assert.equal(record?.resource.id, "campaign/update-memory/npc/nesta");
+		assert.match(record?.resource.body ?? "", /Second state/);
 	});
 });
 

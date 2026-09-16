@@ -43,6 +43,21 @@ import type { Clock } from "../ports/clock.ts";
 import type { RandomSource } from "../ports/random.ts";
 import type { Storage } from "../ports/storage.ts";
 import {
+	type CampaignResourceRecord,
+	formatResourceRecord,
+	formatSettingImageMap,
+	isResourceSegment,
+	parseResourceDocument,
+	queryResourceRecords,
+	type ResourceAudience,
+	type ResourceDocument,
+	type ResourceQuery,
+	type ResourceRecord,
+	ResourceContractError,
+	type SettingImageMapRecord,
+	stringifyResourceDocument,
+} from "../resources/index.ts";
+import {
 	type Frontmatter,
 	parseDocument,
 	type Scalar,
@@ -114,12 +129,35 @@ export function campaignKeys(slug: string) {
 		world: `${dir}/world.md`,
 		rolls: `${dir}/rolls.jsonl`,
 		piles: `${dir}/piles.json`,
+		resourceRoot: `${dir}/world`,
+		resource: (path: string) => `${dir}/world/${path}`,
 		character: (name: string) => `${dir}/characters/${slugify(name)}.md`,
 		map: (name: string) => `${dir}/maps/${slugify(name)}.txt`,
 	};
 }
 
 // ── State ────────────────────────────────────────────────────────────────────
+
+export function campaignResourcePath(kind: string, slug: string): string {
+	if (!isResourceSegment(kind)) {
+		throw new CampaignError(`Resource kind must be a lowercase folder name, got ${JSON.stringify(kind)}`);
+	}
+	if (!isResourceSegment(slug)) {
+		throw new CampaignError(`Resource slug must be lowercase letters, digits and hyphens, got ${JSON.stringify(slug)}`);
+	}
+	return `${kind}/${slug}.md`;
+}
+
+export function assertCampaignResourcePath(path: string): string {
+	const parts = path.split("/");
+	if (parts.length !== 2 || !parts[1].endsWith(".md")) {
+		throw new CampaignError(`Resource path must look like "npc/nesta.md", got ${JSON.stringify(path)}`);
+	}
+	const slug = parts[1].slice(0, -3);
+	const canonical = campaignResourcePath(parts[0], slug);
+	if (canonical !== path) throw new CampaignError(`Resource path must be canonical, got ${JSON.stringify(path)}`);
+	return path;
+}
 
 export interface Scene {
 	readonly summary: string;
@@ -154,6 +192,7 @@ export interface CampaignSummary {
 	readonly systemLine?: string;
 	readonly updatedAt?: string;
 	readonly scene?: string;
+	readonly settingId?: string;
 }
 
 export interface CreateCampaignInput {
@@ -166,6 +205,22 @@ export interface CreateCampaignInput {
 	readonly tone?: string;
 	/** Lines and veils agreed before play. */
 	readonly safety?: string;
+	/** Predefined setting selected independently from the rules system. */
+	readonly settingId?: string;
+}
+
+export interface RememberResourceInput {
+	readonly path?: string;
+	readonly id?: string;
+	readonly kind?: string;
+	readonly name?: string;
+	readonly body?: string;
+	readonly aliases?: readonly string[];
+	readonly tags?: readonly string[];
+	readonly links?: readonly string[];
+	readonly audience?: readonly ResourceAudience[];
+	readonly supersedes?: string;
+	readonly metadata?: Frontmatter;
 }
 
 export interface CampaignDeps {
@@ -248,6 +303,10 @@ export class Campaign {
 		}
 
 		const { system, edition } = resolveSystemLine(input.system, input.edition);
+		const setting = input.settingId ? deps.registry?.requireSetting(input.settingId) : undefined;
+		if (input.settingId && !setting) {
+			throw new CampaignError(`Setting ${JSON.stringify(input.settingId)} needs a loaded content registry`);
+		}
 		const now = deps.clock.iso();
 		const data: Frontmatter = {
 			name: input.name.trim(),
@@ -255,6 +314,7 @@ export class Campaign {
 			// One freeform line: "5e (2024)". A system and its printing are one fact
 			// about a table, and two keys made the frontmatter read like a form.
 			system: formatSystem(system, edition),
+			...(setting ? { setting: setting.id } : {}),
 			createdAt: now,
 			updatedAt: now,
 			counters: { sessions: 0, rolls: 0, draws: 0 },
@@ -268,6 +328,12 @@ export class Campaign {
 			"<!-- portents:generated system -->",
 			"",
 			describeRules(system, edition),
+			"",
+			"## Setting",
+			"",
+			"<!-- portents:generated setting -->",
+			"",
+			setting ? `**${setting.name}.** ${setting.summary}` : "_No predefined setting._",
 			"",
 			"## Premise",
 			"",
@@ -350,6 +416,7 @@ export class Campaign {
 					systemLine: line,
 					...(typeof data.updatedAt === "string" ? { updatedAt: data.updatedAt } : {}),
 					...(scene ? { scene: String(scene) } : {}),
+					...(typeof data.setting === "string" ? { settingId: data.setting } : {}),
 				});
 			} catch {
 				// A campaign whose frontmatter will not parse still exists. Skipping it
@@ -440,6 +507,11 @@ export class Campaign {
 
 	get activeCharacter(): string | undefined {
 		const value = this.#data.activeCharacter;
+		return typeof value === "string" ? value : undefined;
+	}
+
+	get settingId(): string | undefined {
+		const value = this.#data.setting;
 		return typeof value === "string" ? value : undefined;
 	}
 
@@ -574,6 +646,20 @@ export class Campaign {
 		await this.#save();
 	}
 
+	async setSetting(settingId: string | undefined): Promise<void> {
+		const setting = settingId ? this.#deps.registry?.requireSetting(settingId) : undefined;
+		if (settingId && !setting) throw new CampaignError(`Setting ${JSON.stringify(settingId)} needs a loaded content registry`);
+		this.#data = { ...this.#data };
+		if (setting) this.#data.setting = setting.id;
+		else delete this.#data.setting;
+		this.#body = setSectionBody(
+			this.#body,
+			"Setting",
+			`<!-- portents:generated setting -->\n\n${setting ? `**${setting.name}.** ${setting.summary}` : "_No predefined setting._"}`,
+		);
+		await this.#save();
+	}
+
 	async setActiveCharacter(name: string | undefined): Promise<void> {
 		this.#data = { ...this.#data };
 		if (name === undefined) delete this.#data.activeCharacter;
@@ -639,6 +725,137 @@ export class Campaign {
 
 	async worldSection(section: WorldSection): Promise<string> {
 		return sectionBody(await this.readWorld(), section) ?? "";
+	}
+
+	// ── Topic resources ────────────────────────────────────────────────────
+
+	async listResources(kind?: string): Promise<CampaignResourceRecord[]> {
+		if (kind && !isResourceSegment(kind)) throw new CampaignError(`Invalid resource kind ${JSON.stringify(kind)}`);
+		const prefix = `${this.#keys.resourceRoot}/${kind ? `${kind}/` : ""}`;
+		const keys = await this.#deps.storage.list(prefix);
+		const records: CampaignResourceRecord[] = [];
+		for (const key of keys.filter((candidate) => candidate.endsWith(".md"))) {
+			const path = key.slice(this.#keys.resourceRoot.length + 1);
+			assertCampaignResourcePath(path);
+			const markdown = await this.#deps.storage.read(key);
+			if (markdown === undefined) continue;
+			records.push({
+				origin: "campaign",
+				campaignSlug: this.slug,
+				path,
+				immutable: false,
+				resource: parseResourceDocument(markdown),
+			});
+		}
+		return records;
+	}
+
+	async readResource(path: string): Promise<CampaignResourceRecord | undefined> {
+		assertCampaignResourcePath(path);
+		const markdown = await this.#deps.storage.read(this.#keys.resource(path));
+		if (markdown === undefined) return undefined;
+		return {
+			origin: "campaign",
+			campaignSlug: this.slug,
+			path,
+			immutable: false,
+			resource: parseResourceDocument(markdown),
+		};
+	}
+
+	async writeResource(path: string, resource: ResourceDocument): Promise<CampaignResourceRecord> {
+		assertCampaignResourcePath(path);
+		const [kind] = path.split("/");
+		const expectedPrefix = `campaign/${this.slug}/`;
+		const problems: string[] = [];
+		if (resource.settingId) {
+			problems.push("campaign resources must not claim to be immutable packaged setting canon");
+		}
+		if (!resource.id.startsWith(expectedPrefix)) {
+			problems.push(`campaign resource id must start with ${JSON.stringify(expectedPrefix)}`);
+		}
+		if (resource.kind !== kind) {
+			problems.push(
+				`resource kind ${JSON.stringify(resource.kind)} does not match path folder ${JSON.stringify(kind)}`,
+			);
+		}
+		if (problems.length > 0) throw new ResourceContractError(`Invalid campaign resource ${JSON.stringify(resource.id)}`, problems);
+		await this.#deps.storage.write(this.#keys.resource(path), stringifyResourceDocument(resource));
+		await this.#save();
+		return (await this.readResource(path))!;
+	}
+
+	async rememberResource(input: RememberResourceInput): Promise<CampaignResourceRecord> {
+		let existing = input.path ? await this.readResource(input.path) : undefined;
+		if (!input.path && input.kind && input.name) {
+			existing = await this.readResource(campaignResourcePath(input.kind, slugify(input.name)));
+		}
+		const kind = input.kind ?? existing?.resource.kind;
+		const name = input.name ?? existing?.resource.name;
+		if (!kind) throw new CampaignError("Remembering a resource needs a kind");
+		if (!name) throw new CampaignError("Remembering a resource needs a name");
+		const slug = slugify(name);
+		const path = input.path ?? campaignResourcePath(kind, slug);
+		const aliases = input.aliases ?? existing?.resource.aliases;
+		const tags = input.tags ?? existing?.resource.tags;
+		const links = input.links ?? existing?.resource.links;
+		const audience = input.audience ?? existing?.resource.audience;
+		const supersedes = input.supersedes ?? existing?.resource.supersedes;
+		const metadata = input.metadata ?? existing?.resource.metadata;
+		return this.writeResource(path, {
+			schemaVersion: 1,
+			id: input.id ?? existing?.resource.id ?? `campaign/${this.slug}/${kind}/${slug}`,
+			kind,
+			name,
+			...(aliases ? { aliases } : {}),
+			...(tags ? { tags } : {}),
+			...(links ? { links } : {}),
+			...(audience ? { audience } : {}),
+			...(supersedes ? { supersedes } : {}),
+			...(metadata ? { metadata } : {}),
+			body: input.body ?? existing?.resource.body ?? "",
+		});
+	}
+
+	async resourceById(id: string): Promise<ResourceRecord | undefined> {
+		const local = (await this.listResources()).find((record) => record.resource.id === id);
+		if (local) return local;
+		const resource = this.#deps.registry?.resource(id);
+		if (!resource) return undefined;
+		return {
+			origin: "pack",
+			packId: this.#deps.registry!.ownerOf("resource", id)!,
+			immutable: true,
+			resource,
+		};
+	}
+
+	async queryResources(query: ResourceQuery = {}): Promise<ResourceRecord[]> {
+		const local = await this.listResources(query.kind);
+		const packaged = this.settingId && this.#deps.registry
+			? this.#deps.registry.resourcesForSetting(this.settingId).map((resource): ResourceRecord => ({
+					origin: "pack",
+					packId: this.#deps.registry!.ownerOf("resource", resource.id)!,
+					immutable: true,
+					resource,
+				}))
+			: [];
+		return queryResourceRecords([...local, ...packaged], query);
+	}
+
+	settingImageMaps(): SettingImageMapRecord[] {
+		if (!this.settingId || !this.#deps.registry) return [];
+		return this.#deps.registry.imageMapsForSetting(this.settingId).map((map) => ({
+			packId: this.#deps.registry!.ownerOf("image-map", map.id)!,
+			map,
+		}));
+	}
+
+	async recallById(id: string): Promise<string | undefined> {
+		const resource = await this.resourceById(id);
+		if (resource) return formatResourceRecord(resource);
+		const map = this.settingImageMaps().find((record) => record.map.id === id);
+		return map ? formatSettingImageMap(map) : undefined;
 	}
 
 	// ── Characters ─────────────────────────────────────────────────────────
@@ -780,6 +997,12 @@ export class Campaign {
 	 */
 	async brief(options: { scenes?: number; rolls?: number } = {}): Promise<string> {
 		const lines: string[] = [`# ${this.name}`, "", `_${describeRules(this.system, this.edition)}_`];
+		if (this.settingId) {
+			const setting = this.#deps.registry?.setting(this.settingId);
+			lines.push("", `**Setting.** ${setting ? setting.name : this.settingId}`);
+			const maps = this.settingImageMaps();
+			if (maps.length > 0) lines.push(`**Setting maps.** ${maps.map((record) => `\`${record.map.id}\``).join(", ")}`);
+		}
 
 		const scene = this.scene;
 		lines.push("", "## Where we are", "");
@@ -846,6 +1069,9 @@ export class Campaign {
 			problems.push("the campaign has no name in its frontmatter");
 		}
 		if (this.#data.system === undefined) problems.push("the campaign has no system recorded");
+		if (this.settingId && !this.#deps.registry?.setting(this.settingId)) {
+			problems.push(`the campaign setting ${JSON.stringify(this.settingId)} is not loaded`);
+		}
 		// Only for a system whose printings are known: an unusual system is nobody's
 		// business to second-guess.
 		if (knownSystem(this.system) && defaultEdition(this.system) && this.edition === undefined) {

@@ -3,7 +3,7 @@
 Portents as a [pi](https://pi.dev) extension: dice, decks, oracles, random
 tables, maps and campaign state for solo tabletop play.
 
-Ten `portents_*` tools and six commands, with all the logic in `@portents/core`.
+Thirteen `portents_*` tools and six commands, with the durable game logic in `@portents/core`.
 This file is a harness adapter: tool calls in, text out.
 
 **Not cut over yet.** The prototype at `~/.pi/agent/extensions/dnd` is still the

@@ -33,11 +33,13 @@ import type { ContentPack } from "@portents/core";
 import { dnd2014Content, dnd2024Content } from "@portents/content-dnd";
 import { genericContent } from "@portents/content-generic";
 import { pf1eContent, pf2eContent, pf2eLegacyContent } from "@portents/content-pf";
+import { greywaterSetting } from "@portents/setting-greywater";
 
 export { genericContent } from "@portents/content-generic";
 export * from "@portents/content-generic";
 export { dnd2014Content, dnd2024Content, SRD_5_1, SRD_5_2_1 } from "@portents/content-dnd";
 export { pf1eContent, pf2eContent, pf2eLegacyContent } from "@portents/content-pf";
+export { greywater, greywaterRegionMap, greywaterResources, greywaterSetting } from "@portents/setting-greywater";
 
 /**
  * Every bundled pack, generic first.
@@ -52,9 +54,12 @@ export const commonContent: readonly ContentPack[] = [
 	pf1eContent,
 	pf2eLegacyContent,
 	pf2eContent,
+	greywaterSetting,
 ];
 
 /** Which systems this bundle covers, for a caller that wants to say so. */
+export const bundledSettings: readonly string[] = ["portents/greywater"];
+
 export const bundledSystems: readonly string[] = [
 	"generic",
 	"5e (2014)",

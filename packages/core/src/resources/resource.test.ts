@@ -4,11 +4,15 @@ import { describe, it } from "node:test";
 import {
 	assertResource,
 	assertSetting,
+	formatResourceList,
 	isNamespacedId,
 	isResourceSegment,
 	MAX_RESOURCE_CHARACTERS,
+	parseResourceDocument,
+	queryResourceRecords,
 	resourceAudience,
 	resourceProblems,
+	stringifyResourceDocument,
 	settingProblems,
 	type ResourceDocument,
 } from "./resource.ts";
@@ -68,6 +72,107 @@ describe("setting contract", () => {
 			() => assertSetting({ schemaVersion: 1, id: "bad", name: "", summary: "" }),
 			/id must[\s\S]*name must[\s\S]*summary must/,
 		);
+	});
+});
+
+describe("resource Markdown", () => {
+	it("round-trips the envelope, prose, and unknown additive frontmatter", () => {
+		const original = resource({
+			audience: ["gm", "participant/alice"],
+			supersedes: "portents/greywater/place/old-shrine",
+			metadata: { weather: "rain", clues: ["bell", "token"], state: { danger: 3 } },
+			body: "## What Nesta knows\n\nThe token is false.\n",
+		});
+		assert.deepEqual(parseResourceDocument(stringifyResourceDocument(original)), original);
+	});
+
+	it("accepts a scalar as a one-item source list", () => {
+		const parsed = parseResourceDocument([
+			"---",
+			"schemaVersion: 1",
+			"id: portents/greywater/place/shrine",
+			"settingId: portents/greywater",
+			"kind: place",
+			"name: Shrine",
+			"tags: river",
+			"---",
+			"",
+			"Old stones.",
+		].join("\n"));
+		assert.deepEqual(parsed.tags, ["river"]);
+	});
+
+	it("rejects missing, malformed, and future envelopes", () => {
+		assert.throws(() => parseResourceDocument("Just prose."), /schemaVersion[\s\S]*namespaced[\s\S]*kind[\s\S]*name/);
+		assert.throws(
+			() => parseResourceDocument("---\nschemaVersion: 2\nid: portents/x/note/y\nkind: note\nname: Y\n---\n"),
+			/schemaVersion must be 1/,
+		);
+	});
+
+	it("refuses an oversized file before parsing it", () => {
+		assert.throws(() => parseResourceDocument("x".repeat(MAX_RESOURCE_CHARACTERS + 1)), /split it/);
+	});
+});
+
+describe("deterministic resource query", () => {
+	const packRecord = (document: ResourceDocument) => ({ origin: "pack" as const, packId: "greywater", immutable: true as const, resource: document });
+	const campaignRecord = (document: ResourceDocument) => ({
+		origin: "campaign" as const,
+		campaignSlug: "hollow-oath",
+		path: `${document.kind}/local.md`,
+		immutable: false as const,
+		resource: document,
+	});
+
+	it("ranks exact names, aliases, ids, tags, and body in that order", () => {
+		const records = [
+			packRecord(resource({ id: "portents/greywater/npc/body", kind: "npc", name: "Body", body: "Nesta waits here." })),
+			packRecord(resource({ id: "portents/greywater/npc/tag", kind: "npc", name: "Tag", tags: ["Nesta"], body: "x" })),
+			packRecord(resource({ id: "portents/greywater/npc/alias", kind: "npc", name: "Alias", aliases: ["Nesta"], body: "x" })),
+			packRecord(resource({ id: "portents/greywater/npc/nesta", kind: "npc", name: "Nesta", body: "x" })),
+		];
+		assert.deepEqual(queryResourceRecords(records, { text: "Nesta" }).map((record) => record.resource.name), [
+			"Nesta",
+			"Alias",
+			"Tag",
+			"Body",
+		]);
+	});
+
+	it("requires every query term and normalizes case and accents", () => {
+		const records = [packRecord(resource({ name: "Café Shrine", body: "Beside the river." }))];
+		assert.equal(queryResourceRecords(records, { text: "CAFE river" }).length, 1);
+		assert.equal(queryResourceRecords(records, { text: "cafe mountain" }).length, 0);
+	});
+
+	it("filters kind, setting, visibility, and limit", () => {
+		const records = [
+			packRecord(resource({ id: "portents/greywater/npc/nesta", kind: "npc", name: "Nesta", audience: ["gm"] })),
+			packRecord(resource({ id: "portents/greywater/place/shrine", kind: "place", name: "Shrine", audience: ["all"] })),
+		];
+		assert.deepEqual(queryResourceRecords(records, { kind: "place", audience: "participant/alice", limit: 1 }).map((record) => record.resource.name), ["Shrine"]);
+		assert.equal(queryResourceRecords(records, { settingId: "other/setting" }).length, 0);
+	});
+
+	it("puts campaign developments before pack canon at an equal rank", () => {
+		const pack = packRecord(resource({ id: "portents/greywater/npc/nesta", kind: "npc", name: "Nesta", body: "Canon." }));
+		const local = campaignRecord(resource({ id: "campaign/hollow-oath/npc/nesta", settingId: undefined, kind: "npc", name: "Nesta", body: "Now missing." }));
+		assert.deepEqual(queryResourceRecords([pack, local], { text: "Nesta" }).map((record) => record.origin), ["campaign", "pack"]);
+	});
+
+	it("formats enough identity to choose an exact read", () => {
+		const text = formatResourceList([campaignRecord(resource({ id: "campaign/hollow-oath/npc/nesta", settingId: undefined, kind: "npc", name: "Nesta" }))]);
+		assert.match(text, /campaign\/hollow-oath\/npc\/nesta/);
+		assert.match(text, /Nesta.*npc.*campaign:npc\/local\.md/);
+		assert.match(text, /exact `id`/);
+		assert.equal(formatResourceList([]), "No matching setting or campaign resources.");
+	});
+
+	it("uses stable id order instead of insertion order for ties", () => {
+		const a = packRecord(resource({ id: "portents/greywater/npc/a", kind: "npc", name: "A", body: "river" }));
+		const b = packRecord(resource({ id: "portents/greywater/npc/b", kind: "npc", name: "B", body: "river" }));
+		assert.deepEqual(queryResourceRecords([b, a], { text: "river" }).map((record) => record.resource.id), [a.resource.id, b.resource.id]);
 	});
 });
 

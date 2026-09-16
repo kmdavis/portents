@@ -13,7 +13,16 @@
 import type { WebSession } from "@portents/web";
 import { jsonSchema, type Tool, tool } from "ai";
 
-import { campaignAction, type CampaignParams, sheetAction, type SheetParams } from "./actions.ts";
+import {
+	campaignAction,
+	type CampaignParams,
+	recallAction,
+	type RecallParams,
+	rememberAction,
+	type RememberParams,
+	sheetAction,
+	type SheetParams,
+} from "./actions.ts";
 
 /** What a tool call did, for the transcript and the GM pane. */
 export interface ToolTrace {
@@ -203,7 +212,7 @@ export function portentsTools(session: WebSession, onTrace: (trace: ToolTrace) =
 
 		portents_campaign: tool({
 			description:
-				"Create, open and update the campaign. Actions: list, create, open/load, brief, journal, scene, clock, world, system. " +
+				"Create, open and update the campaign. Actions: list, create, open/load, brief, journal, scene, clock, world, setting, system. " +
 				"State persists in this browser. Write to the journal at the end of every scene; read or append legacy world.md with world.",
 			inputSchema: jsonSchema<{
 				action: string;
@@ -212,6 +221,7 @@ export function portentsTools(session: WebSession, onTrace: (trace: ToolTrace) =
 				premise?: string;
 				tone?: string;
 				safety?: string;
+				setting?: string;
 				heading?: string;
 				body?: string;
 				summary?: string;
@@ -227,7 +237,7 @@ export function portentsTools(session: WebSession, onTrace: (trace: ToolTrace) =
 				properties: {
 					action: {
 						type: "string",
-						enum: ["list", "create", "open", "load", "brief", "journal", "scene", "clock", "world", "system"],
+						enum: ["list", "create", "open", "load", "brief", "journal", "scene", "clock", "world", "setting", "system"],
 						description: "What to do",
 					},
 					name: str("Campaign name (create) or slug (open)"),
@@ -235,6 +245,7 @@ export function portentsTools(session: WebSession, onTrace: (trace: ToolTrace) =
 					premise: str("Campaign premise"),
 					tone: str("Desired tone"),
 					safety: str("Lines, veils, and table agreements"),
+					setting: str("Predefined setting id; omit for homebrew"),
 					heading: str("Journal entry heading"),
 					body: str("Journal or world text"),
 					summary: str("Scene summary"),
@@ -298,6 +309,53 @@ export function portentsTools(session: WebSession, onTrace: (trace: ToolTrace) =
 				required: ["action"],
 			}),
 			execute: async (params: SheetParams) => sheetAction(session, params),
+		}),
+
+		portents_recall: tool({
+			description:
+				"Search or read predefined-setting and campaign Markdown resources. Before describing a named place, NPC, faction, thread, or recurring ruling, query it here rather than reconstructing it from chat. Pass id for an exact read.",
+			inputSchema: jsonSchema<RecallParams>({
+				type: "object",
+				properties: {
+					id: str("Exact stable resource id to read"),
+					query: str("Words, name, or alias to find"),
+					kind: str("Optional folder kind such as npc, place, faction, or thread"),
+					limit: num("Maximum matches, 1 to 100"),
+				},
+				required: [],
+			}),
+			execute: async (params) => {
+				const result = await recallAction(session, params);
+				trace("recall", params.id ?? params.query ?? "list", true, result);
+				return gmOnly(result);
+			},
+		}),
+
+		portents_remember: tool({
+			description:
+				"Create or replace one campaign Markdown resource under world/<kind>/<slug>.md. Use when a named NPC, place, faction, thread, ruling, or other reusable fact becomes canon. Read before replacing an existing path. Packaged setting resources are immutable.",
+			inputSchema: jsonSchema<RememberParams>({
+				type: "object",
+				properties: {
+					path: str('Existing path or explicit destination, e.g. "npc/nesta.md"'),
+					id: str("Stable campaign resource id; generated on first write when omitted"),
+					kind: str("Lowercase resource kind, e.g. npc, place, faction, thread, ruling"),
+					name: str("Display name"),
+					body: str("Arbitrary Markdown body"),
+					aliases: { type: "array", items: { type: "string" } },
+					tags: { type: "array", items: { type: "string" } },
+					links: { type: "array", items: { type: "string" } },
+					audience: { type: "array", items: { type: "string" }, description: '"gm", "all", or "participant/<id>"' },
+					supersedes: str("Packaged resource id this campaign development updates"),
+					metadata: { type: "object", additionalProperties: true },
+				},
+				required: [],
+			}),
+			execute: async (params) => {
+				const result = await rememberAction(session, params);
+				trace("remember", params.path ?? params.name ?? "resource", true, result);
+				return gmOnly(result);
+			},
 		}),
 
 		portents_guidance: tool({

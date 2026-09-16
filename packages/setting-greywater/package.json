@@ -1,27 +1,27 @@
 {
-  "name": "@portents/content",
+  "name": "@portents/setting-greywater",
   "version": "0.0.0",
-  "description": "Everything most tables need: the generic content pack plus the packs for systems in common use. Install this unless you want to pick packs by hand.",
+  "description": "A small original Portents setting used to prove packaged Markdown resources and raster maps with pins.",
   "keywords": [
     "rpg",
     "ttrpg",
-    "solo",
-    "content",
-    "tables",
-    "decks"
+    "setting",
+    "portents"
   ],
-  "license": "CC-BY-4.0 AND CC0-1.0",
+  "license": "CC0-1.0",
   "author": "Kevan Davis",
   "repository": {
     "type": "git",
     "url": "git+https://github.com/kmdavis/portents.git",
-    "directory": "packages/content"
+    "directory": "packages/setting-greywater"
   },
-  "homepage": "https://github.com/kmdavis/portents/tree/main/packages/content#readme",
+  "homepage": "https://github.com/kmdavis/portents/tree/main/packages/setting-greywater#readme",
   "type": "module",
   "sideEffects": false,
   "files": [
     "dist",
+    "resources",
+    "maps",
     "README.md"
   ],
   "exports": {
@@ -29,21 +29,17 @@
       "development": "./src/index.ts",
       "types": "./dist/index.d.ts",
       "default": "./dist/index.js"
-    }
+    },
+    "./maps/*": "./maps/*"
   },
   "scripts": {
-    "build": "tsc -p tsconfig.build.json",
+    "build": "node scripts/build-resources.mjs --check && tsc -p tsconfig.build.json",
+    "build:resources": "node scripts/build-resources.mjs",
     "test": "node --conditions=development --test 'src/**/*.test.ts'",
     "typecheck": "tsc -p tsconfig.json --noEmit"
   },
   "peerDependencies": {
     "@portents/core": "workspace:*"
-  },
-  "dependencies": {
-    "@portents/content-generic": "workspace:*",
-    "@portents/content-dnd": "workspace:*",
-    "@portents/content-pf": "workspace:*",
-    "@portents/setting-greywater": "workspace:*"
   },
   "devDependencies": {
     "@portents/core": "workspace:*"

@@ -155,6 +155,7 @@ export async function stateDigest(session: WebSession): Promise<string | undefin
 	if (!campaign) return undefined;
 
 	const lines = [`## Session state — ${campaign.name} (${campaign.systemLine})`];
+	if (campaign.settingId) lines.push(`Setting: ${campaign.settingId}. Recall named setting facts before describing them.`);
 
 	const character = campaign.activeCharacter;
 	if (character) {

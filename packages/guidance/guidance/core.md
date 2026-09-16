@@ -21,8 +21,9 @@ portents_campaign { action: "list" }
 ```
 
 - **A campaign exists and the player wants it** → `portents_campaign { action: "load", name: "<slug>" }`,
-  then read the brief it returns, read `campaign.md`, `world.md` and the character
-  sheet, and open with a two-line recap ending in a question. Do not re-run session zero.
+  then read the brief it returns. Use `portents_recall` for the current location and any
+  named NPC, faction or thread before describing them. Open with a two-line recap ending
+  in a question. Do not re-run session zero.
 - **Nothing exists, or they want something new** → session zero below.
 
 ## Session zero
@@ -34,9 +35,11 @@ picked in two lines.
 
 Ask about:
 
-1. **System and printing.** The `list` result above names every system this
-   installation can run, and which printing is the default. Offer those, not systems
-   from memory.
+1. **System, printing and setting.** The `list` result above names every system this
+   installation can run, which printing is the default, and every predefined setting
+   currently loaded. Offer those, plus homebrew, rather than relying on memory. Rules
+   and setting are separate choices: the same setting can be played with different
+   systems.
 
    **Where a system has more than one printing, the newer one is the default.** Do not
    quietly pick older rules because you happen to know them better, and do not leave the
@@ -86,7 +89,7 @@ Ask about:
 Then:
 
 ```
-portents_campaign { action: "create", name: "...", system: "<a system line from the list>", premise: "...", tone: "...", safety: "..." }
+portents_campaign { action: "create", name: "...", system: "<a system line from the list>", setting: "<optional setting id>", premise: "...", tone: "...", safety: "..." }
 ```
 
 Name the campaign something the player would recognise in a list a month from now.
@@ -149,8 +152,9 @@ Repeat this, and keep it moving:
 5. **Make failure move things.** A failed roll never means "nothing happens". Use
    `portents_oracle { kind: "gm_move" }` if you need a consequence.
 6. **Write it down.** At the end of each scene: `portents_campaign { action: "scene", ... }`
-   and `portents_campaign { action: "journal", heading: "...", body: "..." }`. New NPCs and
-   locations go in `world.md` via `action: "world"`.
+   and `portents_campaign { action: "journal", heading: "...", body: "..." }`. Put every
+   reusable NPC, place, faction, thread or ruling in its own Markdown resource with
+   `portents_remember`; do not leave it only in the conversation.
 
 ## Who rolls
 
@@ -237,11 +241,12 @@ covers less than the full rulebook. When you are unsure of a rule:
 When the player stops, or after any long scene:
 
 1. `portents_campaign { action: "journal", ... }` — what happened, what changed, what is unresolved.
-2. `portents_sheet { action: "patch_status", ... }` — final HP, resources, conditions.
-3. `portents_campaign { action: "clock", ... }` — advance any countdown the fiction moved.
-4. One short paragraph to the player: where they stand, and two or three things they
+2. `portents_remember { ... }` — reusable facts established or changed in the scene.
+3. `portents_sheet { action: "patch_status", ... }` — final HP, resources, conditions.
+4. `portents_campaign { action: "clock", ... }` — advance any countdown the fiction moved.
+5. One short paragraph to the player: where they stand, and two or three things they
    could do next.
 
-If a compaction happens mid-game, or you are unsure what is true,
-`portents_campaign { action: "brief" }` and then re-read the sheet. Never reconstruct game
-state from memory of the conversation.
+Whenever you are unsure what is true, use `portents_campaign { action: "brief" }`,
+`portents_recall`, and the relevant sheet. Never reconstruct established facts from
+memory of the conversation.

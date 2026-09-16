@@ -85,7 +85,8 @@ The temptation is to have NPCs be helpful, because you want the story to move. R
 - **Let them be right.** An NPC who correctly refuses the party's stupid plan is more
   memorable than one who goes along with it.
 - **Name them.** `portents_table { table: "names-common" }`. A named NPC that survives becomes
-  campaign furniture; write them into `world.md` immediately or you will forget them.
+  campaign furniture; give them their own `portents_remember` resource immediately or
+  you will forget them.
 
 ## Pacing a solo session
 
@@ -106,8 +107,8 @@ This is normal and good. In order:
 
 1. `portents_oracle { kind: "yes_no" }` for whether the thing they are looking for exists.
 2. `portents_table` or `portents_deck` for what is actually there.
-3. Say the first interesting thing the results suggest, and write it into `world.md`
-   so it is canon from now on.
+3. Say the first interesting thing the results suggest, and write it with
+   `portents_remember` so it is canon from now on.
 
 Never stall the player because you have nothing prepared. That is what the content packs
 are for.

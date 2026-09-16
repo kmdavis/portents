@@ -36,6 +36,11 @@ export interface SettingImageMap {
 	readonly provenance?: Provenance;
 }
 
+export interface SettingImageMapRecord {
+	readonly packId: string;
+	readonly map: SettingImageMap;
+}
+
 const PIN_ID = /^[a-z0-9]+(?:[._-][a-z0-9]+)*$/;
 
 function extensionMatches(key: string, mimeType: SettingImageMimeType): boolean {
@@ -90,4 +95,25 @@ export function assertSettingImageMap(map: SettingImageMap): SettingImageMap {
 	const problems = settingImageMapProblems(map);
 	if (problems.length > 0) throw new ResourceContractError(`Invalid setting map ${JSON.stringify(map.id)}`, problems);
 	return map;
+}
+
+export function formatSettingImageMap(record: SettingImageMapRecord): string {
+	const map = record.map;
+	const lines = [
+		`# ${map.name}`,
+		"",
+		`- **ID:** \`${map.id}\``,
+		`- **Setting:** \`${map.settingId}\``,
+		`- **Scope:** ${map.scope}`,
+		`- **Asset:** \`${record.packId}:${map.asset.key}\` (${map.asset.mimeType}, ${map.asset.width}×${map.asset.height})`,
+		`- **Alt:** ${map.asset.alt}`,
+	];
+	if (map.pins?.length) {
+		lines.push("", "## Pins", "");
+		for (const pin of map.pins) {
+			const target = pin.resourceId ? ` → \`${pin.resourceId}\`` : "";
+			lines.push(`- **${pin.label}** (${pin.x}, ${pin.y})${target}`);
+		}
+	}
+	return `${lines.join("\n")}\n`;
 }

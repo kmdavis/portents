@@ -326,6 +326,9 @@ async function refreshCard(): Promise<void> {
 
 	const rows: Array<[string, string]> = [];
 	if (campaign) {
+		if (campaign.settingId) {
+			rows.push(["Setting", session.registry.setting(campaign.settingId)?.name ?? campaign.settingId]);
+		}
 		const scene = campaign.scene;
 		if (scene?.location) rows.push(["Location", scene.location]);
 		if (scene?.summary) rows.push(["Scene", scene.summary]);

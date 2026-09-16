@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import { createRegistry } from "@portents/core";
 import { describe, it } from "node:test";
-import { bundledSystems, commonContent, genericContent } from "./index.ts";
+import { bundledSettings, bundledSystems, commonContent, genericContent } from "./index.ts";
 
 describe("the bundle", () => {
 	it("puts generic first, so a system pack can override it", () => {
@@ -10,8 +10,8 @@ describe("the bundle", () => {
 		assert.equal(commonContent[0].id, "generic");
 	});
 
-	it("lists a system for every pack it bundles", () => {
-		assert.equal(bundledSystems.length, commonContent.length);
+	it("lists every bundled rules system and setting", () => {
+		assert.equal(bundledSystems.length + bundledSettings.length, commonContent.length);
 	});
 
 	it("builds a registry with no id collisions", () => {
@@ -20,6 +20,8 @@ describe("the bundle", () => {
 		const registry = createRegistry(commonContent);
 		assert.ok(registry.deckIds().length > 0);
 		assert.ok(registry.tableIds().length > 0);
+		assert.deepEqual(registry.settingIds(), ["portents/greywater"]);
+		assert.equal(registry.resourcesForSetting("portents/greywater").length, 7);
 	});
 
 	it("re-exports the generic pack's own entries", () => {

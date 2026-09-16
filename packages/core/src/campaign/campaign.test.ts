@@ -2,6 +2,8 @@ import assert from "node:assert/strict";
 import { beforeEach, describe, it } from "node:test";
 import { MemoryStorage } from "../adapters/memory/index.ts";
 import type { Deck } from "../decks/deck.ts";
+import { createRegistry } from "../packs/registry.ts";
+import type { ResourceDocument } from "../resources/resource.ts";
 import { parseDocument } from "../sheets/frontmatter.ts";
 import { getSection, parseSheet, statusValue } from "../sheets/sheet.ts";
 import { tickingClock } from "../ports/clock.ts";
@@ -28,6 +30,41 @@ async function fresh() {
 	const d = deps();
 	return { d, campaign: await Campaign.create(d, INPUT) };
 }
+
+const SETTING_ID = "portents/greywater";
+const SHRINE_ID = "portents/greywater/place/riverside-shrine";
+const settingRegistry = createRegistry([{
+	id: "greywater-pack",
+	settings: [{ schemaVersion: 1, id: SETTING_ID, name: "Greywater", summary: "A rain-soaked river province." }],
+	resources: [{
+		schemaVersion: 1,
+		id: SHRINE_ID,
+		settingId: SETTING_ID,
+		kind: "place",
+		name: "Old Riverside Shrine",
+		aliases: ["old shrine"],
+		tags: ["river"],
+		audience: ["gm"],
+		body: "The shrine predates the present river cult.",
+	}],
+}]);
+
+async function freshWithSetting() {
+	const d = { ...deps(), registry: settingRegistry };
+	return { d, campaign: await Campaign.create(d, { ...INPUT, settingId: SETTING_ID }) };
+}
+
+const campaignResource = (overrides: Partial<ResourceDocument> = {}): ResourceDocument => ({
+	schemaVersion: 1,
+	id: "campaign/the-bell-of-wrenfield/npc/nesta",
+	kind: "npc",
+	name: "Nesta",
+	aliases: ["shrine keeper"],
+	tags: ["river"],
+	links: [SHRINE_ID],
+	body: "Nesta keeps the shrine and distrusts forged tokens.",
+	...overrides,
+});
 
 describe("slugify", () => {
 	it("makes a directory name from a title", () => {
@@ -351,6 +388,154 @@ describe("clocks", () => {
 		await d.storage.write(keys.overview, "---\nname: X\nslug: the-bell-of-wrenfield\nsystem: generic\nclocks:\n  Tide: soon\n---\n\n# X\n");
 		const reopened = await Campaign.open(d, "the-bell-of-wrenfield");
 		assert.throws(() => reopened.clocks, /should look like "3\/6"/);
+	});
+});
+
+describe("predefined setting selection", () => {
+	it("records a setting independently from the rules system", async () => {
+		const { campaign, d } = await freshWithSetting();
+		assert.equal(campaign.settingId, SETTING_ID);
+		assert.equal(campaign.systemLine, "5e (2024)");
+		const overview = (await d.storage.read(campaign.keys.overview))!;
+		assert.match(overview, /^setting: portents\/greywater$/m);
+		assert.match(overview, /\*\*Greywater\.\*\* A rain-soaked river province\./);
+		assert.match(await campaign.brief(), /\*\*Setting\.\*\* Greywater/);
+	});
+
+	it("can change or clear the setting without touching the system", async () => {
+		const { campaign } = await freshWithSetting();
+		await campaign.setSetting(undefined);
+		assert.equal(campaign.settingId, undefined);
+		assert.equal(campaign.systemLine, "5e (2024)");
+		assert.match((await campaign.overviewSection("Setting")) ?? "", /No predefined setting/);
+		await campaign.setSetting(SETTING_ID);
+		assert.equal(campaign.settingId, SETTING_ID);
+	});
+
+	it("refuses a setting with no loaded registry or no matching manifest", async () => {
+		await assert.rejects(() => Campaign.create(deps(), { ...INPUT, settingId: SETTING_ID }), /needs a loaded content registry/);
+		await assert.rejects(
+			() => Campaign.create({ ...deps(), registry: createRegistry([]) }, { ...INPUT, settingId: SETTING_ID }),
+			/Unknown setting/,
+		);
+	});
+
+	it("reports a setting that disappeared after the campaign was written", async () => {
+		const { d, campaign } = await freshWithSetting();
+		const reopened = await Campaign.open({ ...d, registry: createRegistry([]) }, campaign.slug);
+		assert.ok((await reopened.problems()).some((problem) => problem.includes("is not loaded")));
+	});
+});
+
+describe("topic resources", () => {
+	it("writes one Markdown file under a known kind folder and reads it exactly", async () => {
+		const { campaign, d } = await freshWithSetting();
+		const written = await campaign.writeResource("npc/nesta.md", campaignResource({ metadata: { mood: "wary" } }));
+		assert.equal(written.origin, "campaign");
+		assert.equal(written.resource.metadata?.mood, "wary");
+		assert.ok(await d.storage.exists("campaigns/the-bell-of-wrenfield/world/npc/nesta.md"));
+		assert.equal((await campaign.readResource("npc/nesta.md"))?.resource.body, campaignResource().body + "\n");
+	});
+
+	it("lists by kind in stable storage order", async () => {
+		const { campaign } = await freshWithSetting();
+		await campaign.writeResource("npc/zara.md", campaignResource({ id: "campaign/the-bell-of-wrenfield/npc/zara", name: "Zara" }));
+		await campaign.writeResource("npc/alric.md", campaignResource({ id: "campaign/the-bell-of-wrenfield/npc/alric", name: "Alric" }));
+		await campaign.writeResource("place/causeway.md", campaignResource({ id: "campaign/the-bell-of-wrenfield/place/causeway", kind: "place", name: "Causeway" }));
+		const npcs = await campaign.listResources("npc");
+		assert.deepEqual(npcs.map((record) => record.path), ["npc/alric.md", "npc/zara.md"]);
+	});
+
+	it("rejects traversal, extra nesting, unsafe names, and non-Markdown paths", async () => {
+		const { campaign } = await freshWithSetting();
+		for (const path of ["../nesta.md", "npc/deep/nesta.md", "NPC/nesta.md", "npc/nesta.json", "/npc/nesta.md"]) {
+			await assert.rejects(() => campaign.writeResource(path, campaignResource()), /Resource path|Resource kind/, path);
+		}
+	});
+
+	it("requires campaign identity and a path matching the resource kind", async () => {
+		const { campaign } = await freshWithSetting();
+		await assert.rejects(() => campaign.writeResource("place/nesta.md", campaignResource()), /does not match path folder/);
+		await assert.rejects(
+			() => campaign.writeResource("npc/nesta.md", campaignResource({ id: "other/campaign/npc/nesta" })),
+			/campaign resource id must start/,
+		);
+		await assert.rejects(
+			() => campaign.writeResource("npc/nesta.md", campaignResource({ settingId: SETTING_ID, id: SHRINE_ID })),
+			/must not claim to be immutable/,
+		);
+	});
+
+	it("updates a derived path without dropping its stable id or omitted metadata", async () => {
+		const { campaign } = await freshWithSetting();
+		const first = await campaign.rememberResource({ kind: "npc", name: "Nesta", aliases: ["keeper"], body: "First." });
+		const second = await campaign.rememberResource({ kind: "npc", name: "Nesta", body: "Second." });
+		assert.equal(second.resource.id, first.resource.id);
+		assert.deepEqual(second.resource.aliases, ["keeper"]);
+		assert.equal(second.resource.body, "Second.\n");
+	});
+
+	it("queries selected setting canon and campaign developments together", async () => {
+		const { campaign } = await freshWithSetting();
+		await campaign.writeResource("npc/nesta.md", campaignResource({
+			supersedes: SHRINE_ID,
+			body: "Nesta confirms the shrine predates the present river cult.",
+		}));
+		const found = await campaign.queryResources({ text: "predates", audience: "gm" });
+		assert.deepEqual(found.map((record) => record.origin), ["campaign", "pack"]);
+		assert.deepEqual(found.map((record) => record.resource.name), ["Nesta", "Old Riverside Shrine"]);
+	});
+
+	it("reads a packaged resource by stable id without making it writable", async () => {
+		const { campaign } = await freshWithSetting();
+		const found = await campaign.resourceById(SHRINE_ID);
+		assert.equal(found?.origin, "pack");
+		assert.equal(found?.immutable, true);
+		assert.match((await campaign.recallById(SHRINE_ID)) ?? "", /Origin:\*\* pack greywater-pack/);
+	});
+
+	it("recalls selected setting map metadata and pins by id", async () => {
+		const mapRegistry = createRegistry([{
+			id: "greywater-map-pack",
+			settings: [settingRegistry.requireSetting(SETTING_ID)],
+			resources: settingRegistry.resourcesForSetting(SETTING_ID),
+			imageMaps: [{
+				schemaVersion: 1,
+				id: "portents/greywater/map/region",
+				settingId: SETTING_ID,
+				name: "Greywater Province",
+				scope: "region",
+				asset: { key: "maps/region.webp", mimeType: "image/webp", width: 1200, height: 510, alt: "A river province." },
+				pins: [{ id: "shrine", x: 0.4, y: 0.7, label: "Shrine", resourceId: SHRINE_ID }],
+			}],
+		}]);
+		const d = { ...deps(), registry: mapRegistry };
+		const campaign = await Campaign.create(d, { ...INPUT, settingId: SETTING_ID });
+		assert.equal(campaign.settingImageMaps()[0].packId, "greywater-map-pack");
+		assert.match(await campaign.brief(), /Setting maps.*portents\/greywater\/map\/region/);
+		const recalled = (await campaign.recallById("portents/greywater/map/region"))!;
+		assert.match(recalled, /maps\/region\.webp/);
+		assert.match(recalled, /Shrine.*portents\/greywater\/place\/riverside-shrine/);
+	});
+
+	it("does not include packs from a setting the campaign did not choose", async () => {
+		const d = { ...deps(), registry: settingRegistry };
+		const campaign = await Campaign.create(d, INPUT);
+		assert.deepEqual(await campaign.queryResources({ text: "shrine" }), []);
+	});
+
+	it("surfaces malformed resource files instead of silently forgetting them", async () => {
+		const { campaign, d } = await freshWithSetting();
+		await d.storage.write(campaign.keys.resource("npc/broken.md"), "not frontmatter");
+		await assert.rejects(() => campaign.listResources(), /Invalid resource/);
+	});
+
+	it("leaves legacy world.md readable beside topic resources", async () => {
+		const { campaign } = await freshWithSetting();
+		await campaign.addToWorld("NPCs", "**Legacy Nesta.** Still here.");
+		await campaign.writeResource("npc/nesta.md", campaignResource());
+		assert.match(await campaign.worldSection("NPCs"), /Legacy Nesta/);
+		assert.equal((await campaign.listResources()).length, 1);
 	});
 });
 

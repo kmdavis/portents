@@ -24,6 +24,7 @@ can be spotted.
 | `@portents/pi` | [`packages/pi/`](packages/pi) | Runs a game inside the pi coding agent. |
 | `@portents/content-dnd` | [`packages/content-dnd/`](packages/content-dnd) | Fifth edition, both printings. SRD material under CC-BY-4.0. |
 | `@portents/content-pf` | [`packages/content-pf/`](packages/content-pf) | Pathfinder-style systems, three printings. Original writing. |
+| `@portents/setting-greywater` | [`packages/setting-greywater/`](packages/setting-greywater) | Small original setting proving Markdown resources and raster maps with pins. |
 | `@portents/web` | [`packages/web/`](packages/web) | Browser/edge session facade. Storage injected. No UI. |
 | `@portents/room` | [`packages/room/`](packages/room) | Experimental in-process response coordination. Not a multiplayer server. |
 
@@ -177,6 +178,12 @@ Character sheets keep their machine-readable values in frontmatter and their
 prose generated from it, so the file serves a parser and a person without the two
 drifting apart. Generated sections are marked, and a hand-edit that puts them out
 of sync is **reported rather than silently resolved**.
+
+Setting context and campaign memory use the same human-first rule at a smaller scale:
+one Markdown file per NPC, place, faction, thread, ruling, or other topic under
+`world/<kind>/<slug>.md`. A versioned frontmatter envelope supplies stable ids, aliases,
+tags, links, and visibility. `portents_recall` loads only the relevant topics;
+`portents_remember` writes one back. The older monolithic `world.md` remains readable.
 
 ## How it stays portable
 

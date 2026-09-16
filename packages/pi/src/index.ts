@@ -41,6 +41,7 @@ import {
 	type EventKind,
 	formatCard,
 	formatDistribution,
+	formatResourceList,
 	formatRoll,
 	formatTableResult,
 	generateDungeon,
@@ -228,6 +229,8 @@ export function createPortentsExtension(options: PortentsExtensionOptions = {}):
 		"portents_oracle",
 		"portents_map",
 		"portents_sheet",
+		"portents_recall",
+		"portents_remember",
 		"portents_guidance",
 	] as const;
 
@@ -355,6 +358,10 @@ export function createPortentsExtension(options: PortentsExtensionOptions = {}):
 						'then set it with portents_campaign action "system".',
 				);
 			}
+		}
+
+		if (active.settingId) {
+			lines.push(`Setting: ${active.settingId}. Recall named setting facts before describing them.`);
 		}
 
 		const character = active.activeCharacter;
@@ -840,8 +847,8 @@ export function createPortentsExtension(options: PortentsExtensionOptions = {}):
 			`\`${portentsHome()}\`.`,
 			'Actions: "list" saved campaigns; "create" a new one; "load" one into this session; "brief" to',
 			'recover context after a compaction or a break; "journal" to append what just happened; "scene" to',
-			'record where the party is; "clock" to set a countdown; "world" to append NPCs, places or threads;',
-			'"system" to record which rules and printing are in play.',
+			'record where the party is; "clock" to set a countdown; "world" to read or append the legacy world file;',
+			'"setting" to select predefined setting content; "system" to record which rules and printing are in play.',
 			"Write to the journal at the end of every scene, not at the end of the session.",
 		].join(" "),
 		promptGuidelines: [
@@ -849,7 +856,7 @@ export function createPortentsExtension(options: PortentsExtensionOptions = {}):
 			'Use portents_campaign with action "journal" after each scene so the game survives a new session.',
 		],
 		parameters: Type.Object({
-			action: StringEnum(["list", "create", "open", "load", "brief", "journal", "scene", "clock", "world", "system"]),
+			action: StringEnum(["list", "create", "open", "load", "brief", "journal", "scene", "clock", "world", "setting", "system"]),
 			name: Type.Optional(Type.String({ description: "Campaign name (create) or slug (load)" })),
 			system: Type.Optional(
 				Type.String({ description: 'Rules and printing, freeform: "5e (2024)", "Call of Cthulhu 7e"' }),
@@ -857,6 +864,7 @@ export function createPortentsExtension(options: PortentsExtensionOptions = {}):
 			premise: Type.Optional(Type.String()),
 			tone: Type.Optional(Type.String()),
 			safety: Type.Optional(Type.String({ description: "Lines and veils agreed with the player" })),
+			setting: Type.Optional(Type.String({ description: "Predefined setting id; omit for homebrew" })),
 			heading: Type.Optional(Type.String({ description: "Journal entry heading" })),
 			body: Type.Optional(Type.String({ description: "Journal or world text to append (markdown)" })),
 			section: Type.Optional(StringEnum(WORLD_SECTIONS)),
@@ -876,6 +884,7 @@ export function createPortentsExtension(options: PortentsExtensionOptions = {}):
 					// before a campaign exists and therefore before any system guidance is
 					// loaded. Generated from the registry, so a content pack someone installs
 					// later shows up here without this file changing.
+					const settings = registry.settingIds().map((id) => registry.requireSetting(id));
 					const systems = [
 						"",
 						"Systems available in this installation:",
@@ -883,6 +892,11 @@ export function createPortentsExtension(options: PortentsExtensionOptions = {}):
 						"",
 						"Where a system has more than one printing the newer one is the default. Take it unless",
 						"the player asks for the older, state which you are using in one clause, and record it.",
+						"",
+						"Settings available in this installation:",
+						...(settings.length > 0
+							? settings.map((setting) => `- **${setting.name}** — pass \`setting: "${setting.id}"\`: ${setting.summary}`)
+							: ["- No predefined settings loaded; homebrew is available."]),
 					];
 					if (list.length === 0) {
 						return text([`No campaigns yet under \`${portentsHome()}\`.`, ...systems].join("\n"));
@@ -909,6 +923,7 @@ export function createPortentsExtension(options: PortentsExtensionOptions = {}):
 							premise: params.premise,
 							tone: params.tone,
 							safety: params.safety,
+							settingId: params.setting,
 						}),
 					);
 					pi.appendEntry("portents-active-campaign", { slug: created.slug });
@@ -967,13 +982,20 @@ export function createPortentsExtension(options: PortentsExtensionOptions = {}):
 					await active.addToWorld(params.section as WorldSection, params.body);
 					return text(`Added to **${params.section}**.`);
 				}
-				default: {
+				case "setting": {
+					const active = requireCampaign();
+					await active.setSetting(params.setting);
+					return text(params.setting ? `Setting recorded: ${params.setting}` : "Predefined setting cleared.");
+				}
+				case "system": {
 					const active = requireCampaign();
 					if (!params.system) throw new Error('Recording the system needs a value, e.g. "5e (2024)"');
 					await active.setSystem(params.system);
 					await showStatus(ctx);
 					return text(`System recorded: ${describeRules(active.system, active.edition)}`);
 				}
+				default:
+					throw new Error(`Unknown campaign action ${JSON.stringify(params.action)}`);
 			}
 		},
 	});
@@ -1078,6 +1100,66 @@ export function createPortentsExtension(options: PortentsExtensionOptions = {}):
 					return text(`Updated **${params.section}** on ${name}'s sheet.`);
 				}
 			}
+		},
+	});
+
+	pi.registerTool({
+		name: "portents_recall",
+		label: "Recall setting or campaign context",
+		description: [
+			"Search or read predefined-setting and campaign Markdown resources.",
+			"Before describing a named place, NPC, faction, thread, or recurring ruling, query it here",
+			"rather than reconstructing it from conversation memory. Pass id for an exact read.",
+		].join(" "),
+		promptGuidelines: [
+			"Use portents_recall before returning to a named NPC, place, faction, thread, or ruling from an earlier scene or a predefined setting.",
+		],
+		parameters: Type.Object({
+			id: Type.Optional(Type.String({ description: "Exact stable resource id to read" })),
+			query: Type.Optional(Type.String({ description: "Words, name, or alias to find" })),
+			kind: Type.Optional(Type.String({ description: "Optional kind such as npc, place, faction, or thread" })),
+			limit: Type.Optional(Type.Number({ description: "Maximum matches, 1 to 100" })),
+		}),
+		async execute(_id, params) {
+			const active = requireCampaign();
+			if (params.id) {
+				return text((await active.recallById(params.id)) ?? `No resource or setting map with id ${JSON.stringify(params.id)}.`);
+			}
+			const records = await active.queryResources({ text: params.query, kind: params.kind, limit: params.limit, audience: "gm" });
+			return text(formatResourceList(records));
+		},
+	});
+
+	pi.registerTool({
+		name: "portents_remember",
+		label: "Remember campaign context",
+		description: [
+			"Create or replace one campaign Markdown resource under world/<kind>/<slug>.md.",
+			"Use when a named NPC, place, faction, thread, ruling, or other reusable fact becomes canon.",
+			"Read before replacing an existing path. Packaged setting resources are immutable.",
+		].join(" "),
+		promptGuidelines: [
+			"Use portents_remember when a reusable fact about an NPC, place, faction, thread, or ruling becomes canon; do not leave it only in the conversation.",
+		],
+		parameters: Type.Object({
+			path: Type.Optional(Type.String({ description: 'Existing path or destination, e.g. "npc/nesta.md"' })),
+			id: Type.Optional(Type.String({ description: "Stable campaign resource id; generated when omitted" })),
+			kind: Type.Optional(Type.String({ description: "Lowercase kind such as npc, place, faction, thread, ruling" })),
+			name: Type.Optional(Type.String({ description: "Display name" })),
+			body: Type.Optional(Type.String({ description: "Arbitrary Markdown body" })),
+			aliases: Type.Optional(Type.Array(Type.String())),
+			tags: Type.Optional(Type.Array(Type.String())),
+			links: Type.Optional(Type.Array(Type.String())),
+			audience: Type.Optional(Type.Array(Type.String({ description: '"gm", "all", or "participant/<id>"' }))),
+			supersedes: Type.Optional(Type.String({ description: "Packaged resource id this updates" })),
+			metadata: Type.Optional(Type.Any({ description: "Additional flat frontmatter" })),
+		}),
+		async execute(_id, params) {
+			const written = await requireCampaign().rememberResource({
+				...params,
+				audience: params.audience as Array<"all" | "gm" | `participant/${string}`> | undefined,
+			});
+			return text(`Remembered **${written.resource.name}** as \`${written.resource.id}\` in \`${written.path}\`.`);
 		},
 	});
 

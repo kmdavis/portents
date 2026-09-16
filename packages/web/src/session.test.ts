@@ -123,6 +123,8 @@ describe("the session without a campaign", () => {
 		assert.ok(session.decks.length > 0);
 		assert.ok(session.tables.length > 0);
 		assert.ok(session.decks.some((deck) => deck.id === "crit-hits"));
+		assert.deepEqual(session.registry.settingIds(), ["portents/greywater"]);
+		assert.equal(session.registry.resourcesForSetting("portents/greywater").length, 7);
 	});
 });
 

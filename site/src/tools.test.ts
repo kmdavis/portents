@@ -17,8 +17,14 @@ function actionValues(toolName: "portents_campaign" | "portents_sheet"): string[
 describe("tool action parity", () => {
 	it("exposes every campaign action the shared guidance names", () => {
 		const actions = actionValues("portents_campaign");
-		for (const action of ["load", "world", "system"]) assert.ok(actions.includes(action), action);
+		for (const action of ["load", "world", "setting", "system"]) assert.ok(actions.includes(action), action);
 		assert.ok(actions.includes("open"), "the site's existing name disappeared during the alias transition");
+	});
+
+	it("registers the two resource tools", () => {
+		const tools = portentsTools(new WebSession({ storage: new MemoryStorage() }), () => {});
+		assert.ok(tools.portents_recall);
+		assert.ok(tools.portents_remember);
 	});
 
 	it("exposes both ordinary sheet section writes", () => {

@@ -224,6 +224,8 @@ describe("extension", async () => {
 				"portents_map",
 				"portents_campaign",
 				"portents_sheet",
+				"portents_recall",
+				"portents_remember",
 				"portents_verify_roll",
 			]) {
 				assert.ok(h.tools.has(name), `missing tool ${name}`);
@@ -486,6 +488,30 @@ describe("extension", async () => {
 			it("reads back a legacy world section it wrote", async () => {
 				await call("portents_campaign", { action: "world", section: "NPCs", body: "**Nesta.** Keeps the shrine." });
 				assert.match(await call("portents_campaign", { action: "world", section: "NPCs" }), /Nesta/);
+			});
+
+			it("offers and loads the bundled predefined setting", async () => {
+				assert.match(await call("portents_campaign", { action: "list" }), /Greywater.*portents\/greywater/);
+				await call("portents_campaign", {
+					action: "create",
+					name: "Greywater Harness",
+					system: "generic",
+					setting: "portents/greywater",
+				});
+				assert.match(await call("portents_recall", { query: "old shrine" }), /Old Riverside Shrine/);
+				await call("portents_campaign", { action: "load", name: "harness-test" });
+			});
+
+			it("remembers and recalls a topic resource", async () => {
+				const remembered = await call("portents_remember", {
+					kind: "npc",
+					name: "Nesta",
+					aliases: ["shrine keeper"],
+					body: "Nesta keeps the false river token.",
+				});
+				assert.match(remembered, /npc\/nesta\.md/);
+				assert.match(await call("portents_recall", { query: "river token" }), /Nesta/);
+				assert.match(await call("portents_recall", { id: "campaign/harness-test/npc/nesta" }), /false river token/);
 			});
 
 			it("accepts open as an alias for load", async () => {

@@ -134,7 +134,7 @@ export class WebSession {
 	async createCampaign(
 		name: string,
 		system: string,
-		options: { premise?: string; tone?: string; safety?: string } = {},
+		options: { premise?: string; tone?: string; safety?: string; settingId?: string } = {},
 	): Promise<Campaign> {
 		this.#campaign = await Campaign.create(this.#deps, { name, system, ...options });
 		return this.#campaign;

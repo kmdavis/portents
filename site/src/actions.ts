@@ -11,10 +11,12 @@
 
 import {
 	appendToSection,
+	formatResourceList,
 	guidanceTitle,
 	setSection,
 	stringifySheet,
 	WORLD_SECTIONS,
+	type RememberResourceInput,
 	type WorldSection,
 } from "@portents/core";
 import type { WebSession } from "@portents/web";
@@ -32,6 +34,7 @@ export interface CampaignParams {
 	premise?: string;
 	tone?: string;
 	safety?: string;
+	setting?: string;
 	heading?: string;
 	body?: string;
 	summary?: string;
@@ -62,11 +65,17 @@ export async function campaignAction(session: WebSession, params: CampaignParams
 			const lines = saved.length
 				? ["Campaigns:", ...saved.map((entry) => `- \`${entry.slug}\` — ${entry.name} (${entry.systemLine ?? entry.system})`)]
 				: ["No campaigns saved in this browser yet."];
+			const settings = session.registry.settingIds().map((id) => session.registry.requireSetting(id));
 			return [
 				...lines,
 				"",
 				"Systems available:",
 				...systems.map((line) => `- ${line}`),
+				"",
+				"Settings available:",
+				...(settings.length > 0
+					? settings.map((setting) => `- **${setting.name}** — pass \`setting: "${setting.id}"\`: ${setting.summary}`)
+					: ["- No predefined settings loaded; homebrew is available."]),
 				"",
 				"Where a system has more than one printing the newer one is the default. Use the title when",
 				"you speak to the player, not the short code.",
@@ -77,7 +86,7 @@ export async function campaignAction(session: WebSession, params: CampaignParams
 			const campaign = await session.createCampaign(
 				need(params.name, "Creating a campaign needs a name"),
 				need(params.system, 'Creating a campaign needs a system, e.g. "5e (2024)"'),
-				{ premise: params.premise, tone: params.tone, safety: params.safety },
+				{ premise: params.premise, tone: params.tone, safety: params.safety, settingId: params.setting },
 			);
 			return `Created **${campaign.name}** (\`${campaign.slug}\`), ${campaign.systemLine}. Build a character with portents_sheet before play starts.`;
 		}
@@ -122,6 +131,12 @@ export async function campaignAction(session: WebSession, params: CampaignParams
 			if (!params.section) throw new Error(`A world note needs a section: ${WORLD_SECTIONS.join(", ")}`);
 			await campaign.addToWorld(params.section as WorldSection, params.body);
 			return `Added to **${params.section}**.`;
+		}
+
+		case "setting": {
+			const campaign = requireCampaign(session);
+			await campaign.setSetting(params.setting);
+			return params.setting ? `Setting recorded: ${params.setting}` : "Predefined setting cleared.";
 		}
 
 		case "system": {
@@ -223,6 +238,34 @@ export async function sheetAction(session: WebSession, params: SheetParams): Pro
 		default:
 			return `Unknown sheet action ${JSON.stringify(params.action)}.`;
 	}
+}
+
+export interface RecallParams {
+	readonly id?: string;
+	readonly query?: string;
+	readonly kind?: string;
+	readonly limit?: number;
+}
+
+export async function recallAction(session: WebSession, params: RecallParams): Promise<string> {
+	const campaign = requireCampaign(session);
+	if (params.id) {
+		return (await campaign.recallById(params.id)) ?? `No resource or setting map with id ${JSON.stringify(params.id)}.`;
+	}
+	const records = await campaign.queryResources({
+		text: params.query,
+		kind: params.kind,
+		limit: params.limit,
+		audience: "gm",
+	});
+	return formatResourceList(records);
+}
+
+export type RememberParams = RememberResourceInput;
+
+export async function rememberAction(session: WebSession, params: RememberParams): Promise<string> {
+	const written = await requireCampaign(session).rememberResource(params);
+	return `Remembered **${written.resource.name}** as \`${written.resource.id}\` in \`${written.path}\`.`;
 }
 
 function requireCampaign(session: WebSession) {

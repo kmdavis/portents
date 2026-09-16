@@ -9,7 +9,7 @@
   "scripts": {
     "test": "pnpm -r test",
     "typecheck": "pnpm -r typecheck",
-    "check:browser": "pnpm --filter @portents/core check:browser",
+    "check:browser": "pnpm --filter @portents/core check:browser && node scripts/check-browser-packages.mjs",
     "check": "pnpm typecheck && pnpm test && pnpm check:browser",
     "manual": "node manual/build.mjs",
     "build:guidance": "node scripts/build-guidance.mjs"

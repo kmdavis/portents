@@ -51,6 +51,9 @@ importers:
       '@portents/content-pf':
         specifier: workspace:*
         version: link:../content-pf
+      '@portents/setting-greywater':
+        specifier: workspace:*
+        version: link:../setting-greywater
     devDependencies:
       '@portents/core':
         specifier: workspace:*
@@ -117,6 +120,12 @@ importers:
         version: 1.3.18
 
   packages/room:
+    devDependencies:
+      '@portents/core':
+        specifier: workspace:*
+        version: link:../core
+
+  packages/setting-greywater:
     devDependencies:
       '@portents/core':
         specifier: workspace:*

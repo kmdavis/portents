@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import { describe, it } from "node:test";
 
-import { assertSettingImageMap, settingImageMapProblems, type SettingImageMap } from "./image-map.ts";
+import { assertSettingImageMap, formatSettingImageMap, settingImageMapProblems, type SettingImageMap } from "./image-map.ts";
 
 const map = (overrides: Partial<SettingImageMap> = {}): SettingImageMap => ({
 	schemaVersion: 1,
@@ -94,6 +94,13 @@ describe("raster setting maps", () => {
 		);
 		assert.ok(problems.some((problem) => problem.includes("duplicate pin")));
 		assert.ok(problems.some((problem) => problem.includes("resourceId")));
+	});
+
+	it("formats the host-resolved asset and linked pins for recall", () => {
+		const text = formatSettingImageMap({ packId: "greywater-pack", map: map() });
+		assert.match(text, /greywater-pack:maps\/river-province\.webp/);
+		assert.match(text, /1600×900/);
+		assert.match(text, /Old Riverside Shrine.*portents\/greywater\/place\/riverside-shrine/);
 	});
 
 	it("throws every problem together", () => {
