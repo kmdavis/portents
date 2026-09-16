@@ -177,6 +177,7 @@ export {
 	type ContentPack,
 	type ContentRegistry,
 	createRegistry,
+	DanglingContentReferenceError,
 	DuplicateContentError,
 	emptyRegistry,
 	type Provenance,
@@ -202,6 +203,32 @@ export {
 	UnknownContentError,
 	UnusedOverrideError,
 } from "./packs/index.ts";
+
+// Arbitrary Markdown setting and campaign resources, plus raster setting maps.
+export {
+	assertResource,
+	assertSetting,
+	assertSettingImageMap,
+	COMMON_RESOURCE_KINDS,
+	isNamespacedId,
+	isResourceSegment,
+	MAX_RESOURCE_CHARACTERS,
+	RESOURCE_SCHEMA_VERSION,
+	resourceAudience,
+	type ResourceAudience,
+	ResourceContractError,
+	type ResourceDocument,
+	type ResourceRecord,
+	resourceProblems,
+	SETTING_IMAGE_MIME_TYPES,
+	type SettingImageMap,
+	type SettingImageMimeType,
+	type SettingManifest,
+	type SettingMapAsset,
+	type SettingMapPin,
+	settingImageMapProblems,
+	settingProblems,
+} from "./resources/index.ts";
 
 // Decks, with piles the caller owns and persists.
 export {

@@ -3,6 +3,7 @@ import { describe, it } from "node:test";
 import {
 	type ContentPack,
 	createRegistry,
+	DanglingContentReferenceError,
 	DuplicateContentError,
 	UnknownContentError,
 	UnusedOverrideError,
@@ -119,6 +120,83 @@ describe("sheet templates in the registry", () => {
 			sheets: [{ id: "dnd-5e", name: "Mine", aliases: ["x"], sections: ["A"] }],
 		};
 		assert.throws(() => createRegistry([system, clash]), DuplicateContentError);
+	});
+});
+
+describe("settings and resources in the registry", () => {
+	const setting = { schemaVersion: 1 as const, id: "portents/greywater", name: "Greywater", summary: "A river province." };
+	const shrine = {
+		schemaVersion: 1 as const,
+		id: "portents/greywater/place/shrine",
+		settingId: setting.id,
+		kind: "place",
+		name: "The Shrine",
+		body: "Old stones beside the river.",
+	};
+	const pack: ContentPack = {
+		id: "greywater-pack",
+		settings: [setting],
+		resources: [shrine],
+		imageMaps: [{
+			schemaVersion: 1,
+			id: "portents/greywater/map/region",
+			settingId: setting.id,
+			name: "Greywater",
+			scope: "region",
+			asset: { key: "maps/region.webp", mimeType: "image/webp", width: 800, height: 500, alt: "Greywater region" },
+			pins: [{ id: "shrine", x: 0.2, y: 0.8, label: "Shrine", resourceId: shrine.id }],
+		}],
+	};
+
+	it("looks up each setting content kind and its owner", () => {
+		const registry = createRegistry([pack]);
+		assert.equal(registry.requireSetting(setting.id).name, "Greywater");
+		assert.equal(registry.requireResource(shrine.id).body, "Old stones beside the river.");
+		assert.equal(registry.requireImageMap("portents/greywater/map/region").pins?.[0].label, "Shrine");
+		assert.equal(registry.ownerOf("image-map", "portents/greywater/map/region"), "greywater-pack");
+	});
+
+	it("groups resources and maps by setting in stable id order", () => {
+		const another = { ...shrine, id: "portents/greywater/npc/nesta", kind: "npc", name: "Nesta", links: [shrine.id] };
+		const registry = createRegistry([{ ...pack, resources: [shrine, another] }]);
+		assert.deepEqual(registry.resourcesForSetting(setting.id).map((resource) => resource.id), [another.id, shrine.id]);
+		assert.deepEqual(registry.imageMapsForSetting(setting.id).map((map) => map.id), ["portents/greywater/map/region"]);
+	});
+
+	it("rejects a resource whose setting is not loaded", () => {
+		assert.throws(
+			() => createRegistry([{ id: "fragment", resources: [{ ...shrine, settingId: "missing/setting", id: "missing/setting/place/shrine" }] }]),
+			DanglingContentReferenceError,
+		);
+	});
+
+	it("rejects dangling resource links and map pins", () => {
+		assert.throws(
+			() => createRegistry([{ ...pack, resources: [{ ...shrine, links: ["portents/greywater/npc/ghost"] }] }]),
+			/refers to resource.*ghost/,
+		);
+		assert.throws(
+			() => createRegistry([{ ...pack, imageMaps: [{ ...pack.imageMaps![0], pins: [{ id: "ghost", x: 0.5, y: 0.5, label: "Ghost", resourceId: "portents/greywater/npc/ghost" }] }] }]),
+			/refers to resource.*ghost/,
+		);
+	});
+
+	it("requires packaged resources to name a setting", () => {
+		assert.throws(
+			() => createRegistry([{ id: "loose", resources: [{ ...shrine, settingId: undefined }] }]),
+			/settingId is required/,
+		);
+	});
+
+	it("uses the existing declared override rules for resources", () => {
+		const replacement: ContentPack = {
+			id: "greywater-homebrew",
+			resources: [{ ...shrine, body: "The shrine has fallen." }],
+			overrides: [{ kind: "resource", id: shrine.id, reason: "campaign variant" }],
+		};
+		const registry = createRegistry([pack, replacement]);
+		assert.equal(registry.requireResource(shrine.id).body, "The shrine has fallen.");
+		assert.equal(registry.ownerOf("resource", shrine.id), "greywater-homebrew");
 	});
 });
 

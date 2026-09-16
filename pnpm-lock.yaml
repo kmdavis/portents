@@ -116,6 +116,12 @@ importers:
         specifier: ^1.3.7
         version: 1.3.18
 
+  packages/room:
+    devDependencies:
+      '@portents/core':
+        specifier: workspace:*
+        version: link:../core
+
   packages/web:
     devDependencies:
       '@portents/content':

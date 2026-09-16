@@ -25,6 +25,7 @@ can be spotted.
 | `@portents/content-dnd` | [`packages/content-dnd/`](packages/content-dnd) | Fifth edition, both printings. SRD material under CC-BY-4.0. |
 | `@portents/content-pf` | [`packages/content-pf/`](packages/content-pf) | Pathfinder-style systems, three printings. Original writing. |
 | `@portents/web` | [`packages/web/`](packages/web) | Browser/edge session facade. Storage injected. No UI. |
+| `@portents/room` | [`packages/room/`](packages/room) | Experimental in-process response coordination. Not a multiplayer server. |
 
 Content is a separate package from the engine because content is the part people
 will want to fork, extend and version independently. The engine knows how to

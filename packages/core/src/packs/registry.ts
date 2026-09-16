@@ -15,6 +15,15 @@ import type { Deck } from "../decks/deck.ts";
 export type { Provenance } from "./attribution.ts";
 import type { Provenance } from "./attribution.ts";
 import { matchBySystemAlias, matchSheet, type SheetTemplate } from "../sheets/template.ts";
+import {
+	assertResource,
+	assertSetting,
+	assertSettingImageMap,
+	ResourceContractError,
+	type ResourceDocument,
+	type SettingImageMap,
+	type SettingManifest,
+} from "../resources/index.ts";
 import type { Table } from "../tables/table.ts";
 
 /** Anything a pack can contribute. */
@@ -27,6 +36,12 @@ export interface ContentPack {
 	readonly sheets?: readonly SheetTemplate[];
 	/** GM guidance for the systems this pack covers. See {@link SystemGuidance}. */
 	readonly guidance?: readonly SystemGuidance[];
+	/** Predefined worlds this pack introduces. */
+	readonly settings?: readonly SettingManifest[];
+	/** Immutable Markdown context belonging to those settings. */
+	readonly resources?: readonly ResourceDocument[];
+	/** Raster maps whose opaque asset keys the host resolves for display. */
+	readonly imageMaps?: readonly SettingImageMap[];
 	readonly provenance?: Provenance;
 	/**
 	 * Content ids this pack deliberately replaces.
@@ -85,18 +100,24 @@ export function guidanceTitle(entry: SystemGuidance): string {
 	return entry.body.match(/^#\s+(.+)$/m)?.[1]?.trim() ?? entry.id;
 }
 
+function compareId(a: { id: string }, b: { id: string }): number {
+	if (a.id < b.id) return -1;
+	if (a.id > b.id) return 1;
+	return 0;
+}
+
 /** One deliberate replacement of another pack's entry. */
 export interface ContentOverride {
-	readonly kind: "deck" | "table" | "sheet" | "guidance";
+	readonly kind: ContentKind;
 	readonly id: string;
 	/** Why, in a few words. Shows up in the registry report a user can print. */
 	readonly reason?: string;
 }
 
 export class UnknownContentError extends Error {
-	readonly kind: "deck" | "table";
+	readonly kind: ContentKind;
 	readonly requested: string;
-	constructor(kind: "deck" | "table", requested: string, available: readonly string[]) {
+	constructor(kind: ContentKind, requested: string, available: readonly string[]) {
 		const list = available.length > 0 ? [...available].sort().join(", ") : "none loaded";
 		super(`Unknown ${kind} ${JSON.stringify(requested)}. Available: ${list}`);
 		this.name = "UnknownContentError";
@@ -136,7 +157,7 @@ export class UnusedOverrideError extends Error {
 	}
 }
 
-export type ContentKind = "deck" | "table" | "sheet" | "guidance";
+export type ContentKind = "deck" | "table" | "sheet" | "guidance" | "setting" | "resource" | "image-map";
 
 /** What replaced what, so a user can print the answer to "why am I getting this?". */
 export interface AppliedOverride extends ContentOverride {
@@ -174,8 +195,28 @@ export interface ContentRegistry {
 	 * system's rules.
 	 */
 	guidanceFor(system: string): SystemGuidance | undefined;
+	setting(id: string): SettingManifest | undefined;
+	requireSetting(id: string): SettingManifest;
+	settingIds(): string[];
+	resource(id: string): ResourceDocument | undefined;
+	requireResource(id: string): ResourceDocument;
+	resourceIds(): string[];
+	resourcesForSetting(settingId: string): ResourceDocument[];
+	imageMap(id: string): SettingImageMap | undefined;
+	requireImageMap(id: string): SettingImageMap;
+	imageMapIds(): string[];
+	imageMapsForSetting(settingId: string): SettingImageMap[];
+	/** Pack that supplied the winning item, used to resolve opaque map asset keys. */
+	ownerOf(kind: ContentKind, id: string): string | undefined;
 	/** Every override that actually fired, in application order. */
 	appliedOverrides(): readonly AppliedOverride[];
+}
+
+export class DanglingContentReferenceError extends Error {
+	constructor(from: string, to: string, kind: "setting" | "resource") {
+		super(`${from} refers to ${kind} ${JSON.stringify(to)}, but no loaded pack defines it`);
+		this.name = "DanglingContentReferenceError";
+	}
 }
 
 export interface RegistryOptions {
@@ -212,6 +253,9 @@ export function createRegistry(
 	const tables = new Map<string, Table>();
 	const sheets = new Map<string, SheetTemplate>();
 	const guidance = new Map<string, SystemGuidance>();
+	const settings = new Map<string, SettingManifest>();
+	const resources = new Map<string, ResourceDocument>();
+	const imageMaps = new Map<string, SettingImageMap>();
 	const owners = new Map<string, string>();
 	const applied: AppliedOverride[] = [];
 
@@ -248,6 +292,36 @@ export function createRegistry(
 		for (const table of pack.tables ?? []) store("table", tables, pack, table);
 		for (const sheet of pack.sheets ?? []) store("sheet", sheets, pack, sheet);
 		for (const entry of pack.guidance ?? []) store("guidance", guidance, pack, entry);
+		for (const setting of pack.settings ?? []) store("setting", settings, pack, assertSetting(setting));
+		for (const resource of pack.resources ?? []) {
+			assertResource(resource);
+			if (!resource.settingId) {
+				throw new ResourceContractError(`Invalid packaged resource ${JSON.stringify(resource.id)}`, ["settingId is required"]);
+			}
+			store("resource", resources, pack, resource);
+		}
+		for (const map of pack.imageMaps ?? []) store("image-map", imageMaps, pack, assertSettingImageMap(map));
+	}
+
+	// Resolve after every pack is loaded, so an extension pack may refer to a base
+	// setting loaded later without making pack order a second dependency language.
+	for (const resource of resources.values()) {
+		if (!settings.has(resource.settingId!)) {
+			throw new DanglingContentReferenceError(`Resource ${JSON.stringify(resource.id)}`, resource.settingId!, "setting");
+		}
+		for (const link of resource.links ?? []) {
+			if (!resources.has(link)) throw new DanglingContentReferenceError(`Resource ${JSON.stringify(resource.id)}`, link, "resource");
+		}
+	}
+	for (const map of imageMaps.values()) {
+		if (!settings.has(map.settingId)) {
+			throw new DanglingContentReferenceError(`Setting map ${JSON.stringify(map.id)}`, map.settingId, "setting");
+		}
+		for (const pin of map.pins ?? []) {
+			if (pin.resourceId && !resources.has(pin.resourceId)) {
+				throw new DanglingContentReferenceError(`Pin ${JSON.stringify(map.id + "/" + pin.id)}`, pin.resourceId, "resource");
+			}
+		}
 	}
 
 	return {
@@ -269,6 +343,34 @@ export function createRegistry(
 		guidanceIds: () => [...guidance.keys()].sort(),
 		// Later packs first, so a system pack's guidance beats a generic fallback.
 		guidanceFor: (system) => matchBySystemAlias([...guidance.values()].reverse(), system),
+		setting: (id) => settings.get(id),
+		requireSetting(id) {
+			const found = settings.get(id);
+			if (!found) throw new UnknownContentError("setting", id, [...settings.keys()]);
+			return found;
+		},
+		settingIds: () => [...settings.keys()].sort(),
+		resource: (id) => resources.get(id),
+		requireResource(id) {
+			const found = resources.get(id);
+			if (!found) throw new UnknownContentError("resource", id, [...resources.keys()]);
+			return found;
+		},
+		resourceIds: () => [...resources.keys()].sort(),
+		resourcesForSetting: (settingId) => [...resources.values()]
+			.filter((resource) => resource.settingId === settingId)
+			.sort(compareId),
+		imageMap: (id) => imageMaps.get(id),
+		requireImageMap(id) {
+			const found = imageMaps.get(id);
+			if (!found) throw new UnknownContentError("image-map", id, [...imageMaps.keys()]);
+			return found;
+		},
+		imageMapIds: () => [...imageMaps.keys()].sort(),
+		imageMapsForSetting: (settingId) => [...imageMaps.values()]
+			.filter((map) => map.settingId === settingId)
+			.sort(compareId),
+		ownerOf: (kind, id) => owners.get(`${kind}:${id}`),
 		sheetIds: () => [...sheets.keys()].sort(),
 		// Later packs are checked first, so a system template beats the generic one.
 		sheetFor: (system) => matchSheet([...sheets.values()].reverse(), system),

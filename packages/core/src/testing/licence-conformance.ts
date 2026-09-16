@@ -80,6 +80,15 @@ function itemsOf(packs: readonly ContentPack[]): AttributedItem[] {
 	for (const pack of packs) {
 		for (const deck of pack.decks ?? []) items.push({ id: `deck:${deck.id}`, provenance: deck.provenance });
 		for (const table of pack.tables ?? []) items.push({ id: `table:${table.id}`, provenance: table.provenance });
+		for (const setting of pack.settings ?? []) {
+			items.push({ id: `setting:${setting.id}`, provenance: setting.provenance ?? pack.provenance });
+		}
+		for (const resource of pack.resources ?? []) {
+			items.push({ id: `resource:${resource.id}`, provenance: resource.provenance ?? pack.provenance });
+		}
+		for (const map of pack.imageMaps ?? []) {
+			items.push({ id: `image-map:${map.id}`, provenance: map.provenance ?? pack.provenance });
+		}
 		// A pack-level provenance covers anything that declares none of its own.
 		if (pack.provenance) items.push({ id: `pack:${pack.id}`, provenance: pack.provenance });
 	}

@@ -8,6 +8,7 @@ export {
 	type ContentPack,
 	type ContentRegistry,
 	createRegistry,
+	DanglingContentReferenceError,
 	DuplicateContentError,
 	emptyRegistry,
 	type Provenance,

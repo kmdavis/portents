@@ -54,6 +54,47 @@ describe("the publication guard", () => {
 	});
 });
 
+describe("setting content", () => {
+	it("applies the publication guard to Markdown resources", () => {
+		const pack: ContentPack[] = [{
+			id: "private-setting",
+			resources: [{
+				schemaVersion: 1,
+				id: "private/setting/npc/nesta",
+				settingId: "private/setting",
+				kind: "npc",
+				name: "Nesta",
+				body: "Private notes.",
+				provenance: { source: "a setting book I own", license: "UNLICENSED" },
+			}],
+		}];
+		assert.throws(
+			check(pack, "is private", { publishable: true }).run,
+			/holds content nobody may redistribute/,
+		);
+	});
+
+	it("lets pack provenance cover original settings, resources, and maps", () => {
+		const provenance = { source: "original writing for the test setting", license: "CC0-1.0" as const };
+		const pack: ContentPack[] = [{
+			id: "original-setting",
+			provenance,
+			settings: [{ schemaVersion: 1, id: "portents/test", name: "Test", summary: "A test setting." }],
+			resources: [{ schemaVersion: 1, id: "portents/test/place/one", settingId: "portents/test", kind: "place", name: "One", body: "A place." }],
+			imageMaps: [{
+				schemaVersion: 1,
+				id: "portents/test/map/one",
+				settingId: "portents/test",
+				name: "Map",
+				scope: "region",
+				asset: { key: "maps/one.png", mimeType: "image/png", width: 10, height: 10, alt: "Test map" },
+			}],
+		}];
+		assert.doesNotThrow(check(pack, "declares a licence").run);
+		assert.doesNotThrow(check(pack, "satisfies").run);
+	});
+});
+
 describe("the licence policy guard", () => {
 	it("fails a licence outside the package's own policy", () => {
 		const pack: ContentPack[] = [{ id: "p", tables: [table("t", "CC-BY-4.0")] }];
