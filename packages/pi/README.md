@@ -29,6 +29,11 @@ Pass `registry` instead when the wrapper wants to supply the exact registry. The
 options are mutually exclusive. This is configuration, not a plugin loader: content
 packs contain data and cannot execute hooks.
 
+## OMP and Tern
+
+See [OMP-TERN.md](OMP-TERN.md) for the version-specific capability spike,
+reproduction steps, and unverified integration boundaries.
+
 ## Parity
 
 This replaces a working extension with a live campaign in it, so agreement with
