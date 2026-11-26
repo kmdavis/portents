@@ -1,0 +1,94 @@
+import assert from "node:assert/strict";
+import { describe, it } from "node:test";
+
+import { createCommandClient, parseCommandResponse, ProtocolCommandError } from "./client.ts";
+import {
+	parseCommandRequest,
+	ProtocolValidationError,
+	PROTOCOL_VERSION,
+	serializeCommandRequest,
+} from "./protocol.ts";
+
+describe("typed gameplay protocol", () => {
+	it("accepts and serializes a supported standalone command", () => {
+		const request = { version: PROTOCOL_VERSION, command: { type: "dice.roll", expression: "2d20kh1+5" } };
+		assert.deepEqual(parseCommandRequest(request), request);
+		assert.equal(serializeCommandRequest(request), JSON.stringify(request));
+	});
+
+	it("rejects unsupported versions with a stable error code", () => {
+		assert.throws(
+			() => parseCommandRequest({ version: PROTOCOL_VERSION + 1, command: { type: "campaign.list" } }),
+			(error: unknown) => error instanceof ProtocolValidationError && error.code === "UNSUPPORTED_VERSION",
+		);
+	});
+
+	it("requires campaign identity and rejects unknown operation fields", () => {
+		assert.throws(
+			() => parseCommandRequest({ version: PROTOCOL_VERSION, command: { type: "campaign.brief" } }),
+			ProtocolValidationError,
+		);
+		assert.throws(
+			() => parseCommandRequest({ version: PROTOCOL_VERSION, command: { type: "dice.roll", expression: "1d20", hidden: true } }),
+			ProtocolValidationError,
+		);
+	});
+
+	it("rejects non-JSON values and non-finite numeric arguments", () => {
+		const cycle: { version: number; command: Record<string, unknown> } = {
+			version: PROTOCOL_VERSION,
+			command: { type: "campaign.create", name: "test", system: "generic" },
+		};
+		cycle.command.cycle = cycle;
+		assert.throws(() => parseCommandRequest(cycle), ProtocolValidationError);
+		assert.throws(
+			() => parseCommandRequest({ version: PROTOCOL_VERSION, command: { type: "dice.odds", expression: "1d20", dc: Number.NaN } }),
+			ProtocolValidationError,
+		);
+	});
+	it("validates typed client responses and preserves stable remote error codes", async () => {
+		const request = { type: "dice.roll" as const, expression: "1d20" };
+		const client = createCommandClient(async (body) => {
+			assert.deepEqual(JSON.parse(body), { version: PROTOCOL_VERSION, command: request });
+			return { version: PROTOCOL_VERSION, result: { type: "roll", lines: ["1d20: [12] = **12**"], totals: [12], ledger: [] } };
+		});
+		assert.deepEqual(await client.execute(request), {
+			type: "roll",
+			lines: ["1d20: [12] = **12**"],
+			totals: [12],
+			ledger: [],
+		});
+
+		const failingClient = createCommandClient(async () => ({
+			version: PROTOCOL_VERSION,
+			error: { code: "STALE_REVISION", message: "stale" },
+		}));
+		await assert.rejects(
+			() => failingClient.execute(request),
+			(error: unknown) => error instanceof ProtocolCommandError && error.code === "STALE_REVISION",
+		);
+		assert.throws(
+			() => parseCommandResponse({ version: PROTOCOL_VERSION, result: { type: "roll", lines: [], totals: [], ledger: [], fabricated: true } }),
+			ProtocolValidationError,
+		);
+	});
+	it("validates the serializable map-view movement command shape", () => {
+		const command = {
+			type: "map.moveActor",
+			tile: { id: "small-room", name: "Small room", art: ["#####", "#...#", "#...#", "#...#", "#####"] },
+			actors: [{ id: "hero", name: "Hero", kind: "pc", x: 1, y: 1 }],
+			explored: [0],
+			sightRadius: 2,
+			actorId: "hero",
+			x: 2,
+			y: 1,
+		};
+		assert.deepEqual(parseCommandRequest({ version: PROTOCOL_VERSION, command }).command, command);
+		const result = { type: "map-view", tile: command.tile, actors: command.actors, explored: [0], visible: [7], sightRadius: 2 };
+		assert.deepEqual(parseCommandResponse({ version: PROTOCOL_VERSION, result }), { version: PROTOCOL_VERSION, result });
+		assert.throws(() => parseCommandRequest({
+			version: PROTOCOL_VERSION,
+			command: { ...command, actors: [{ ...command.actors[0], kind: "unknown" }] },
+		}), ProtocolValidationError);
+	});
+	});

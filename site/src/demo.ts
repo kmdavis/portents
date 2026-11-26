@@ -9,7 +9,7 @@
 
 import { BrowserStorage } from "@portents/core/browser";
 import { guidanceTitle } from "@portents/core";
-import { WebSession } from "@portents/web";
+import { executeCommand, PROTOCOL_VERSION, WebSession } from "@portents/web";
 import DOMPurify from "dompurify";
 import { marked } from "marked";
 
@@ -63,6 +63,20 @@ const toggleGmButton = $<HTMLButtonElement>("toggle-gm");
 const GM_PANE_KEY = "portents.demo.gmPane";
 
 const session = new WebSession({ storage: new BrowserStorage({ database: "portents-demo" }) });
+async function rollCommand(expression: string, options: { reason?: string; dc?: number } = {}) {
+	const result = await executeCommand(session, {
+		version: PROTOCOL_VERSION,
+		command: {
+			type: "dice.roll",
+			expression,
+			...(options.reason === undefined ? {} : { reason: options.reason }),
+			...(options.dc === undefined ? {} : { dc: options.dc }),
+			...(session.campaign ? { campaignId: session.campaign.slug } : {}),
+		},
+	});
+	if (result.type !== "roll") throw new Error("Roll command returned an unexpected result");
+	return result;
+}
 let history: ModelMessage[] = [];
 let settings: Settings | undefined;
 let busy = false;
@@ -278,7 +292,7 @@ async function askRoll(expression: string, reason: string, dc?: number): Promise
 		return "The player declined this roll — they are doing something else instead. Ask them what, and do not narrate the original action as attempted.";
 	}
 
-	const outcome = await session.roll(expression, { reason, ...(dc === undefined ? {} : { dc }) });
+	const outcome = await rollCommand(expression, { reason, ...(dc === undefined ? {} : { dc }) });
 	view.add(
 		"turn roll",
 		`**Rolled ${expression}** — ${reason}\n\n${outcome.lines.map((line) => `- ${line}`).join("\n")}`,
@@ -581,7 +595,12 @@ async function send(text: string, options: { show?: boolean } = {}): Promise<voi
 	tools.portents_map = {
 		...tools.portents_map,
 		execute: async (args: { rooms?: number; seed?: string }, opts: unknown) => {
-			const result = session.map({ rooms: args.rooms ?? 9, ...(args.seed ? { seed: args.seed } : {}) });
+			const mapResult = await executeCommand(session, {
+				version: PROTOCOL_VERSION,
+				command: { type: "map.generate", rooms: args.rooms ?? 9, ...(args.seed ? { seed: args.seed } : {}) },
+			});
+			if (mapResult.type !== "map") throw new Error("Map command returned an unexpected result");
+			const result = mapResult;
 			// DOMParser rather than innerHTML: the SVG comes from our own renderer, but
 			// parsing it as a document keeps it out of the HTML injection path entirely.
 			const parsed = new DOMParser().parseFromString(result.svg, "image/svg+xml");
@@ -664,7 +683,7 @@ async function runCommand(text: string): Promise<boolean> {
 	switch (command.kind) {
 		case "roll": {
 			try {
-				const outcome = await session.roll(command.expression);
+				const outcome = await rollCommand(command.expression);
 				view.add(
 					"turn roll",
 					`**Rolled ${command.expression}**\n\n${outcome.lines.map((line) => `- ${line}`).join("\n")}`,

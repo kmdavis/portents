@@ -10,7 +10,8 @@
  * pulling a validation library into a bundle that ships to a browser.
  */
 
-import type { WebSession } from "@portents/web";
+import { executeCommand, PROTOCOL_VERSION } from "@portents/web";
+import type { Command, CommandResult, WebSession } from "@portents/web";
 import { jsonSchema, type Tool, tool } from "ai";
 
 import {
@@ -23,6 +24,15 @@ import {
 	sheetAction,
 	type SheetParams,
 } from "./actions.ts";
+
+async function dispatch(session: WebSession, command: Command): Promise<CommandResult> {
+	return executeCommand(session, { version: PROTOCOL_VERSION, command });
+}
+
+function commandText(result: CommandResult): string {
+	if (result.type !== "text") throw new Error(`Expected text command result, received ${result.type}`);
+	return result.text;
+}
 
 /** What a tool call did, for the transcript and the GM pane. */
 export interface ToolTrace {
@@ -95,7 +105,14 @@ export function portentsTools(session: WebSession, onTrace: (trace: ToolTrace) =
 				required: ["expression"],
 			}),
 			execute: async ({ expression, reason, dc }) => {
-				const result = await session.roll(expression, { ...(reason ? { reason } : {}), ...(dc === undefined ? {} : { dc }) });
+				const result = await dispatch(session, {
+					type: "dice.roll",
+					expression,
+					...(reason === undefined ? {} : { reason }),
+					...(dc === undefined ? {} : { dc }),
+					...(session.campaign ? { campaignId: session.campaign.slug } : {}),
+				});
+				if (result.type !== "roll") throw new Error("Roll command returned an unexpected result");
 				trace("roll", `${expression} → ${result.totals.join(", ")}`, false, result.lines.join("\n"));
 				return result.lines.join("\n");
 			},
@@ -125,7 +142,11 @@ export function portentsTools(session: WebSession, onTrace: (trace: ToolTrace) =
 				properties: { expression: str("Dice expression"), dc: num("Report the chance of at least this") },
 				required: ["expression"],
 			}),
-			execute: async ({ expression, dc }) => session.odds(expression, dc),
+			execute: async ({ expression, dc }) => commandText(await dispatch(session, {
+				type: "dice.odds",
+				expression,
+				...(dc === undefined ? {} : { dc }),
+			})),
 		}),
 
 		portents_oracle: tool({
@@ -151,7 +172,13 @@ export function portentsTools(session: WebSession, onTrace: (trace: ToolTrace) =
 				required: ["kind"],
 			}),
 			execute: async ({ kind, question, likelihood }) => {
-				const answer = await session.oracle(kind as never, question, likelihood as never);
+				const answer = commandText(await dispatch(session, {
+					type: "oracle.answer",
+					kind,
+					...(question === undefined ? {} : { question }),
+					...(likelihood === undefined ? {} : { likelihood }),
+					...(session.campaign ? { campaignId: session.campaign.slug } : {}),
+				}));
 				trace("oracle", `${kind}${question ? `: ${question}` : ""}`, true, answer);
 				return gmOnly(answer);
 			},
@@ -167,8 +194,16 @@ export function portentsTools(session: WebSession, onTrace: (trace: ToolTrace) =
 				required: [],
 			}),
 			execute: async ({ table }) => {
-				if (!table) return `Tables: ${session.tableIds().join(", ")}`;
-				const result = await session.rollTable(table);
+				if (!table) {
+					const listed = await dispatch(session, { type: "table.list" });
+					if (listed.type !== "catalog") throw new Error("Table list returned an unexpected result");
+					return `Tables: ${listed.ids.join(", ")}`;
+				}
+				const result = commandText(await dispatch(session, {
+					type: "table.roll",
+					tableId: table,
+					...(session.campaign ? { campaignId: session.campaign.slug } : {}),
+				}));
 				trace("table", table, true, result);
 				return gmOnly(result);
 			},
@@ -184,12 +219,18 @@ export function portentsTools(session: WebSession, onTrace: (trace: ToolTrace) =
 				required: [],
 			}),
 			execute: async ({ deck, count }) => {
-				if (!deck) return `Decks: ${session.deckIds().join(", ")}`;
-				const result = (await session.draw(deck, count ?? 1)).join("\n");
+				if (!deck) {
+					const listed = await dispatch(session, { type: "deck.list" });
+					if (listed.type !== "catalog") throw new Error("Deck list returned an unexpected result");
+					return `Decks: ${listed.ids.join(", ")}`;
+				}
+				const result = commandText(await dispatch(session, {
+					type: "deck.draw",
+					deckId: deck,
+					count: count ?? 1,
+					...(session.campaign ? { campaignId: session.campaign.slug } : {}),
+				}));
 				trace("deck", `${deck} ×${count ?? 1}`, deck.startsWith("crit-") ? false : true, result);
-				// Crit and fumble cards resolving the player's own attack are the exception:
-				// they watched that land, so naming the card is fair. The GM decides, and the
-				// standing guidance tells it how.
 				return deck.startsWith("crit-") ? result : gmOnly(result);
 			},
 		}),
@@ -204,9 +245,10 @@ export function portentsTools(session: WebSession, onTrace: (trace: ToolTrace) =
 				required: [],
 			}),
 			execute: async ({ rooms, seed }) => {
-				const map = session.map({ rooms: rooms ?? 9, seed });
-				trace("map", `${rooms ?? 9} rooms, seed ${map.seed}`, false, map.ascii);
-				return map.ascii;
+				const result = await dispatch(session, { type: "map.generate", rooms: rooms ?? 9, ...(seed === undefined ? {} : { seed }) });
+				if (result.type !== "map") throw new Error("Map command returned an unexpected result");
+				trace("map", `${rooms ?? 9} rooms, seed ${result.seed}`, false, result.ascii);
+				return result.ascii;
 			},
 		}),
 
@@ -373,7 +415,7 @@ export function portentsTools(session: WebSession, onTrace: (trace: ToolTrace) =
 				},
 				required: ["topic"],
 			}),
-			execute: async ({ topic }) => session.guidance(topic),
+			execute: async ({ topic }) => commandText(await dispatch(session, { type: "guidance.get", topic })),
 		}),
 
 		portents_verify_roll: tool({
@@ -383,7 +425,9 @@ export function portentsTools(session: WebSession, onTrace: (trace: ToolTrace) =
 				properties: { id: str('Ledger id, e.g. "r-12"') },
 				required: ["id"],
 			}),
-			execute: async ({ id }) => session.verify(id),
+			execute: async ({ id }) => session.campaign
+				? commandText(await dispatch(session, { type: "ledger.verify", campaignId: session.campaign.slug, id }))
+				: session.verify(id),
 		}),
 	};
 }

@@ -15,6 +15,32 @@ await session.oracle("yes_no", "is the gate still guarded?");
 session.map({ rooms: 9, seed: "grimhold" });      // { ascii, svg, seed }
 ```
 
+## Shared typed commands
+
+The versioned command protocol is the shared boundary for host adapters. Requests
+and results are plain serializable data; campaign-scoped commands carry an
+explicit campaign ID. The local executor maps those IDs to the existing campaign
+storage namespace:
+
+```ts
+import { executeCommand, PROTOCOL_VERSION, WebSession } from "@portents/web";
+
+const session = new WebSession();
+const result = await executeCommand(session, {
+  version: PROTOCOL_VERSION,
+  command: { type: "dice.roll", expression: "2d20kh1+5" },
+});
+```
+
+`createCommandClient(transport)` validates requests and versioned responses while
+leaving HTTP encoding and authentication to the transport binding. Unsupported
+versions, malformed results, and remote protocol errors fail explicitly.
+
+Map movement is a stateless transition over a caller-supplied tile and actor
+snapshot. `map.moveActor` returns the updated actor positions and visibility
+sets; the caller owns persistence and player/GM projection. The command does
+not grant access to a hidden map or make UI hiding a security boundary.
+
 ## Storage defaults to IndexedDB, and can be replaced
 
 A browser gets the right thing with no ceremony, because that is what this package
