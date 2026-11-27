@@ -1,0 +1,34 @@
+{
+  "name": "@portents/identity",
+  "version": "0.0.0",
+  "description": "Server-side identity, ownership authorization, and entitlement contracts for Portents.",
+  "license": "MIT",
+  "author": "Kevan Davis",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/kmdavis/portents.git",
+    "directory": "packages/identity"
+  },
+  "homepage": "https://github.com/kmdavis/portents/tree/main/packages/identity#readme",
+  "type": "module",
+  "sideEffects": false,
+  "files": [
+    "dist",
+    "README.md"
+  ],
+  "exports": {
+    ".": {
+      "development": "./src/index.ts",
+      "types": "./dist/index.d.ts",
+      "default": "./dist/index.js"
+    }
+  },
+  "scripts": {
+    "build": "tsc -p tsconfig.build.json",
+    "test": "node --conditions=development --test src/identity.test.ts",
+    "typecheck": "tsc -p tsconfig.json --noEmit && tsc -p tsconfig.test.json --noEmit"
+  },
+  "engines": {
+    "node": ">=22.6"
+  }
+}
