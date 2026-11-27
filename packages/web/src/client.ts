@@ -10,8 +10,9 @@ import {
 	type Command,
 	type CommandResponse,
 	type CommandResult,
-	type ProtocolError,
+	type ResultFor,
 	type ProtocolErrorCode,
+	type ProtocolError,
 } from "./protocol.ts";
 
 export class ProtocolCommandError extends Error {
@@ -105,17 +106,71 @@ export function parseCommandResponse(value: unknown): CommandResponse {
 	return value as unknown as CommandResponse;
 }
 
+function expectedResultTypes(command: Command): readonly CommandResult["type"][] {
+	switch (command.type) {
+		case "campaign.open":
+		case "campaign.load":
+		case "campaign.brief":
+		case "dice.odds":
+		case "deck.draw":
+		case "table.roll":
+		case "oracle.answer":
+		case "sheet.list":
+		case "sheet.create":
+		case "sheet.read":
+		case "sheet.patchStatus":
+		case "recall":
+		case "guidance.get":
+		case "ledger.verify":
+			return ["text"];
+		case "campaign.close":
+		case "campaign.journal":
+		case "campaign.scene":
+		case "campaign.setting":
+		case "campaign.system":
+		case "sheet.setMain":
+		case "sheet.setSection":
+		case "sheet.appendSection":
+			return ["empty"];
+		case "campaign.world":
+			return command.body === undefined ? ["text"] : ["empty"];
+		case "campaign.list":
+		case "campaign.create":
+			return ["campaigns"];
+		case "campaign.clock":
+			return ["clock"];
+		case "dice.roll":
+			return ["roll"];
+		case "deck.list":
+		case "table.list":
+			return ["catalog"];
+		case "map.generate":
+			return ["map"];
+		case "map.moveActor":
+			return ["map-view"];
+		case "remember":
+			return ["remembered"];
+		default: {
+			const unreachable: never = command;
+			return unreachable;
+		}
+	}
+}
+
 /** A typed client over a transport that accepts a JSON request body. */
 export function createCommandClient(transport: (body: string) => Promise<unknown>) {
 	return {
-		async execute(command: Command): Promise<CommandResult> {
+		async execute<C extends Command>(command: C): Promise<ResultFor<C>> {
 			const response = parseCommandResponse(await transport(serializeCommandRequest({
 				version: PROTOCOL_VERSION,
 				command,
 			})));
 			if (response.error !== undefined) throw new ProtocolCommandError(response.error);
 			if (response.result === undefined) throw new ProtocolValidationError("Protocol response has no result");
-			return response.result;
+			if (!expectedResultTypes(command).includes(response.result.type)) {
+				throw new ProtocolValidationError("Response result does not match the command type");
+			}
+			return response.result as ResultFor<C>;
 		},
 	};
 }

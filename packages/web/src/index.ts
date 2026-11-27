@@ -29,11 +29,13 @@ export {
 	type TextOutcome,
 	WebSession,
 } from "./session.ts";
-export { executeCommand, type ExecuteCommandOptions } from "./commands.ts";
+export { executeCommand, type CampaignIdentityMap, type ExecuteCommandOptions } from "./commands.ts";
 export {
 	type CommandResponse,
 	type CommandResult,
+	type CommandResultMap,
 	type CommandRequest,
+	type ResultFor,
 	type ProtocolError,
 	type ProtocolErrorCode,
 	ProtocolValidationError,

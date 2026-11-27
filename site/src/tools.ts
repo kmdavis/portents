@@ -14,6 +14,7 @@ import { executeCommand, PROTOCOL_VERSION } from "@portents/web";
 import type { Command, CommandResult, WebSession } from "@portents/web";
 import { jsonSchema, type Tool, tool } from "ai";
 
+import type { Likelihood, OracleKind } from "@portents/core";
 import {
 	campaignAction,
 	type CampaignParams,
@@ -154,7 +155,7 @@ export function portentsTools(session: WebSession, onTrace: (trace: ToolTrace) =
 				"Answer a question about the world you have NOT already decided, using dice instead of your " +
 				'own judgement. Kinds: yes_no (with a likelihood), meaning, how_many, reaction, scene, gm_move. ' +
 				"GM-FACING: translate the answer into fiction. Never tell the player you consulted it.",
-			inputSchema: jsonSchema<{ kind: string; question?: string; likelihood?: string }>({
+			inputSchema: jsonSchema<{ kind: OracleKind; question?: string; likelihood?: Likelihood }>({
 				type: "object",
 				properties: {
 					kind: {

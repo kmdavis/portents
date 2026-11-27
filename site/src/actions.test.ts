@@ -90,6 +90,10 @@ describe("browser setting resources", () => {
 		assert.match(listed, /Nesta/);
 		const read = await recallAction(session, { id: "campaign/memory-test/npc/nesta" });
 		assert.match(read, /forged river token/);
+		assert.equal(
+			await recallAction(session, { id: "campaign/memory-test/npc/missing" }),
+			'No resource or setting map with id "campaign/memory-test/npc/missing".',
+		);
 		const map = await recallAction(session, { id: "portents/greywater/map/region" });
 		assert.match(map, /greywater-region\.webp/);
 		assert.match(map, /Old Riverside Shrine/);

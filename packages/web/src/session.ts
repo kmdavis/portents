@@ -151,8 +151,13 @@ export class WebSession {
 		return this.#campaign;
 	}
 
+	/** Open without changing the campaign selected by this interactive facade. */
+	async loadCampaign(slug: string): Promise<Campaign> {
+		return Campaign.open(this.#deps, slug);
+	}
+
 	async openCampaign(slug: string): Promise<Campaign> {
-		this.#campaign = await Campaign.open(this.#deps, slug);
+		this.#campaign = await this.loadCampaign(slug);
 		return this.#campaign;
 	}
 
@@ -168,12 +173,12 @@ export class WebSession {
 	 * The ids come back so a caller can show them: a number with no id is exactly
 	 * the thing the ledger exists to make impossible, wherever it runs.
 	 */
-	async roll(input: string, options: { dc?: number; reason?: string; record?: boolean } = {}): Promise<RollOutcome> {
+	async roll(input: string, options: { dc?: number; reason?: string; record?: boolean; campaign?: Campaign } = {}): Promise<RollOutcome> {
 		const { times, expression } = splitRepeat(input);
 		const lines: string[] = [];
 		const totals: number[] = [];
 		const ids: string[] = [];
-		const campaign = options.record === false ? undefined : this.#campaign;
+		const campaign = options.record === false ? undefined : options.campaign ?? this.#campaign;
 
 		for (let i = 0; i < times; i++) {
 			const result = roll(expression, { rng: this.#deps.random });
@@ -214,13 +219,13 @@ export class WebSession {
 	// ── Content ────────────────────────────────────────────────────────────
 
 	/** Draw, persisting the pile when a campaign is open so cards stay drawn. */
-	async draw(deckId: string, count = 1, options: { record?: boolean } = {}): Promise<string[]> {
+	async draw(deckId: string, count = 1, options: { record?: boolean; campaign?: Campaign } = {}): Promise<string[]> {
 		return [...(await this.drawOutcome(deckId, count, options)).cards];
 	}
 
-	async drawOutcome(deckId: string, count = 1, options: { record?: boolean } = {}): Promise<DrawOutcome> {
+	async drawOutcome(deckId: string, count = 1, options: { record?: boolean; campaign?: Campaign } = {}): Promise<DrawOutcome> {
 		const deck = this.registry.requireDeck(deckId);
-		const campaign = options.record === false ? undefined : this.#campaign;
+		const campaign = options.record === false ? undefined : options.campaign ?? this.#campaign;
 		if (!campaign) return { cards: drawEphemeral(deck, { count, rng: this.#deps.random }).map((card) => formatCard(card)) };
 		const result = await campaign.draw(deck, count);
 		const entry = await campaign.ledger.append({
@@ -234,16 +239,16 @@ export class WebSession {
 		};
 	}
 
-	async rollTable(tableId: string, options: { record?: boolean } = {}): Promise<string> {
+	async rollTable(tableId: string, options: { record?: boolean; campaign?: Campaign } = {}): Promise<string> {
 		return (await this.rollTableOutcome(tableId, options)).text;
 	}
 
-	async rollTableOutcome(tableId: string, options: { record?: boolean } = {}): Promise<TextOutcome> {
+	async rollTableOutcome(tableId: string, options: { record?: boolean; campaign?: Campaign } = {}): Promise<TextOutcome> {
 		const table = this.registry.requireTable(tableId);
 		const text = formatTableResult(
 			rollTable(table, { rng: this.#deps.random, registry: this.registry }),
 		);
-		const campaign = options.record === false ? undefined : this.#campaign;
+		const campaign = options.record === false ? undefined : options.campaign ?? this.#campaign;
 		if (!campaign) return { text };
 		const entry = await campaign.ledger.append({ kind: "table", request: table.id, result: text });
 		return { text, ledger: { id: entry.id, kind: entry.kind } };
@@ -253,7 +258,7 @@ export class WebSession {
 		kind: OracleKind,
 		question?: string,
 		likelihood?: Likelihood,
-		options: { record?: boolean } = {},
+		options: { record?: boolean; campaign?: Campaign } = {},
 	): Promise<string> {
 		return (await this.oracleOutcome(kind, question, likelihood, options)).text;
 	}
@@ -262,7 +267,7 @@ export class WebSession {
 		kind: OracleKind,
 		question?: string,
 		likelihood?: Likelihood,
-		options: { record?: boolean } = {},
+		options: { record?: boolean; campaign?: Campaign } = {},
 	): Promise<TextOutcome> {
 		const answer = oracleAnswer({
 			kind,
@@ -271,7 +276,7 @@ export class WebSession {
 			rng: this.#deps.random,
 			registry: this.registry,
 		});
-		const campaign = options.record === false ? undefined : this.#campaign;
+		const campaign = options.record === false ? undefined : options.campaign ?? this.#campaign;
 		if (!campaign) return { text: answer.text };
 		const entry = await campaign.ledger.append({
 			kind: "oracle",

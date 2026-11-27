@@ -5,14 +5,15 @@
  * their campaign explicitly. The local adapter maps legacy slugs by default;
  * hosted adapters must resolve their own IDs rather than expose storage keys.
  */
-import type { Actor, RememberResourceInput, TileSource } from "@portents/core";
+import { isResourceSegment, LIKELIHOODS, ORACLE_KINDS, resourceProblems, WORLD_SECTIONS } from "@portents/core";
+import type { Actor, Frontmatter, Likelihood, OracleKind, RememberResourceInput, ResourceAudience, TileSource, WorldSection } from "@portents/core";
 export const PROTOCOL_VERSION = 1 as const;
 
 export type CampaignCommand =
 	| { readonly type: "campaign.open" | "campaign.load" | "campaign.close" | "campaign.brief"; readonly campaignId: string }
 	| { readonly type: "campaign.journal"; readonly campaignId: string; readonly heading: string; readonly body: string }
 	| { readonly type: "campaign.scene"; readonly campaignId: string; readonly summary: string; readonly location?: string; readonly time?: string; readonly tension?: string }
-	| { readonly type: "campaign.world"; readonly campaignId: string; readonly section?: string; readonly body?: string }
+	| { readonly type: "campaign.world"; readonly campaignId: string; readonly section?: WorldSection; readonly body?: string }
 	| { readonly type: "campaign.setting"; readonly campaignId: string; readonly setting?: string }
 	| { readonly type: "campaign.system"; readonly campaignId: string; readonly system: string }
 	| { readonly type: "campaign.clock"; readonly campaignId: string; readonly name: string; readonly filled?: number; readonly segments?: number }
@@ -26,7 +27,7 @@ export type Command = CampaignCommand
 	| { readonly type: "deck.draw"; readonly deckId: string; readonly count?: number; readonly campaignId?: string }
 	| { readonly type: "table.list" }
 	| { readonly type: "table.roll"; readonly tableId: string; readonly campaignId?: string }
-	| { readonly type: "oracle.answer"; readonly kind: string; readonly question?: string; readonly likelihood?: string; readonly campaignId?: string }
+	| { readonly type: "oracle.answer"; readonly kind: OracleKind; readonly question?: string; readonly likelihood?: Likelihood; readonly campaignId?: string }
 	| { readonly type: "map.generate"; readonly rooms?: number; readonly seed?: string }
 	| { readonly type: "map.moveActor"; readonly tile: TileSource; readonly actors: readonly Actor[]; readonly explored?: readonly number[]; readonly sightRadius?: number; readonly actorId: string; readonly x: number; readonly y: number }
 	| { readonly type: "sheet.list"; readonly campaignId: string }
@@ -52,6 +53,29 @@ export type CommandResult =
 	| { readonly type: "clock"; readonly name: string; readonly filled: number; readonly segments: number }
 	| { readonly type: "remembered"; readonly id: string; readonly name: string; readonly path: string }
 	| { readonly type: "empty" };
+type TextResult = Extract<CommandResult, { readonly type: "text" }>;
+type EmptyResult = Extract<CommandResult, { readonly type: "empty" }>;
+type CampaignsResult = Extract<CommandResult, { readonly type: "campaigns" }>;
+type CatalogResult = Extract<CommandResult, { readonly type: "catalog" }>;
+type RollResult = Extract<CommandResult, { readonly type: "roll" }>;
+type MapResult = Extract<CommandResult, { readonly type: "map" }>;
+type MapViewResult = Extract<CommandResult, { readonly type: "map-view" }>;
+type ClockResult = Extract<CommandResult, { readonly type: "clock" }>;
+type RememberedResult = Extract<CommandResult, { readonly type: "remembered" }>;
+
+export interface CommandResultMap {
+	"campaign.open": TextResult; "campaign.load": TextResult; "campaign.close": EmptyResult; "campaign.brief": TextResult;
+	"campaign.journal": EmptyResult; "campaign.scene": EmptyResult; "campaign.world": TextResult | EmptyResult;
+	"campaign.setting": EmptyResult; "campaign.system": EmptyResult; "campaign.clock": ClockResult;
+	"campaign.list": CampaignsResult; "campaign.create": CampaignsResult;
+	"dice.roll": RollResult; "dice.odds": TextResult; "deck.list": CatalogResult; "deck.draw": TextResult;
+	"table.list": CatalogResult; "table.roll": TextResult; "oracle.answer": TextResult;
+	"map.generate": MapResult; "map.moveActor": MapViewResult;
+	"sheet.list": TextResult; "sheet.create": TextResult; "sheet.setMain": EmptyResult; "sheet.read": TextResult;
+	"sheet.patchStatus": TextResult; "sheet.setSection": EmptyResult; "sheet.appendSection": EmptyResult;
+	recall: TextResult; remember: RememberedResult; "guidance.get": TextResult; "ledger.verify": TextResult;
+}
+export type ResultFor<C extends Command> = CommandResultMap[C["type"]];
 
 export const PROTOCOL_ERROR_CODES = [
 	"INVALID_INPUT",
@@ -62,6 +86,7 @@ export const PROTOCOL_ERROR_CODES = [
 	"STALE_REVISION",
 	"IDEMPOTENCY_CONFLICT",
 	"STORAGE_FAILURE",
+	"INTERNAL_ERROR",
 ] as const;
 export type ProtocolErrorCode = (typeof PROTOCOL_ERROR_CODES)[number];
 export interface ProtocolError { readonly code: ProtocolErrorCode; readonly message: string; readonly details?: Readonly<Record<string, unknown>> }
@@ -69,12 +94,15 @@ export interface CommandResponse { readonly version: number; readonly result?: C
 
 export class ProtocolValidationError extends Error {
 	readonly code: ProtocolErrorCode;
-	constructor(message: string, code: ProtocolErrorCode = "INVALID_INPUT") {
+	readonly details: Readonly<Record<string, unknown>> | undefined;
+	constructor(message: string, code: ProtocolErrorCode = "INVALID_INPUT", details?: Readonly<Record<string, unknown>>) {
 		super(message);
 		this.name = "ProtocolValidationError";
 		this.code = code;
+		this.details = details;
 	}
 }
+
 
 export const isProtocolRecord = (value: unknown): value is Record<string, unknown> =>
 	typeof value === "object" && value !== null && !Array.isArray(value);
@@ -86,7 +114,7 @@ const actorKinds = ["pc", "ally", "neutral", "foe", "object"] as const;
 export function isProtocolActor(value: unknown): value is Actor {
 	return isProtocolRecord(value) &&
 		Object.keys(value).every((key) => ["id", "name", "x", "y", "kind", "glyph", "colour", "sees", "sightRadius"].includes(key)) &&
-		string(value.id) && string(value.name) && finite(value.x) && finite(value.y) &&
+		string(value.id) && string(value.name) && Number.isInteger(value.x) && Number.isInteger(value.y) &&
 		typeof value.kind === "string" && actorKinds.includes(value.kind as (typeof actorKinds)[number]) &&
 		(value.glyph === undefined || string(value.glyph)) &&
 		(value.colour === undefined || string(value.colour)) &&
@@ -102,6 +130,51 @@ export function isProtocolTileSource(value: unknown): value is TileSource {
 }
 const numberArray = (value: unknown): boolean =>
 	Array.isArray(value) && value.every((item) => Number.isInteger(item) && Number.isFinite(item) && item >= 0);
+const isScalar = (value: unknown): boolean =>
+	typeof value === "string" || typeof value === "boolean" || (typeof value === "number" && Number.isFinite(value));
+function isFrontmatter(value: unknown): value is Frontmatter {
+	return isProtocolRecord(value) && Object.entries(value).every(([key, item]) =>
+		/^[A-Za-z_][A-Za-z0-9_ -]*$/.test(key) &&
+		(isScalar(item) || (Array.isArray(item) && item.every(isScalar)) ||
+			(isProtocolRecord(item) && Object.values(item).every(isScalar))));
+}
+function isStringArray(value: unknown): value is string[] {
+	return Array.isArray(value) && value.every(string);
+}
+function isRememberResourceInput(value: unknown): value is RememberResourceInput {
+	if (!isProtocolRecord(value) ||
+		Object.keys(value).some((key) => !["path", "id", "kind", "name", "body", "aliases", "tags", "links", "audience", "supersedes", "metadata"].includes(key))) return false;
+	for (const key of ["path", "id", "kind", "name", "body", "supersedes"]) {
+		if (Object.hasOwn(value, key) && !string(value[key])) return false;
+	}
+	if (value.path !== undefined && (!string(value.path) || value.path.length === 0)) return false;
+	if (value.kind !== undefined && (!string(value.kind) || !isResourceSegment(value.kind))) return false;
+	if (value.name !== undefined && (!string(value.name) || !value.name.trim())) return false;
+	for (const key of ["aliases", "tags", "links"]) {
+		if (Object.hasOwn(value, key) && !isStringArray(value[key])) return false;
+	}
+	if (Object.hasOwn(value, "audience") && (!Array.isArray(value.audience) ||
+		!value.audience.every((item): item is ResourceAudience => string(item) &&
+			(item === "all" || item === "gm" || /^participant\/[a-z0-9]+(?:[._-][a-z0-9]+)*$/.test(item))))) return false;
+	if (Object.hasOwn(value, "metadata") && !isFrontmatter(value.metadata)) return false;
+	if (value.path === undefined && (!string(value.kind) || !string(value.name))) return false;
+	const input = value as unknown as RememberResourceInput;
+	return resourceProblems({
+		schemaVersion: 1,
+		id: input.id ?? "campaign/protocol/resource",
+		kind: input.kind ?? "note",
+		name: input.name ?? "resource",
+		body: input.body ?? "",
+		...(input.aliases === undefined ? {} : { aliases: input.aliases }),
+		...(input.tags === undefined ? {} : { tags: input.tags }),
+		...(input.links === undefined ? {} : { links: input.links }),
+		...(input.audience === undefined ? {} : { audience: input.audience }),
+		...(input.supersedes === undefined ? {} : { supersedes: input.supersedes }),
+		...(input.metadata === undefined ? {} : { metadata: input.metadata }),
+	}).length === 0;
+}
+const oneOf = (values: readonly string[], value: unknown): boolean =>
+	typeof value === "string" && values.includes(value);
 
 /** Reject values that JSON cannot represent faithfully, including cycles. */
 export function isProtocolJsonValue(value: unknown, ancestors = new Set<object>()): boolean {
@@ -170,21 +243,42 @@ export function parseCommandRequest(value: unknown): CommandRequest {
 	const c = value.command;
 	const type = c.type;
 	if (!string(type)) throw new ProtocolValidationError("Command type must be a string");
-	const allowed = fields[type];
-	if (!allowed) throw new ProtocolValidationError(`Unknown command type: ${type}`);
+	if (!Object.hasOwn(fields, type)) throw new ProtocolValidationError(`Unknown command type: ${type}`);
+	const allowed = fields[type]!;
 	if (Object.keys(c).some((key) => key !== "type" && !allowed.includes(key))) throw new ProtocolValidationError("Command contains an unknown field");
 	for (const key of stringFields) if (Object.hasOwn(c, key) && !string(c[key])) throw new ProtocolValidationError(`${key} must be a string`);
 	for (const key of numberFields) if (Object.hasOwn(c, key) && !finite(c[key])) throw new ProtocolValidationError(`${key} must be a finite number`);
 	if (Object.hasOwn(c, "main") && !bool(c.main)) throw new ProtocolValidationError("main must be a boolean");
 	if (Object.hasOwn(c, "status") && !stringMap(c.status)) throw new ProtocolValidationError("status must be a string map");
 	if (Object.hasOwn(c, "abilities") && !stringMap(c.abilities)) throw new ProtocolValidationError("abilities must be a string map");
-	if (Object.hasOwn(c, "resource") && !isProtocolRecord(c.resource)) throw new ProtocolValidationError("resource must be an object");
+	if (Object.hasOwn(c, "resource") && !isRememberResourceInput(c.resource)) throw new ProtocolValidationError("resource must match the remember-resource schema");
 	if (Object.hasOwn(c, "tile") && !isProtocolTileSource(c.tile)) throw new ProtocolValidationError("tile must be a tile source");
 	if (Object.hasOwn(c, "actors") && (!Array.isArray(c.actors) || !c.actors.every(isProtocolActor))) throw new ProtocolValidationError("actors must be valid map actors");
 	if (Object.hasOwn(c, "explored") && !numberArray(c.explored)) throw new ProtocolValidationError("explored must be an array of non-negative cell indexes");
 	if (Object.hasOwn(c, "sightRadius") && (!finite(c.sightRadius) || c.sightRadius < 0)) throw new ProtocolValidationError("sightRadius must be non-negative");
+	if (type === "oracle.answer" && (!oneOf(ORACLE_KINDS, c.kind) || (c.likelihood !== undefined && !oneOf(LIKELIHOODS, c.likelihood)))) {
+		throw new ProtocolValidationError("Oracle kind or likelihood is unsupported");
+	}
+	if (type === "campaign.world" && c.section !== undefined && !oneOf(WORLD_SECTIONS, c.section)) {
+		throw new ProtocolValidationError("Unknown campaign world section");
+	}
+	if (type === "map.moveActor" && (!Number.isInteger(c.x) || !Number.isInteger(c.y))) {
+		throw new ProtocolValidationError("Map coordinates must be integers");
+	}
+	if (type === "deck.draw" && c.count !== undefined && (typeof c.count !== "number" || !Number.isInteger(c.count) || c.count < 1)) {
+		throw new ProtocolValidationError("Draw count must be a positive integer");
+	}
+	if (type === "campaign.clock" && c.segments !== undefined && (typeof c.segments !== "number" || !Number.isInteger(c.segments) || c.segments < 1)) {
+		throw new ProtocolValidationError("Clock segments must be a positive integer");
+	}
+	if (type === "map.generate" && c.rooms !== undefined && (typeof c.rooms !== "number" || !Number.isInteger(c.rooms) || c.rooms < 1)) {
+		throw new ProtocolValidationError("Map room count must be a positive integer");
+	}
+	if (type === "recall" && c.limit !== undefined && (typeof c.limit !== "number" || !Number.isInteger(c.limit) || c.limit < 1)) {
+		throw new ProtocolValidationError("Recall limit must be a positive integer");
+	}
 	for (const key of required[type] ?? []) {
-		const valid = key === "status" ? stringMap(c[key]) : key === "resource" ? isProtocolRecord(c[key]) :
+		const valid = key === "status" ? stringMap(c[key]) : key === "resource" ? isRememberResourceInput(c[key]) :
 			key === "tile" ? isProtocolTileSource(c[key]) : key === "actors" ? Array.isArray(c[key]) && (c[key] as unknown[]).every(isProtocolActor) :
 			key === "x" || key === "y" ? finite(c[key]) : string(c[key]);
 		if (!Object.hasOwn(c, key) || !valid) throw new ProtocolValidationError(`Missing or invalid required field for ${type}: ${key}`);

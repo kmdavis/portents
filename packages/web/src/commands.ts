@@ -17,9 +17,15 @@ import {
 } from "./protocol.ts";
 import type { WebSession } from "./session.ts";
 
+export interface CampaignIdentityMap {
+	/** Convert a public campaign ID to this local session's storage slug. */
+	readonly toSlug: (campaignId: string) => string;
+	/** Convert a local storage slug to the public identity returned by list/create. */
+	readonly toId: (campaignSlug: string) => string;
+}
+
 export interface ExecuteCommandOptions {
-	/** Resolve opaque protocol campaign IDs to the local campaign slug. */
-	readonly campaignSlug?: (campaignId: string) => string;
+	readonly campaignIdentity?: CampaignIdentityMap;
 }
 
 const text = (value: string): CommandResult => ({ type: "text", text: value });
@@ -32,8 +38,8 @@ function fail(error: unknown): never {
 		? "NOT_FOUND"
 		: /storage|quota|database|indexeddb/.test(lower)
 			? "STORAGE_FAILURE"
-			: "INVALID_INPUT";
-	throw new ProtocolValidationError(message, code);
+			: "INTERNAL_ERROR";
+	throw new ProtocolValidationError(code === "INTERNAL_ERROR" ? "Unexpected command failure" : message, code);
 }
 
 /** Validate and execute one versioned command against the local session facade. */
@@ -47,36 +53,44 @@ export async function executeCommand(
 		throw new ProtocolValidationError("Unsupported protocol version", "UNSUPPORTED_VERSION");
 	}
 	const command = request.command;
-	const resolveSlug = options.campaignSlug ?? ((id: string) => id);
+	const resolveSlug = options.campaignIdentity?.toSlug ?? ((id: string) => id);
+	const resolveId = options.campaignIdentity?.toId ?? ((slug: string) => slug);
 	const getCampaign = async (id: string): Promise<Campaign> => {
 		const slug = resolveSlug(id);
 		if (!slug) throw new ProtocolValidationError("Campaign ID does not resolve", "NOT_FOUND");
-		if (session.campaign?.slug !== slug) await session.openCampaign(slug);
-		const campaign = session.campaign;
-		if (!campaign || campaign.slug !== slug) {
-			throw new ProtocolValidationError("Campaign ID does not resolve", "NOT_FOUND");
-		}
+		const campaign = session.campaign?.slug === slug
+			? session.campaign
+			: await session.loadCampaign(slug);
+		if (campaign.slug !== slug) throw new ProtocolValidationError("Campaign ID does not resolve", "NOT_FOUND");
 		return campaign;
+	};
+	const campaignIdFor = (slug: string): string => {
+		const id = resolveId(slug);
+		if (!id) throw new ProtocolValidationError("Campaign identity mapping returned an empty ID", "INTERNAL_ERROR");
+		return id;
 	};
 
 	try {
 		switch (command.type) {
 			case "campaign.open":
 			case "campaign.load": {
-				const campaign = await getCampaign(command.campaignId);
+				const slug = resolveSlug(command.campaignId);
+				if (!slug) throw new ProtocolValidationError("Campaign ID does not resolve", "NOT_FOUND");
+				const campaign = await session.openCampaign(slug);
 				return text(`${campaign.name} (${campaign.systemLine})`);
 			}
-			case "campaign.close":
-				await getCampaign(command.campaignId);
-				session.closeCampaign();
+			case "campaign.close": {
+				const campaign = await getCampaign(command.campaignId);
+				if (session.campaign?.slug === campaign.slug) session.closeCampaign();
 				return { type: "empty" };
+			}
 			case "campaign.brief":
 				return text(await (await getCampaign(command.campaignId)).brief());
 			case "campaign.list":
 				return {
 					type: "campaigns",
 					campaigns: (await session.listCampaigns()).map((campaign) => ({
-						id: campaign.slug,
+						id: campaignIdFor(campaign.slug),
 						name: campaign.name,
 						system: campaign.systemLine,
 					})),
@@ -90,7 +104,7 @@ export async function executeCommand(
 				});
 				return {
 					type: "campaigns",
-					campaigns: [{ id: campaign.slug, name: campaign.name, system: campaign.systemLine }],
+					campaigns: [{ id: campaignIdFor(campaign.slug), name: campaign.name, system: campaign.systemLine }],
 				};
 			}
 			case "campaign.journal":
@@ -107,10 +121,10 @@ export async function executeCommand(
 			case "campaign.world": {
 				const campaign = await getCampaign(command.campaignId);
 				if (command.body === undefined) {
-					return text(command.section ? await campaign.worldSection(command.section as never) : await campaign.readWorld());
+					return text(command.section ? await campaign.worldSection(command.section) : await campaign.readWorld());
 				}
 				if (!command.section) throw new ProtocolValidationError("World updates require a section");
-				await campaign.addToWorld(command.section as never, command.body);
+				await campaign.addToWorld(command.section, command.body);
 				return { type: "empty" };
 			}
 			case "campaign.setting":
@@ -124,11 +138,12 @@ export async function executeCommand(
 				return { type: "clock", name: clock.name, filled: clock.filled, segments: clock.segments };
 			}
 			case "dice.roll": {
-				if (command.campaignId !== undefined) await getCampaign(command.campaignId);
+				const campaign = command.campaignId === undefined ? undefined : await getCampaign(command.campaignId);
 				const outcome = await session.roll(command.expression, {
 					dc: command.dc,
 					reason: command.reason,
-					record: command.campaignId !== undefined,
+					record: campaign !== undefined,
+					...(campaign ? { campaign } : {}),
 				});
 				const ledger: LedgerReference[] = outcome.ids.map((id) => ({ id, kind: "roll" }));
 				return { type: "roll", lines: outcome.lines, totals: outcome.totals, ledger };
@@ -140,8 +155,11 @@ export async function executeCommand(
 			case "table.list":
 				return { type: "catalog", ids: session.tableIds() };
 			case "deck.draw": {
-				if (command.campaignId !== undefined) await getCampaign(command.campaignId);
-				const outcome = await session.drawOutcome(command.deckId, command.count, { record: command.campaignId !== undefined });
+				const campaign = command.campaignId === undefined ? undefined : await getCampaign(command.campaignId);
+				const outcome = await session.drawOutcome(command.deckId, command.count, {
+					record: campaign !== undefined,
+					...(campaign ? { campaign } : {}),
+				});
 				return {
 					type: "text",
 					text: outcome.cards.join("\n"),
@@ -149,13 +167,19 @@ export async function executeCommand(
 				};
 			}
 			case "table.roll": {
-				if (command.campaignId !== undefined) await getCampaign(command.campaignId);
-				const outcome = await session.rollTableOutcome(command.tableId, { record: command.campaignId !== undefined });
+				const campaign = command.campaignId === undefined ? undefined : await getCampaign(command.campaignId);
+				const outcome = await session.rollTableOutcome(command.tableId, {
+					record: campaign !== undefined,
+					...(campaign ? { campaign } : {}),
+				});
 				return { type: "text", text: outcome.text, ...(outcome.ledger ? { ledger: [outcome.ledger] } : {}) };
 			}
 			case "oracle.answer": {
-				if (command.campaignId !== undefined) await getCampaign(command.campaignId);
-				const outcome = await session.oracleOutcome(command.kind as never, command.question, command.likelihood as never, { record: command.campaignId !== undefined });
+				const campaign = command.campaignId === undefined ? undefined : await getCampaign(command.campaignId);
+				const outcome = await session.oracleOutcome(command.kind, command.question, command.likelihood, {
+					record: campaign !== undefined,
+					...(campaign ? { campaign } : {}),
+				});
 				return { type: "text", text: outcome.text, ...(outcome.ledger ? { ledger: [outcome.ledger] } : {}) };
 			}
 			case "map.generate":
@@ -186,8 +210,7 @@ export async function executeCommand(
 			case "guidance.get":
 				return text(session.guidance(command.topic));
 			case "ledger.verify":
-				await getCampaign(command.campaignId);
-				return text(session.verify(command.id));
+				return text((await getCampaign(command.campaignId)).ledger.describe(command.id));
 			case "sheet.list": {
 				const names = await (await getCampaign(command.campaignId)).listCharacters();
 				return text(names.length ? `Characters: ${names.join(", ")}` : "No characters yet.");
@@ -235,7 +258,7 @@ export async function executeCommand(
 				const campaign = await getCampaign(command.campaignId);
 				if (command.id !== undefined) {
 					const resource = await campaign.recallById(command.id);
-					if (resource === undefined) throw new ProtocolValidationError(`No resource ${JSON.stringify(command.id)}`, "NOT_FOUND");
+					if (resource === undefined) throw new ProtocolValidationError(`No resource ${JSON.stringify(command.id)}`, "NOT_FOUND", { resourceId: command.id });
 					return text(resource);
 				}
 				const records = await campaign.queryResources({

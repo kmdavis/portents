@@ -7,7 +7,7 @@
  */
 
 import { guidanceTitle, WORLD_SECTIONS, type RememberResourceInput, type WorldSection } from "@portents/core";
-import { executeCommand, PROTOCOL_VERSION } from "@portents/web";
+import { executeCommand, PROTOCOL_VERSION, ProtocolValidationError } from "@portents/web";
 import type { Command, CommandResult, WebSession } from "@portents/web";
 
 async function dispatch(session: WebSession, command: Command): Promise<CommandResult> {
@@ -122,19 +122,21 @@ export async function campaignAction(session: WebSession, params: CampaignParams
 		}
 		case "world": {
 			const campaignId = requireCampaign(session).slug;
+			const section = params.section;
+			if (section !== undefined && !WORLD_SECTIONS.includes(section as WorldSection)) {
+				throw new Error(`A world section must be one of: ${WORLD_SECTIONS.join(", ")}`);
+			}
+			const worldSection = section as WorldSection | undefined;
 			if (!params.body) {
-				if (params.section && !WORLD_SECTIONS.includes(params.section as WorldSection)) {
-					throw new Error(`A world section must be one of: ${WORLD_SECTIONS.join(", ")}`);
-				}
 				return commandText(await dispatch(session, {
 					type: "campaign.world",
 					campaignId,
-					...(params.section ? { section: params.section } : {}),
+					...(worldSection ? { section: worldSection } : {}),
 				}));
 			}
-			if (!params.section) throw new Error(`A world note needs a section: ${WORLD_SECTIONS.join(", ")}`);
-			await dispatch(session, { type: "campaign.world", campaignId, section: params.section, body: params.body });
-			return `Added to **${params.section}**.`;
+			if (!worldSection) throw new Error(`A world note needs a section: ${WORLD_SECTIONS.join(", ")}`);
+			await dispatch(session, { type: "campaign.world", campaignId, section: worldSection, body: params.body });
+			return `Added to **${worldSection}**.`;
 		}
 		case "setting":
 			await dispatch(session, {
@@ -248,14 +250,23 @@ export interface RecallParams {
 }
 
 export async function recallAction(session: WebSession, params: RecallParams): Promise<string> {
-	return commandText(await dispatch(session, {
-		type: "recall",
-		campaignId: requireCampaign(session).slug,
-		...(params.id === undefined ? {} : { id: params.id }),
-		...(params.query === undefined ? {} : { query: params.query }),
-		...(params.kind === undefined ? {} : { kind: params.kind }),
-		...(params.limit === undefined ? {} : { limit: params.limit }),
-	}));
+	const campaign = requireCampaign(session);
+	try {
+		return commandText(await dispatch(session, {
+			type: "recall",
+			campaignId: campaign.slug,
+			...(params.id === undefined ? {} : { id: params.id }),
+			...(params.query === undefined ? {} : { query: params.query }),
+			...(params.kind === undefined ? {} : { kind: params.kind }),
+			...(params.limit === undefined ? {} : { limit: params.limit }),
+		}));
+	} catch (error) {
+		if (params.id !== undefined && error instanceof ProtocolValidationError &&
+			error.code === "NOT_FOUND" && error.details?.resourceId === params.id) {
+			return `No resource or setting map with id ${JSON.stringify(params.id)}.`;
+		}
+		throw error;
+	}
 }
 
 export type RememberParams = RememberResourceInput;

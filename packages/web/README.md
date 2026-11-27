@@ -19,8 +19,10 @@ session.map({ rooms: 9, seed: "grimhold" });      // { ascii, svg, seed }
 
 The versioned command protocol is the shared boundary for host adapters. Requests
 and results are plain serializable data; campaign-scoped commands carry an
-explicit campaign ID. The local executor maps those IDs to the existing campaign
-storage namespace:
+explicit public campaign ID. The local executor defaults to identity mapping
+between IDs and storage slugs; hosted compositions can provide both directions,
+so IDs returned by list/create remain valid inputs. Authentication and ownership
+authorization belong to the composing server, not this local executor:
 
 ```ts
 import { executeCommand, PROTOCOL_VERSION, WebSession } from "@portents/web";
@@ -35,6 +37,9 @@ const result = await executeCommand(session, {
 `createCommandClient(transport)` validates requests and versioned responses while
 leaving HTTP encoding and authentication to the transport binding. Unsupported
 versions, malformed results, and remote protocol errors fail explicitly.
+
+The client infers the result type from the command and rejects a well-formed
+response whose result belongs to a different command.
 
 Map movement is a stateless transition over a caller-supplied tile and actor
 snapshot. `map.moveActor` returns the updated actor positions and visibility

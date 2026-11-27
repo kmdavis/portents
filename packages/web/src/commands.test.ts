@@ -5,7 +5,7 @@ import { formatRoll, roll, seededRandomSource } from "@portents/core";
 import { MemoryStorage } from "@portents/core/memory";
 import { WebSession } from "./session.ts";
 import { executeCommand } from "./commands.ts";
-import { PROTOCOL_VERSION } from "./protocol.ts";
+import { PROTOCOL_VERSION, ProtocolValidationError } from "./protocol.ts";
 
 const request = (command: Record<string, unknown>) => ({ version: PROTOCOL_VERSION, command });
 
@@ -39,9 +39,10 @@ describe("shared gameplay commands", () => {
 		assert.equal(result.type, "roll");
 		if (result.type !== "roll") return;
 		assert.equal(result.ledger.length, 1);
-		assert.equal(result.ledger[0]?.id, session.campaign?.ledger.recent(1)[0]?.id);
-		assert.equal(session.campaign?.ledger.recent(10).length, 1);
-		assert.equal(session.campaign?.slug, campaign.slug);
+		const written = await session.loadCampaign(campaign.slug);
+		assert.equal(result.ledger[0]?.id, written.ledger.recent(1)[0]?.id);
+		assert.equal(written.ledger.recent(10).length, 1);
+		assert.equal(session.campaign?.slug, other.slug);
 		assert.equal(other.ledger.recent(10).length, 0);
 	});
 	it("returns ledger references for campaign deck, table, and oracle actions", async () => {
@@ -64,7 +65,62 @@ describe("shared gameplay commands", () => {
 			assert.ok(result.ledger?.[0]?.id);
 		}
 
-		assert.equal(campaign.ledger.recent(10).length, 3);
+		assert.equal((await session.loadCampaign(campaign.slug)).ledger.recent(10).length, 3);
+	});
+	it("isolates overlapping commands scoped to different campaigns", async () => {
+		const session = new WebSession({ storage: new MemoryStorage(), seed: "overlapping-campaigns" });
+		const first = await session.createCampaign("First", "generic");
+		const second = await session.createCampaign("Second", "generic");
+
+		const [firstResult, secondResult] = await Promise.all([
+			executeCommand(session, request({ type: "dice.roll", expression: "1d20", campaignId: first.slug })),
+			executeCommand(session, request({ type: "dice.roll", expression: "1d20", campaignId: second.slug })),
+		]);
+
+		assert.equal(firstResult.type, "roll");
+		assert.equal(secondResult.type, "roll");
+		if (firstResult.type !== "roll" || secondResult.type !== "roll") return;
+		const firstLedger = (await session.loadCampaign(first.slug)).ledger.recent(10);
+		const secondLedger = (await session.loadCampaign(second.slug)).ledger.recent(10);
+		assert.equal(firstLedger.length, 1);
+		assert.equal(secondLedger.length, 1);
+		assert.equal(firstLedger[0]?.id, firstResult.ledger[0]?.id);
+		assert.equal(secondLedger[0]?.id, secondResult.ledger[0]?.id);
+		assert.equal(session.campaign?.slug, second.slug);
+	});
+
+	it("round-trips externally mapped campaign IDs through list, create and commands", async () => {
+		const session = new WebSession({ storage: new MemoryStorage() });
+		const campaignIdentity = {
+			toSlug: (id: string) => id.startsWith("public:") ? id.slice("public:".length) : "",
+			toId: (slug: string) => `public:${slug}`,
+		};
+		const created = await executeCommand(session, request({
+			type: "campaign.create",
+			name: "Mapped Campaign",
+			system: "generic",
+		}), { campaignIdentity });
+		assert.equal(created.type, "campaigns");
+		if (created.type !== "campaigns") return;
+		const id = created.campaigns[0]?.id;
+		assert.equal(id, "public:mapped-campaign");
+
+		const listed = await executeCommand(session, request({ type: "campaign.list" }), { campaignIdentity });
+		assert.equal(listed.type, "campaigns");
+		if (listed.type !== "campaigns" || !id) return;
+		assert.equal(listed.campaigns[0]?.id, id);
+		const brief = await executeCommand(session, request({ type: "campaign.brief", campaignId: id }), { campaignIdentity });
+		assert.equal(brief.type, "text");
+	});
+
+	it("reports unexpected executor failures as internal errors", async () => {
+		const session = new WebSession({ storage: new MemoryStorage() });
+		session.map = () => { throw new Error("private implementation details"); };
+		await assert.rejects(
+			() => executeCommand(session, request({ type: "map.generate" })),
+			(error: unknown) => error instanceof ProtocolValidationError &&
+				error.code === "INTERNAL_ERROR" && error.message === "Unexpected command failure",
+		);
 	});
 	it("moves an actor through the shared map-view action and returns updated visibility", async () => {
 		const session = new WebSession({ storage: new MemoryStorage(), seed: "map-move-command" });

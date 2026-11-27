@@ -58,6 +58,7 @@ describe("typed gameplay protocol", () => {
 			totals: [12],
 			ledger: [],
 		});
+		assert.deepEqual((await client.execute(request)).totals, [12]);
 
 		const failingClient = createCommandClient(async () => ({
 			version: PROTOCOL_VERSION,
@@ -67,10 +68,46 @@ describe("typed gameplay protocol", () => {
 			() => failingClient.execute(request),
 			(error: unknown) => error instanceof ProtocolCommandError && error.code === "STALE_REVISION",
 		);
+		const mismatchedClient = createCommandClient(async () => ({
+			version: PROTOCOL_VERSION,
+			result: { type: "empty" },
+		}));
+		await assert.rejects(
+			() => mismatchedClient.execute(request),
+			ProtocolValidationError,
+		);
 		assert.throws(
 			() => parseCommandResponse({ version: PROTOCOL_VERSION, result: { type: "roll", lines: [], totals: [], ledger: [], fabricated: true } }),
 			ProtocolValidationError,
 		);
+	});
+	it("rejects inherited command names and malformed domain inputs", () => {
+		for (const type of ["constructor", "toString", "__proto__"]) {
+			assert.throws(
+				() => parseCommandRequest({ version: PROTOCOL_VERSION, command: { type } }),
+				(error: unknown) => error instanceof ProtocolValidationError && error.code === "INVALID_INPUT",
+			);
+		}
+
+		const invalidInputs = [
+			{ type: "remember", campaignId: "local", resource: {} },
+			{ type: "remember", campaignId: "local", resource: { name: 123 } },
+			{ type: "remember", campaignId: "local", resource: { kind: "note", name: "Valid", metadata: { nested: { invalid: null } } } },
+			{ type: "oracle.answer", kind: "banana" },
+			{ type: "oracle.answer", kind: "yes_no", likelihood: "sometimes" },
+			{ type: "campaign.world", campaignId: "local", section: "Unknown" },
+			{
+				type: "map.moveActor",
+				tile: { id: "room", name: "Room", art: ["###", "#.#", "###"] },
+				actors: [{ id: "hero", name: "Hero", kind: "pc", x: 1, y: 1 }],
+				actorId: "hero",
+				x: 1.5,
+				y: 1,
+			},
+		];
+		for (const command of invalidInputs) {
+			assert.throws(() => parseCommandRequest({ version: PROTOCOL_VERSION, command }), ProtocolValidationError);
+		}
 	});
 	it("validates the serializable map-view movement command shape", () => {
 		const command = {
