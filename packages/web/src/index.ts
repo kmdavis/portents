@@ -22,8 +22,33 @@
  */
 
 export {
+	type DrawOutcome,
 	type MapOutcome,
 	type RollOutcome,
 	type SessionOptions,
+	type TextOutcome,
 	WebSession,
 } from "./session.ts";
+export { executeCommand, type CampaignIdentityMap, type ExecuteCommandOptions } from "./commands.ts";
+export {
+	type CommandResponse,
+	type CommandResult,
+	type CommandResultMap,
+	type CommandRequest,
+	type ResultFor,
+	type ProtocolError,
+	type ProtocolErrorCode,
+	ProtocolValidationError,
+	type LedgerReference,
+	PROTOCOL_VERSION,
+	PROTOCOL_ERROR_CODES,
+	type Command,
+	type CampaignCommand,
+	parseCommandRequest,
+	serializeCommandRequest,
+} from "./protocol.ts";
+export {
+	createCommandClient,
+	parseCommandResponse,
+	ProtocolCommandError,
+} from "./client.ts";

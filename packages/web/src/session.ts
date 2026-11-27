@@ -51,6 +51,7 @@ import {
 import { BrowserStorage } from "@portents/core/browser";
 import { commonContent, dungeonTiles } from "@portents/content";
 import { GUIDANCE_TOPICS, guidanceTopic } from "@portents/guidance";
+import type { LedgerReference } from "./protocol.ts";
 
 export interface SessionOptions {
 	/**
@@ -75,6 +76,16 @@ export interface RollOutcome {
 	readonly lines: readonly string[];
 	readonly totals: readonly number[];
 	readonly ids: readonly string[];
+}
+
+export interface DrawOutcome {
+	readonly cards: readonly string[];
+	readonly ledger?: LedgerReference;
+}
+
+export interface TextOutcome {
+	readonly text: string;
+	readonly ledger?: LedgerReference;
 }
 
 export interface MapOutcome {
@@ -140,8 +151,13 @@ export class WebSession {
 		return this.#campaign;
 	}
 
+	/** Open without changing the campaign selected by this interactive facade. */
+	async loadCampaign(slug: string): Promise<Campaign> {
+		return Campaign.open(this.#deps, slug);
+	}
+
 	async openCampaign(slug: string): Promise<Campaign> {
-		this.#campaign = await Campaign.open(this.#deps, slug);
+		this.#campaign = await this.loadCampaign(slug);
 		return this.#campaign;
 	}
 
@@ -157,19 +173,20 @@ export class WebSession {
 	 * The ids come back so a caller can show them: a number with no id is exactly
 	 * the thing the ledger exists to make impossible, wherever it runs.
 	 */
-	async roll(input: string, options: { dc?: number; reason?: string } = {}): Promise<RollOutcome> {
+	async roll(input: string, options: { dc?: number; reason?: string; record?: boolean; campaign?: Campaign } = {}): Promise<RollOutcome> {
 		const { times, expression } = splitRepeat(input);
 		const lines: string[] = [];
 		const totals: number[] = [];
 		const ids: string[] = [];
+		const campaign = options.record === false ? undefined : options.campaign ?? this.#campaign;
 
 		for (let i = 0; i < times; i++) {
 			const result = roll(expression, { rng: this.#deps.random });
 			totals.push(result.total);
 			const verdict =
 				options.dc === undefined ? "" : result.total >= options.dc ? " — success" : " — failure";
-			if (this.#campaign) {
-				const entry = await this.#campaign.ledger.append({
+			if (campaign) {
+				const entry = await campaign.ledger.append({
 					kind: "roll",
 					request: expression,
 					...(options.reason ? { reason: options.reason } : {}),
@@ -181,7 +198,7 @@ export class WebSession {
 						: { outcome: result.total >= options.dc ? ("success" as const) : ("failure" as const) }),
 				});
 				ids.push(entry.id);
-				await this.#campaign.bumpCounter("rolls");
+				await campaign.bumpCounter("rolls");
 				lines.push(`${entry.id}  ${formatRoll(result)}${verdict}`);
 			} else {
 				lines.push(`${formatRoll(result)}${verdict}`);
@@ -202,32 +219,56 @@ export class WebSession {
 	// ── Content ────────────────────────────────────────────────────────────
 
 	/** Draw, persisting the pile when a campaign is open so cards stay drawn. */
-	async draw(deckId: string, count = 1): Promise<string[]> {
+	async draw(deckId: string, count = 1, options: { record?: boolean; campaign?: Campaign } = {}): Promise<string[]> {
+		return [...(await this.drawOutcome(deckId, count, options)).cards];
+	}
+
+	async drawOutcome(deckId: string, count = 1, options: { record?: boolean; campaign?: Campaign } = {}): Promise<DrawOutcome> {
 		const deck = this.registry.requireDeck(deckId);
-		if (!this.#campaign) {
-			return drawEphemeral(deck, { count, rng: this.#deps.random }).map((card) => formatCard(card));
-		}
-		const result = await this.#campaign.draw(deck, count);
-		await this.#campaign.ledger.append({
+		const campaign = options.record === false ? undefined : options.campaign ?? this.#campaign;
+		if (!campaign) return { cards: drawEphemeral(deck, { count, rng: this.#deps.random }).map((card) => formatCard(card)) };
+		const result = await campaign.draw(deck, count);
+		const entry = await campaign.ledger.append({
 			kind: "card",
 			request: deck.id,
 			result: result.cards.map((card) => card.name).join(", "),
 		});
-		return result.cards.map((card) => formatCard(card));
+		return {
+			cards: result.cards.map((card) => formatCard(card)),
+			ledger: { id: entry.id, kind: entry.kind },
+		};
 	}
 
-	async rollTable(tableId: string): Promise<string> {
+	async rollTable(tableId: string, options: { record?: boolean; campaign?: Campaign } = {}): Promise<string> {
+		return (await this.rollTableOutcome(tableId, options)).text;
+	}
+
+	async rollTableOutcome(tableId: string, options: { record?: boolean; campaign?: Campaign } = {}): Promise<TextOutcome> {
 		const table = this.registry.requireTable(tableId);
 		const text = formatTableResult(
 			rollTable(table, { rng: this.#deps.random, registry: this.registry }),
 		);
-		if (this.#campaign) {
-			await this.#campaign.ledger.append({ kind: "table", request: table.id, result: text });
-		}
-		return text;
+		const campaign = options.record === false ? undefined : options.campaign ?? this.#campaign;
+		if (!campaign) return { text };
+		const entry = await campaign.ledger.append({ kind: "table", request: table.id, result: text });
+		return { text, ledger: { id: entry.id, kind: entry.kind } };
 	}
 
-	async oracle(kind: OracleKind, question?: string, likelihood?: Likelihood): Promise<string> {
+	async oracle(
+		kind: OracleKind,
+		question?: string,
+		likelihood?: Likelihood,
+		options: { record?: boolean; campaign?: Campaign } = {},
+	): Promise<string> {
+		return (await this.oracleOutcome(kind, question, likelihood, options)).text;
+	}
+
+	async oracleOutcome(
+		kind: OracleKind,
+		question?: string,
+		likelihood?: Likelihood,
+		options: { record?: boolean; campaign?: Campaign } = {},
+	): Promise<TextOutcome> {
 		const answer = oracleAnswer({
 			kind,
 			question,
@@ -235,15 +276,15 @@ export class WebSession {
 			rng: this.#deps.random,
 			registry: this.registry,
 		});
-		if (this.#campaign) {
-			await this.#campaign.ledger.append({
-				kind: "oracle",
-				request: kind,
-				reason: question,
-				result: answer.text,
-			});
-		}
-		return answer.text;
+		const campaign = options.record === false ? undefined : options.campaign ?? this.#campaign;
+		if (!campaign) return { text: answer.text };
+		const entry = await campaign.ledger.append({
+			kind: "oracle",
+			request: kind,
+			reason: question,
+			result: answer.text,
+		});
+		return { text: answer.text, ledger: { id: entry.id, kind: entry.kind } };
 	}
 
 	/** Deck ids available, sorted. For a harness that lists them to a model. */
