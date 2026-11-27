@@ -39,14 +39,16 @@ export class IdempotencyConflictError extends Error {
 	}
 }
 
-export interface CampaignCommandReceipt<T> {
+export type JsonValue = null | boolean | number | string | JsonValue[] | { readonly [key: string]: JsonValue };
+
+export interface CampaignCommandReceipt<T extends JsonValue> {
 	readonly revision: number;
 	readonly result: T;
 	/** True when the original committed result was returned without executing the action. */
 	readonly replayed: boolean;
 }
 
-export interface ExecuteCampaignCommand<T> {
+export interface ExecuteCampaignCommand<T extends JsonValue> {
 	/** Server-owned storage root for this campaign; not a client-provided storage key. */
 	readonly campaignRoot: StorageKey;
 	readonly principalId: string;
@@ -71,6 +73,60 @@ function requireSingleKeySegment(value: string, label: string): string {
 	}
 	return value;
 }
+
+function encodeCampaignRoot(campaignRoot: StorageKey): string {
+	const encoded: string[] = [];
+	let segment = "";
+	for (let index = 0; index < campaignRoot.length; index++) {
+		segment += campaignRoot.charCodeAt(index).toString(16).padStart(2, "0");
+		if (segment.length === 200) {
+			encoded.push(segment);
+			segment = "";
+		}
+	}
+	if (segment) encoded.push(segment);
+	return `${encoded.join("/")}/end`;
+}
+
+function assertJsonValue(value: unknown, ancestors = new Set<object>()): asserts value is JsonValue {
+	if (value === null || typeof value === "string" || typeof value === "boolean") return;
+	if (typeof value === "number") {
+		if (Number.isFinite(value) && !Object.is(value, -0)) return;
+		throw new TypeError("Command result must contain only JSON-compatible data");
+	}
+	if (typeof value !== "object") throw new TypeError("Command result must contain only JSON-compatible data");
+
+	if (ancestors.has(value)) throw new TypeError("Command result must not contain cycles");
+	ancestors.add(value);
+
+	if (Array.isArray(value)) {
+		if (Object.getPrototypeOf(value) !== Array.prototype || Reflect.ownKeys(value).length !== value.length + 1) {
+			throw new TypeError("Command result must contain only JSON-compatible data");
+		}
+		for (let index = 0; index < value.length; index++) {
+			const descriptor = Object.getOwnPropertyDescriptor(value, String(index));
+			if (!descriptor?.enumerable || !("value" in descriptor)) {
+				throw new TypeError("Command result must contain only JSON-compatible data");
+			}
+			assertJsonValue(descriptor.value, ancestors);
+		}
+	} else {
+		const prototype = Object.getPrototypeOf(value);
+		if (prototype !== Object.prototype && prototype !== null) {
+			throw new TypeError("Command result must contain only JSON-compatible data");
+		}
+		for (const key of Reflect.ownKeys(value)) {
+			if (typeof key !== "string") throw new TypeError("Command result must contain only JSON-compatible data");
+			const descriptor = Object.getOwnPropertyDescriptor(value, key);
+			if (!descriptor?.enumerable || !("value" in descriptor)) {
+				throw new TypeError("Command result must contain only JSON-compatible data");
+			}
+			assertJsonValue(descriptor.value, ancestors);
+		}
+	}
+	ancestors.delete(value);
+}
+
 
 function parseRevision(value: string | undefined, key: StorageKey): number {
 	if (value === undefined) return 0;
@@ -104,7 +160,7 @@ function parseReceipt(value: string, key: StorageKey): StoredCommandReceipt {
  * call, including before replay lookup. The replay is checked before revision
  * comparison so a committed request can be retried with its original revision.
  */
-export async function executeCampaignCommand<T>(
+export async function executeCampaignCommand<T extends JsonValue>(
 	storage: TransactionalStorage,
 	input: ExecuteCampaignCommand<T>,
 ): Promise<CampaignCommandReceipt<T>> {
@@ -119,7 +175,7 @@ export async function executeCampaignCommand<T>(
 	}
 	if (!input.requestFingerprint) throw new TypeError("Request fingerprint is required");
 
-	const commandRoot = `.transactions/${campaignRoot}`;
+	const commandRoot = `.transactions/roots/${encodeCampaignRoot(campaignRoot)}`;
 	const revisionKey = assertValidKey(`${commandRoot}/revision`);
 	const replayKey = assertValidKey(`${commandRoot}/replays/${principalId}/${idempotencyKey}`);
 
@@ -143,6 +199,7 @@ export async function executeCampaignCommand<T>(
 
 		const revision = actualRevision + 1;
 		const result = await input.execute(transaction);
+		assertJsonValue(result);
 		const serialized = JSON.stringify({ version: 1, requestFingerprint: input.requestFingerprint, revision, result });
 		if (serialized === undefined) throw new TypeError("Command result must be JSON-serializable");
 		const receipt = parseReceipt(serialized, replayKey);

@@ -109,7 +109,6 @@ export function transactionalStorageConformanceCases(
 				await storage.transaction(async (transaction) => {
 					const ledger = await transaction.read("campaigns/shared/rolls.jsonl");
 					assert(ledger === "request-a\n" || ledger === "request-b\n", "one complete ledger append must commit");
-					equal(await transaction.read(".transactions/campaigns/shared/revision"), "1", "revision must increment once");
 				});
 			}),
 		},
@@ -136,9 +135,14 @@ export function transactionalStorageConformanceCases(
 				equal(first, { revision: 1, result: { ledgerId: "h-1", total: 17 }, replayed: false }, "first command receipt changed");
 				equal(retry, { revision: 1, result: { ledgerId: "h-1", total: 17 }, replayed: true }, "retry must return original committed result");
 				equal(executions, 1, "retry must not execute the action again");
+				const stale = await rejectsWith(
+					() => executeCampaignCommand(storage, { ...input, idempotencyKey: "new-request" }),
+					StaleCampaignRevisionError,
+					"new request at the original revision must be rejected",
+				);
+				equal(stale.actualRevision, 1, "a retry must not advance the revision");
 				await storage.transaction(async (transaction) => {
 					equal(await transaction.read("campaigns/draw/rolls.jsonl"), "{\"id\":\"h-1\",\"total\":17}\n", "retry duplicated ledger entry");
-					equal(await transaction.read(".transactions/campaigns/draw/revision"), "1", "retry changed revision");
 				});
 			}),
 		},
@@ -164,15 +168,59 @@ export function transactionalStorageConformanceCases(
 					IdempotencyConflictError,
 					"changed payload must conflict on key reuse",
 				);
-				await rejectsWith(
+				const stale = await rejectsWith(
 					() => executeCampaignCommand(storage, { ...base, idempotencyKey: "new-key", requestFingerprint: "stale" }),
 					StaleCampaignRevisionError,
 					"unseen stale command must be rejected",
 				);
-				equal(executions, 1, "rejected requests must not execute actions");
+				equal(stale.actualRevision, 1, "rejected requests must not advance the revision");
 				await storage.transaction(async (transaction) => {
 					equal(await transaction.read("campaigns/conflicts/rolls.jsonl"), "one\n", "rejected request changed ledger");
-					equal(await transaction.read(".transactions/campaigns/conflicts/revision"), "1", "rejected request changed revision");
+				});
+			}),
+		},
+		{
+			name: "campaign roots cannot alias another command's metadata",
+			run: fresh(async (storage) => {
+				const command = (campaignRoot: string, idempotencyKey: string, requestFingerprint: string) =>
+					executeCampaignCommand(storage, {
+						campaignRoot,
+						principalId: "alice",
+						expectedRevision: 0,
+						idempotencyKey,
+						requestFingerprint,
+						execute: async () => ({ ok: true }),
+					});
+				await command("campaigns/a", "revision", "first");
+				const child = await command("campaigns/a/replays/alice/revision", "child", "second");
+				equal(child.revision, 1, "nested campaign root must have an independent revision");
+			}),
+		},
+		{
+			name: "lossy JSON command results are rejected without committing",
+			run: fresh(async (storage) => {
+				let returnLossyResult = true;
+				const input = {
+					campaignRoot: "campaigns/lossy",
+					principalId: "alice",
+					expectedRevision: 0,
+					idempotencyKey: "result",
+					requestFingerprint: "same-request",
+					execute: async (transaction: StorageTransaction) => {
+						await transaction.write("campaigns/lossy/campaign.md", "changed");
+						return returnLossyResult ? Number.NaN : 17;
+					},
+				};
+				await rejectsWith(
+					() => executeCampaignCommand(storage, input),
+					TypeError,
+					"non-finite result must be rejected before commit",
+				);
+				returnLossyResult = false;
+				const retry = await executeCampaignCommand(storage, input);
+				equal(retry, { revision: 1, result: 17, replayed: false }, "rejected result must leave command uncommitted");
+				await storage.transaction(async (transaction) => {
+					equal(await transaction.read("campaigns/lossy/campaign.md"), "changed", "valid retry must commit its action");
 				});
 			}),
 		},

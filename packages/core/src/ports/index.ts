@@ -56,6 +56,7 @@ export {
 	IdempotencyConflictError,
 	type CampaignCommandReceipt,
 	type ExecuteCampaignCommand,
+	type JsonValue,
 	type StorageTransaction,
 	StaleCampaignRevisionError,
 	type TransactionalStorage,

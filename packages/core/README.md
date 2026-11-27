@@ -726,10 +726,12 @@ single-writer assumption, is documented in `src/ports/storage.ts`.
 Server commands that update several campaign records use the separate
 `TransactionalStorage` port; the local `Storage` contract above remains
 single-writer. `executeCampaignCommand` checks a durable idempotency record
-before comparing revisions, then runs the action and stores its result and the
-next revision in the same transaction. Retrying the same request replays its
-original result; changed payloads and unseen stale revisions fail before
-effects. The caller must authenticate and authorize before entering this API.
+before comparing revisions, then runs the action and stores its JSON-compatible
+result and the next revision in the same transaction. Results that JSON would
+change (such as non-finite numbers, cycles or non-plain objects) are rejected.
+Retrying the same request replays its original result; changed payloads and
+unseen stale revisions fail before effects. The caller must authenticate and
+authorize before entering this API.
 
 ```ts
 import { executeCampaignCommand } from "@portents/core";
