@@ -50,3 +50,13 @@ export {
 	type StorageKey,
 	StorageUnavailableError,
 } from "./storage.ts";
+
+export {
+	executeCampaignCommand,
+	IdempotencyConflictError,
+	type CampaignCommandReceipt,
+	type ExecuteCampaignCommand,
+	type StorageTransaction,
+	StaleCampaignRevisionError,
+	type TransactionalStorage,
+} from "./transaction.ts";

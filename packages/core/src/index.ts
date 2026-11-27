@@ -39,6 +39,16 @@ export {
 	tickingClock,
 } from "./ports/index.ts";
 
+export {
+	executeCampaignCommand,
+	IdempotencyConflictError,
+	type CampaignCommandReceipt,
+	type ExecuteCampaignCommand,
+	type StorageTransaction,
+	StaleCampaignRevisionError,
+	type TransactionalStorage,
+} from "./ports/transaction.ts";
+
 // Dice.
 export {
 	analyze,

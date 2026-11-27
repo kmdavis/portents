@@ -1,7 +1,8 @@
 import assert from "node:assert/strict";
 import { describe, it } from "node:test";
 import { storageConformanceCases } from "../../testing/storage-conformance.ts";
-import { MemoryStorage } from "./index.ts";
+import { transactionalStorageConformanceCases } from "../../testing/transactional-storage-conformance.ts";
+import { MemoryStorage, MemoryTransactionalStorage } from "./index.ts";
 
 describe("MemoryStorage", () => {
 	describe("storage contract", () => {
@@ -32,5 +33,24 @@ describe("MemoryStorage", () => {
 		store.clear();
 		assert.equal(store.size, 0);
 		assert.equal(await store.read("a.md"), undefined);
+	});
+});
+
+describe("MemoryTransactionalStorage", () => {
+	for (const testCase of transactionalStorageConformanceCases(() => new MemoryTransactionalStorage())) {
+		it(testCase.name, () => testCase.run());
+	}
+
+	it("publishes all writes only after commit", async () => {
+		const store = new MemoryTransactionalStorage();
+		await store.transaction(async (transaction) => {
+			await transaction.write("campaigns/one/campaign.md", "committed one");
+			await transaction.write("campaigns/two/campaign.md", "committed two");
+			assert.deepEqual(store.snapshot(), {});
+		});
+		assert.deepEqual(store.snapshot(), {
+			"campaigns/one/campaign.md": "committed one",
+			"campaigns/two/campaign.md": "committed two",
+		});
 	});
 });

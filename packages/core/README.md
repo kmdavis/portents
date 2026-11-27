@@ -721,6 +721,47 @@ UTF-8 text. `read` returns `undefined` for a missing key rather than throwing.
 Writes are atomic against readers. The full contract, including the deliberate
 single-writer assumption, is documented in `src/ports/storage.ts`.
 
+### Transactional commands
+
+Server commands that update several campaign records use the separate
+`TransactionalStorage` port; the local `Storage` contract above remains
+single-writer. `executeCampaignCommand` checks a durable idempotency record
+before comparing revisions, then runs the action and stores its result and the
+next revision in the same transaction. Retrying the same request replays its
+original result; changed payloads and unseen stale revisions fail before
+effects. The caller must authenticate and authorize before entering this API.
+
+```ts
+import { executeCampaignCommand } from "@portents/core";
+import { MemoryTransactionalStorage } from "@portents/core/memory";
+
+const store = new MemoryTransactionalStorage();
+const receipt = await executeCampaignCommand(store, {
+  campaignRoot: "campaigns/grimhold",
+  principalId: "local-user",
+  expectedRevision: 0,
+  idempotencyKey: "request-1",
+  requestFingerprint: "validated-command-fingerprint",
+  execute: async (transaction) => {
+    await transaction.append("campaigns/grimhold/rolls.jsonl", "{\"id\":\"h-1\"}\n");
+    await transaction.write("campaigns/grimhold/piles.json", "{\"deck\":[2]}");
+    return { ledgerId: "h-1" };
+  },
+});
+```
+
+The transaction callback must perform campaign, ledger, pile/counter and pending
+state reads and writes only through its transaction view; do not run external
+side effects inside it. `MemoryTransactionalStorage` is a serializable
+in-memory reference adapter, not durable storage. The server owns a durable
+transaction adapter and restart/backup verification.
+
+Transactional adapters can also run the published
+`transactionalStorageConformanceCases`, which covers multi-record commit/abort,
+revision races, conflicting keys, retries and lost responses. Restart and
+database crash recovery must be tested by each durable adapter against its
+actual database driver.
+
 ### Writing your own adapter
 
 The conformance suite is published, so your adapter can prove it satisfies the

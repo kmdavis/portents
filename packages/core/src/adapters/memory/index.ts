@@ -7,6 +7,7 @@
  */
 
 import { assertValidKey, type Storage, type StorageKey } from "../../ports/storage.ts";
+import type { StorageTransaction, TransactionalStorage } from "../../ports/transaction.ts";
 
 export interface MemoryStorageOptions {
 	/** Seed contents, keyed exactly as they would be written. */
@@ -59,5 +60,31 @@ export class MemoryStorage implements Storage {
 
 	clear(): void {
 		this.#values.clear();
+	}
+}
+
+/** In-memory transactional reference store. It is serializable but not durable across process restarts. */
+export class MemoryTransactionalStorage implements TransactionalStorage {
+	#values: Map<string, string>;
+	#tail: Promise<void> = Promise.resolve();
+
+	constructor(options: MemoryStorageOptions = {}) {
+		this.#values = new Map(Object.entries(new MemoryStorage(options).snapshot()));
+	}
+
+	transaction<T>(operation: (transaction: StorageTransaction) => Promise<T>): Promise<T> {
+		const result = this.#tail.then(async () => {
+			const working = new MemoryStorage({ initial: Object.fromEntries(this.#values) });
+			const value = await operation(working);
+			this.#values = new Map(Object.entries(working.snapshot()));
+			return value;
+		});
+		this.#tail = result.then(() => undefined, () => undefined);
+		return result;
+	}
+
+	/** Committed values only; uncommitted transaction state is never exposed. */
+	snapshot(): Record<string, string> {
+		return Object.fromEntries(this.#values);
 	}
 }
