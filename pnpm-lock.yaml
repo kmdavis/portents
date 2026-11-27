@@ -97,6 +97,8 @@ importers:
 
   packages/guidance: {}
 
+  packages/identity: {}
+
   packages/pi:
     dependencies:
       '@portents/guidance':
