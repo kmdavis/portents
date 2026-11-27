@@ -56,10 +56,10 @@
  * optimistic locking, and no revision counter, because adding them would
  * complicate every call site to solve a problem the domain does not have.
  *
- * If that ever stops being true — a shared campaign, two browser tabs, a server
- * — the fix is a `CheckedStorage` extension adding
- * `writeIfUnchanged(key, expectedEtag, value)`, not a change to this interface.
- * Adapters are free to implement it early.
+ * This port intentionally remains single-writer for local library and demo use.
+ * Server commands that span records must use the separate `TransactionalStorage`
+ * port in `transaction.ts`; a per-key `writeIfUnchanged` check cannot atomically
+ * commit campaign state, ledger, piles, pending state, and replay data together.
  *
  * Concretely, an adapter MAY lose an update if two writers race. It MUST NOT
  * corrupt a value: a torn read is a bug, a lost update is a documented risk.

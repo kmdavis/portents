@@ -721,6 +721,70 @@ UTF-8 text. `read` returns `undefined` for a missing key rather than throwing.
 Writes are atomic against readers. The full contract, including the deliberate
 single-writer assumption, is documented in `src/ports/storage.ts`.
 
+### Transactional commands
+
+Server commands that update several campaign records use the separate
+`TransactionalStorage` port; the local `Storage` contract above remains
+single-writer. `executeCampaignCommand` re-checks mutable campaign authorization
+inside the transaction, before replay lookup. Authentication happens first;
+authorization must not be done against a state snapshot from a separate
+transaction.
+
+Each command carries a trusted server-generated fingerprint of its normalized
+semantic request, including command type, protocol version and defaults policy.
+The helper also binds idempotency reuse to the original expected revision, so a
+retry must resend both unchanged. A same-key request with a changed fingerprint
+or revision conflicts.
+
+```ts
+import { executeCampaignCommand, readCampaignRevision } from "@portents/core";
+import { MemoryTransactionalStorage } from "@portents/core/memory";
+
+const store = new MemoryTransactionalStorage();
+await store.transaction((transaction) =>
+  transaction.write("campaigns/grimhold/owner", "local-user"));
+const snapshot = await store.transaction(async (transaction) => ({
+  owner: await transaction.read("campaigns/grimhold/owner"),
+  revision: await readCampaignRevision(transaction, "campaigns/grimhold"),
+}));
+const receipt = await executeCampaignCommand(store, {
+  campaignRoot: "campaigns/grimhold",
+  principalId: "local-user",
+  expectedRevision: snapshot.revision,
+  idempotencyKey: "request-1",
+  requestFingerprint: "v1:draw:normalized-arguments",
+  authorize: async (transaction) => {
+    if (await transaction.read("campaigns/grimhold/owner") !== "local-user") {
+      throw new Error("Campaign access denied");
+    }
+  },
+  execute: async (transaction) => {
+    await transaction.append("campaigns/grimhold/rolls.jsonl", "{\"id\":\"h-1\"}\n");
+    await transaction.write("campaigns/grimhold/piles.json", "{\"deck\":[2]}");
+    return { ledgerId: "h-1" };
+  },
+});
+```
+
+`readCampaignRevision` must share a transaction with the campaign reads whose
+revision it describes. Authorization gets a read-only view; gameplay gets a
+campaign-scoped view that rejects cross-campaign and `.transactions` access,
+including broad lists and removals. Results must be JSON values; lossy values
+such as non-finite numbers, cycles, accessors, sparse arrays and class instances
+are rejected before commit.
+
+Campaign roots use the fixed-depth `campaigns/<opaque-id>` layout and are
+immutable, server-assigned, and never reused. Active roots retain idempotency
+receipts indefinitely. Deletion atomically removes campaign data and transaction
+metadata while a permanent tombstone or identity allocator prevents root reuse.
+Backups include transaction metadata consistently; portable exports omit
+principal-scoped receipts and imports use a new root at revision zero.
+Durable deletion/backup work belongs to [issue #9](https://github.com/kmdavis/portents/issues/9); portable archives to [issue #10](https://github.com/kmdavis/portents/issues/10).
+
+`MemoryTransactionalStorage` is a serializable in-memory reference adapter, not
+durable storage. Durable adapters run the published conformance cases and must
+also test restart and database crash recovery against their actual driver.
+
 ### Writing your own adapter
 
 The conformance suite is published, so your adapter can prove it satisfies the
