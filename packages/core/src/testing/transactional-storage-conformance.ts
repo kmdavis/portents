@@ -178,6 +178,10 @@ export function transactionalStorageConformanceCases(
 					idempotencyKey,
 					requestFingerprint: "same-command",
 					authorize: async (transaction) => {
+						assert(
+							!("write" in transaction) && !("append" in transaction) && !("remove" in transaction),
+							"authorization view must not expose mutating methods at runtime",
+						);
 						if (await transaction.read("campaigns/auth/owner") !== "alice") {
 							throw new Error("campaign access denied");
 						}
@@ -342,7 +346,7 @@ export function transactionalStorageConformanceCases(
 			}),
 		},
 		{
-			name: "campaign roots cannot alias another command's metadata",
+			name: "campaign roots use fixed-depth non-overlapping identities",
 			run: fresh(async (storage) => {
 				const command = (campaignRoot: string, idempotencyKey: string, requestFingerprint: string) =>
 					executeCampaignCommand(storage, {
@@ -355,8 +359,13 @@ export function transactionalStorageConformanceCases(
 						execute: async () => ({ ok: true }),
 					});
 				await command("campaigns/a", "revision", "first");
-				const child = await command("campaigns/a/replays/alice/revision", "child", "second");
-				equal(child.revision, 1, "nested campaign root must have an independent revision");
+				await rejectsWith(
+					() => command("campaigns/a/replays/alice/revision", "nested", "nested"),
+					TypeError,
+					"nested campaign root must be rejected",
+				);
+				const other = await command("campaigns/a-replays-alice-revision", "separate", "second");
+				equal(other.revision, 1, "separate fixed-depth roots must have independent revisions");
 			}),
 		},
 		{

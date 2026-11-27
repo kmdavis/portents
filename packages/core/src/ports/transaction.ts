@@ -13,12 +13,13 @@ export type StorageTransaction = Storage;
  * piles/counters, pending state, revisions, and replay records. Do not nest
  * transactions or perform external side effects while one is open.
  *
- * Campaign roots are immutable, server-assigned identities and must never be
- * reused. Retain replay receipts indefinitely while a root is active. Deletion
- * atomically removes campaign data and transaction metadata while preserving a
- * permanent non-reuse tombstone or identity allocator. Backups include both
- * consistently. Portable exports omit principal-scoped replay metadata;
- * imports use a new root and start at revision zero.
+ * Campaign roots use the non-overlapping `campaigns/<opaque-id>` layout and
+ * are immutable, server-assigned identities that must never be reused. Active
+ * roots retain replay receipts indefinitely. Deletion atomically removes
+ * campaign data and transaction metadata while preserving a permanent
+ * non-reuse tombstone or identity allocator. Backups include both consistently.
+ * Portable exports omit principal-scoped replay metadata; imports use a new
+ * root and start at revision zero.
  */
 export interface TransactionalStorage {
 	transaction<T>(operation: (transaction: StorageTransaction) => Promise<T>): Promise<T>;
@@ -55,7 +56,7 @@ export interface CampaignCommandReceipt<T extends JsonValue> {
 }
 
 export interface ExecuteCampaignCommand<T extends JsonValue> {
-	/** Server-owned storage root for this campaign; not a client-provided storage key. */
+	/** Server-owned `campaigns/<opaque-id>` root; fixed depth prevents overlapping scopes. */
 	readonly campaignRoot: StorageKey;
 	readonly principalId: string;
 	readonly expectedRevision: number;
@@ -103,14 +104,23 @@ function encodeCampaignRoot(campaignRoot: StorageKey): string {
 
 function validateCampaignRoot(campaignRoot: StorageKey): StorageKey {
 	const root = assertValidKey(campaignRoot);
-	if (root === ".transactions" || root.startsWith(".transactions/")) {
-		throw new TypeError("Campaign root uses the reserved transaction metadata namespace");
+	const segments = root.split("/");
+	if (segments.length !== 2 || segments[0] !== "campaigns") {
+		throw new TypeError("Campaign root must use the non-overlapping campaigns/<opaque-id> layout");
 	}
 	return root;
 }
 
 function transactionMetadataRoot(campaignRoot: StorageKey): string {
 	return `.transactions/roots/${encodeCampaignRoot(campaignRoot)}`;
+}
+
+function authorizationView(transaction: StorageTransaction): CampaignAuthorizationView {
+	return {
+		read: (key) => transaction.read(key),
+		exists: (key) => transaction.exists(key),
+		list: (prefix) => transaction.list(prefix),
+	};
 }
 
 function requireCampaignKey(campaignRoot: StorageKey, key: StorageKey): StorageKey {
@@ -240,7 +250,7 @@ export async function executeCampaignCommand<T extends JsonValue>(
 	const replayKey = assertValidKey(`${metadataRoot}/replays/${principalId}/${idempotencyKey}`);
 
 	return storage.transaction(async (transaction) => {
-		await input.authorize(transaction);
+		await input.authorize(authorizationView(transaction));
 		const replayText = await transaction.read(replayKey);
 		if (replayText !== undefined) {
 			const replay = parseReceipt(replayText, replayKey);

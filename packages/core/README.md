@@ -773,13 +773,13 @@ including broad lists and removals. Results must be JSON values; lossy values
 such as non-finite numbers, cycles, accessors, sparse arrays and class instances
 are rejected before commit.
 
-Campaign roots are immutable, server-assigned, and never reused. Active roots
-retain idempotency receipts indefinitely. Deletion atomically removes campaign
-data and transaction metadata while a permanent tombstone or identity allocator
-prevents root reuse. Backups include transaction metadata consistently, while
-portable exports omit principal-scoped receipts and imports use a new root at
-revision zero. Durable deletion/backup work belongs to [issue #9](https://github.com/kmdavis/portents/issues/9);
-portable archive behavior belongs to [issue #10](https://github.com/kmdavis/portents/issues/10).
+Campaign roots use the fixed-depth `campaigns/<opaque-id>` layout and are
+immutable, server-assigned, and never reused. Active roots retain idempotency
+receipts indefinitely. Deletion atomically removes campaign data and transaction
+metadata while a permanent tombstone or identity allocator prevents root reuse.
+Backups include transaction metadata consistently; portable exports omit
+principal-scoped receipts and imports use a new root at revision zero.
+Durable deletion/backup work belongs to [issue #9](https://github.com/kmdavis/portents/issues/9); portable archives to [issue #10](https://github.com/kmdavis/portents/issues/10).
 
 `MemoryTransactionalStorage` is a serializable in-memory reference adapter, not
 durable storage. Durable adapters run the published conformance cases and must
