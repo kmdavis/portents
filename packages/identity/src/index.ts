@@ -4,22 +4,36 @@ export interface Principal {
 	readonly id: string;
 }
 
+export type CredentialAuthenticationResult =
+	| { readonly type: "authenticated"; readonly principal: Principal }
+	| { readonly type: "unrecognized" }
+	| { readonly type: "rejected" };
+
 export interface IdentityProvider {
-	authenticate(credential: string): Promise<Principal | null>;
+	authenticate(credential: string): Promise<CredentialAuthenticationResult>;
+}
+
+export interface IssuedLocalCredential {
+	/** Non-secret handle for owner-scoped revocation. */
+	readonly id: string;
+	/** Secret is returned once and is never persisted. */
+	readonly credential: string;
 }
 
 export interface LocalCredentialRecord {
+	readonly id: string;
 	readonly digest: string;
 	readonly principalId: string;
 }
 
-/** The server's durable credential adapter; credential material is never stored. */
+/** Durable adapter; must enforce unique IDs/digests and owner-scoped deletion. */
 export interface LocalCredentialRepository {
 	insert(record: LocalCredentialRecord): Promise<void>;
 	findByDigest(digest: string): Promise<LocalCredentialRecord | null>;
-	deleteByDigest(digest: string): Promise<boolean>;
+	deleteById(principalId: string, credentialId: string): Promise<boolean>;
 }
 
+const localCredentialPrefix = "ptl1_";
 const localCredentialPattern = /^ptl1_[A-Za-z0-9_-]{43}$/;
 function credentialDigest(credential: string): string {
 	return createHash("sha256").update(credential, "utf8").digest("hex");
@@ -32,22 +46,26 @@ export class LocalCredentialProvider implements IdentityProvider {
 		this.repository = repository;
 	}
 
-	async issue(principalId: string): Promise<string> {
+	async issue(principalId: string): Promise<IssuedLocalCredential> {
 		if (!principalId) throw new TypeError("A principal ID is required");
-		const credential = `ptl1_${randomBytes(32).toString("base64url")}`;
-		await this.repository.insert({ digest: credentialDigest(credential), principalId });
-		return credential;
+		const id = randomBytes(16).toString("base64url");
+		const credential = `${localCredentialPrefix}${randomBytes(32).toString("base64url")}`;
+		await this.repository.insert({ id, digest: credentialDigest(credential), principalId });
+		return { id, credential };
 	}
 
-	async authenticate(credential: string): Promise<Principal | null> {
-		if (!localCredentialPattern.test(credential)) return null;
+	async authenticate(credential: string): Promise<CredentialAuthenticationResult> {
+		if (!credential.startsWith(localCredentialPrefix)) return { type: "unrecognized" };
+		if (!localCredentialPattern.test(credential)) return { type: "rejected" };
 		const record = await this.repository.findByDigest(credentialDigest(credential));
-		return record ? { id: record.principalId } : null;
+		return record
+			? { type: "authenticated", principal: { id: record.principalId } }
+			: { type: "rejected" };
 	}
 
-	async revoke(credential: string): Promise<boolean> {
-		if (!localCredentialPattern.test(credential)) return false;
-		return this.repository.deleteByDigest(credentialDigest(credential));
+	async revoke(principalId: string, credentialId: string): Promise<boolean> {
+		if (!principalId || !credentialId) return false;
+		return this.repository.deleteById(principalId, credentialId);
 	}
 }
 
@@ -58,9 +76,15 @@ export interface VerifiedFederatedIdentity {
 	readonly subject: string;
 }
 
+export type FederatedVerificationResult =
+	| { readonly type: "unrecognized" }
+	| { readonly type: "rejected" }
+	| { readonly type: "verified"; readonly identity: VerifiedFederatedIdentity };
+
 /** Must verify signature, issuer, audience, expiry, and provider policy before returning claims. */
 export interface FederatedTokenVerifier {
-	verify(credential: string): Promise<VerifiedFederatedIdentity | null>;
+	/** Return unrecognized for another provider's token, rejected for invalid credentials, and throw only for operational failures. */
+	verify(credential: string): Promise<FederatedVerificationResult>;
 }
 
 /** Maps verified provider identities to stable, server-owned principals. */
@@ -76,24 +100,36 @@ export class FederatedIdentityProvider implements IdentityProvider {
 		this.directory = directory;
 	}
 
-	async authenticate(credential: string): Promise<Principal | null> {
-		const identity = await this.verifier.verify(credential);
-		if (!identity || !identity.issuer || !identity.subject) return null;
-		const principalId = await this.directory.findPrincipal(identity.issuer, identity.subject);
-		return principalId ? { id: principalId } : null;
+	async authenticate(credential: string): Promise<CredentialAuthenticationResult> {
+		const verification = await this.verifier.verify(credential);
+		if (verification.type !== "verified") return verification;
+		const { issuer, subject } = verification.identity;
+		if (!issuer || !subject) return { type: "rejected" };
+		const principalId = await this.directory.findPrincipal(issuer, subject);
+		return principalId
+			? { type: "authenticated", principal: { id: principalId } }
+			: { type: "rejected" };
 	}
 }
 
-/** Resolves a Bearer header against configured adapters without caching principals. */
+/** Resolves a Bearer header without caching principals or trying other providers after rejection/failure. */
 export async function authenticateBearer(
 	authorization: string | null | undefined,
-	providers: readonly IdentityProvider[],
+	localProvider: LocalCredentialProvider,
+	federatedProviders: readonly FederatedIdentityProvider[],
 ): Promise<Principal> {
 	const match = authorization?.match(/^Bearer ([^\s]+)$/i);
 	if (!match) throw new UnauthenticatedError();
-	for (const provider of providers) {
-		const principal = await provider.authenticate(match[1]!);
-		if (principal) return principal;
+	const credential = match[1]!;
+	if (credential.startsWith(localCredentialPrefix)) {
+		const result = await localProvider.authenticate(credential);
+		if (result.type === "authenticated") return result.principal;
+		throw new UnauthenticatedError();
+	}
+	for (const provider of federatedProviders) {
+		const result = await provider.authenticate(credential);
+		if (result.type === "authenticated") return result.principal;
+		if (result.type === "rejected") throw new UnauthenticatedError();
 	}
 	throw new UnauthenticatedError();
 }
@@ -132,9 +168,10 @@ export async function requireOwnedCampaign(
 	principal: Principal,
 	campaignId: string,
 	ownership: CampaignOwnership,
-): Promise<void> {
+): Promise<string> {
 	const owner = await ownership.findCampaignOwner(campaignId);
 	if (owner !== principal.id) throw new ResourceUnavailableError();
+	return campaignId;
 }
 
 /** Resolves an asset to its owning campaign before any asset bytes are exposed. */
@@ -142,15 +179,18 @@ export interface CampaignAssetOwnership extends CampaignOwnership {
 	findAssetCampaignId(assetId: string): Promise<string | null>;
 }
 
-/** Resolve and authorize an asset through its campaign before serving its bytes. */
+/**
+ * Return the authorized campaign ID. Callers must keep association and ownership reads
+ * consistent with the asset read, using the same transaction or immutable association.
+ */
 export async function requireOwnedCampaignAsset(
 	principal: Principal,
 	assetId: string,
 	ownership: CampaignAssetOwnership,
-): Promise<void> {
+): Promise<string> {
 	const campaignId = await ownership.findAssetCampaignId(assetId);
 	if (!campaignId) throw new ResourceUnavailableError();
-	await requireOwnedCampaign(principal, campaignId, ownership);
+	return requireOwnedCampaign(principal, campaignId, ownership);
 }
 
 export interface EntitlementPolicy {
