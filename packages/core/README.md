@@ -725,25 +725,39 @@ single-writer assumption, is documented in `src/ports/storage.ts`.
 
 Server commands that update several campaign records use the separate
 `TransactionalStorage` port; the local `Storage` contract above remains
-single-writer. `executeCampaignCommand` checks a durable idempotency record
-before comparing revisions, then runs the action and stores its JSON-compatible
-result and the next revision in the same transaction. Results that JSON would
-change (such as non-finite numbers, cycles or non-plain objects) are rejected.
-Retrying the same request replays its original result; changed payloads and
-unseen stale revisions fail before effects. The caller must authenticate and
-authorize before entering this API.
+single-writer. `executeCampaignCommand` re-checks mutable campaign authorization
+inside the transaction, before replay lookup. Authentication happens first;
+authorization must not be done against a state snapshot from a separate
+transaction.
+
+Each command carries a trusted server-generated fingerprint of its normalized
+semantic request, including command type, protocol version and defaults policy.
+The helper also binds idempotency reuse to the original expected revision, so a
+retry must resend both unchanged. A same-key request with a changed fingerprint
+or revision conflicts.
 
 ```ts
-import { executeCampaignCommand } from "@portents/core";
+import { executeCampaignCommand, readCampaignRevision } from "@portents/core";
 import { MemoryTransactionalStorage } from "@portents/core/memory";
 
 const store = new MemoryTransactionalStorage();
+await store.transaction((transaction) =>
+  transaction.write("campaigns/grimhold/owner", "local-user"));
+const snapshot = await store.transaction(async (transaction) => ({
+  owner: await transaction.read("campaigns/grimhold/owner"),
+  revision: await readCampaignRevision(transaction, "campaigns/grimhold"),
+}));
 const receipt = await executeCampaignCommand(store, {
   campaignRoot: "campaigns/grimhold",
   principalId: "local-user",
-  expectedRevision: 0,
+  expectedRevision: snapshot.revision,
   idempotencyKey: "request-1",
-  requestFingerprint: "validated-command-fingerprint",
+  requestFingerprint: "v1:draw:normalized-arguments",
+  authorize: async (transaction) => {
+    if (await transaction.read("campaigns/grimhold/owner") !== "local-user") {
+      throw new Error("Campaign access denied");
+    }
+  },
   execute: async (transaction) => {
     await transaction.append("campaigns/grimhold/rolls.jsonl", "{\"id\":\"h-1\"}\n");
     await transaction.write("campaigns/grimhold/piles.json", "{\"deck\":[2]}");
@@ -752,17 +766,24 @@ const receipt = await executeCampaignCommand(store, {
 });
 ```
 
-The transaction callback must perform campaign, ledger, pile/counter and pending
-state reads and writes only through its transaction view; do not run external
-side effects inside it. `MemoryTransactionalStorage` is a serializable
-in-memory reference adapter, not durable storage. The server owns a durable
-transaction adapter and restart/backup verification.
+`readCampaignRevision` must share a transaction with the campaign reads whose
+revision it describes. Authorization gets a read-only view; gameplay gets a
+campaign-scoped view that rejects cross-campaign and `.transactions` access,
+including broad lists and removals. Results must be JSON values; lossy values
+such as non-finite numbers, cycles, accessors, sparse arrays and class instances
+are rejected before commit.
 
-Transactional adapters can also run the published
-`transactionalStorageConformanceCases`, which covers multi-record commit/abort,
-revision races, conflicting keys, retries and lost responses. Restart and
-database crash recovery must be tested by each durable adapter against its
-actual database driver.
+Campaign roots are immutable, server-assigned, and never reused. Active roots
+retain idempotency receipts indefinitely. Deletion atomically removes campaign
+data and transaction metadata while a permanent tombstone or identity allocator
+prevents root reuse. Backups include transaction metadata consistently, while
+portable exports omit principal-scoped receipts and imports use a new root at
+revision zero. Durable deletion/backup work belongs to [issue #9](https://github.com/kmdavis/portents/issues/9);
+portable archive behavior belongs to [issue #10](https://github.com/kmdavis/portents/issues/10).
+
+`MemoryTransactionalStorage` is a serializable in-memory reference adapter, not
+durable storage. Durable adapters run the published conformance cases and must
+also test restart and database crash recovery against their actual driver.
 
 ### Writing your own adapter
 

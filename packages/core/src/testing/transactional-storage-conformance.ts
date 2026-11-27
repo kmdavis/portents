@@ -1,7 +1,9 @@
 import {
 	executeCampaignCommand,
 	IdempotencyConflictError,
+	readCampaignRevision,
 	StaleCampaignRevisionError,
+	type JsonValue,
 	type StorageTransaction,
 	type TransactionalStorage,
 } from "../ports/transaction.ts";
@@ -96,6 +98,7 @@ export function transactionalStorageConformanceCases(
 					expectedRevision: 0,
 					idempotencyKey,
 					requestFingerprint,
+					authorize: async () => {},
 					execute: async (transaction) => {
 						await transaction.write("campaigns/shared/campaign.md", idempotencyKey);
 						await transaction.append("campaigns/shared/rolls.jsonl", `${idempotencyKey}\n`);
@@ -113,6 +116,154 @@ export function transactionalStorageConformanceCases(
 			}),
 		},
 		{
+			name: "concurrent identical retries replay once and same-key conflicts stay distinct from stale writes",
+			run: fresh(async (storage) => {
+				let executions = 0;
+				const input = {
+					campaignRoot: "campaigns/concurrent-replay",
+					principalId: "alice",
+					expectedRevision: 0,
+					idempotencyKey: "same-request",
+					requestFingerprint: "same-payload",
+					authorize: async () => {},
+					execute: async (transaction: StorageTransaction) => {
+						executions++;
+						await transaction.append("campaigns/concurrent-replay/rolls.jsonl", "one\n");
+						return { ledgerId: "one" };
+					},
+				};
+				const [first, second] = await Promise.all([
+					executeCampaignCommand(storage, input),
+					executeCampaignCommand(storage, input),
+				]);
+				equal(executions, 1, "overlapping identical commands must execute once");
+				equal(first.result, second.result, "identical requests must return equal results");
+				equal(first.revision, second.revision, "identical requests must return equal revisions");
+				assert(first.replayed !== second.replayed, "one overlapping request must replay the committed result");
+
+				const conflictStorage = await factory();
+				let conflictingExecutions = 0;
+				const conflictingCommand = (requestFingerprint: string) => executeCampaignCommand(conflictStorage, {
+					campaignRoot: "campaigns/concurrent-conflict",
+					principalId: "alice",
+					expectedRevision: 0,
+					idempotencyKey: "same-key",
+					requestFingerprint,
+					authorize: async () => {},
+					execute: async (transaction) => {
+						conflictingExecutions++;
+						await transaction.append("campaigns/concurrent-conflict/rolls.jsonl", `${requestFingerprint}\n`);
+						return { requestFingerprint };
+					},
+				});
+				const conflicts = await Promise.allSettled([
+					conflictingCommand("payload-a"),
+					conflictingCommand("payload-b"),
+				]);
+				assert(conflicts.filter((result) => result.status === "fulfilled").length === 1, "one conflicting request must commit");
+				const conflict = conflicts.find((result) => result.status === "rejected");
+				assert(conflict?.status === "rejected" && conflict.reason instanceof IdempotencyConflictError, "same-key loser must report idempotency conflict");
+				equal(conflictingExecutions, 1, "conflicting request must not execute after the first commit");
+			}),
+		},
+		{
+			name: "authorization is checked inside the transaction before replay",
+			run: fresh(async (storage) => {
+				await storage.transaction((transaction) => transaction.write("campaigns/auth/owner", "alice"));
+				let executions = 0;
+				const command = (idempotencyKey: string, expectedRevision: number) => executeCampaignCommand(storage, {
+					campaignRoot: "campaigns/auth",
+					principalId: "alice",
+					expectedRevision,
+					idempotencyKey,
+					requestFingerprint: "same-command",
+					authorize: async (transaction) => {
+						if (await transaction.read("campaigns/auth/owner") !== "alice") {
+							throw new Error("campaign access denied");
+						}
+					},
+					execute: async (transaction) => {
+						executions++;
+						await transaction.write(`campaigns/auth/actions/${idempotencyKey}`, "committed");
+						return { idempotencyKey };
+					},
+				});
+				await command("original", 0);
+				await storage.transaction((transaction) => transaction.write("campaigns/auth/owner", "bob"));
+				await rejectsWith(() => command("original", 0), Error, "revoked owner must not receive a replay result");
+				await rejectsWith(() => command("new-command", 1), Error, "revoked owner must not execute a new command");
+				equal(executions, 1, "denied replay and new command must not execute");
+				await storage.transaction((transaction) => transaction.write("campaigns/auth/owner", "alice"));
+				const next = await command("authorized-next", 1);
+				equal(next.revision, 2, "denied new command must not change campaign revision");
+			}),
+		},
+		{
+			name: "gameplay callbacks cannot access other campaigns or transaction metadata",
+			run: fresh(async (storage) => {
+				const violations: Array<[string, (transaction: StorageTransaction) => Promise<unknown>]> = [
+					["cross-campaign", (transaction) => transaction.write("campaigns/other/state", "bad")],
+					["metadata-removal", (transaction) => transaction.remove(".transactions/roots/other/replay")],
+					["broad-list", (transaction) => transaction.list("campaigns")],
+				];
+				for (const [key, violateScope] of violations) {
+					await rejectsWith(
+						() => executeCampaignCommand(storage, {
+							campaignRoot: "campaigns/scoped",
+							principalId: "alice",
+							expectedRevision: 0,
+							idempotencyKey: key,
+							requestFingerprint: key,
+							authorize: async () => {},
+							execute: async (transaction) => {
+								await violateScope(transaction);
+								return true;
+							},
+						}),
+						TypeError,
+						`${key} must be rejected by the campaign scope`,
+					);
+					await storage.transaction(async (transaction) => {
+						equal(await readCampaignRevision(transaction, "campaigns/scoped"), 0, `${key} must not advance the revision`);
+					});
+				}
+			}),
+		},
+		{
+			name: "a reader never observes a partial multi-record transaction",
+			run: fresh(async (storage) => {
+				const firstKey = "campaigns/isolation/first.json";
+				const secondKey = "campaigns/isolation/second.json";
+				await storage.transaction(async (transaction) => {
+					await transaction.write(firstKey, "old-first");
+					await transaction.write(secondKey, "old-second");
+				});
+				let writerStarted!: () => void;
+				const started = new Promise<void>((resolve) => { writerStarted = resolve; });
+				let resumeWriter!: () => void;
+				const gate = new Promise<void>((resolve) => { resumeWriter = resolve; });
+				const writer = storage.transaction(async (transaction) => {
+					await transaction.write(firstKey, "new-first");
+					writerStarted();
+					await gate;
+					await transaction.write(secondKey, "new-second");
+				});
+				await started;
+				const reader = storage.transaction(async (transaction) => ({
+					first: await transaction.read(firstKey),
+					second: await transaction.read(secondKey),
+				}));
+				resumeWriter();
+				await writer;
+				const observed = await reader;
+				assert(
+					(observed.first === "old-first" && observed.second === "old-second") ||
+					(observed.first === "new-first" && observed.second === "new-second"),
+					"reader must see the complete pre-commit or committed state",
+				);
+			}),
+		},
+		{
 			name: "identical retry replays the original result before stale revision rejection",
 			run: fresh(async (storage) => {
 				let executions = 0;
@@ -122,6 +273,7 @@ export function transactionalStorageConformanceCases(
 					expectedRevision: 0,
 					idempotencyKey: "roll-1",
 					requestFingerprint: "1d20+5|player",
+					authorize: async () => {},
 					execute: async (transaction: StorageTransaction) => {
 						executions++;
 						await transaction.append("campaigns/draw/rolls.jsonl", "{\"id\":\"h-1\",\"total\":17}\n");
@@ -130,6 +282,9 @@ export function transactionalStorageConformanceCases(
 						return { ledgerId: "h-1", total: 17 };
 					},
 				};
+				await storage.transaction(async (transaction) => {
+					equal(await readCampaignRevision(transaction, "campaigns/draw"), 0, "new campaign revision must start at zero");
+				});
 				const first = await executeCampaignCommand(storage, input);
 				const retry = await executeCampaignCommand(storage, input);
 				equal(first, { revision: 1, result: { ledgerId: "h-1", total: 17 }, replayed: false }, "first command receipt changed");
@@ -143,6 +298,7 @@ export function transactionalStorageConformanceCases(
 				equal(stale.actualRevision, 1, "a retry must not advance the revision");
 				await storage.transaction(async (transaction) => {
 					equal(await transaction.read("campaigns/draw/rolls.jsonl"), "{\"id\":\"h-1\",\"total\":17}\n", "retry duplicated ledger entry");
+					equal(await readCampaignRevision(transaction, "campaigns/draw"), 1, "revision accessor must match the committed snapshot");
 				});
 			}),
 		},
@@ -156,6 +312,7 @@ export function transactionalStorageConformanceCases(
 					expectedRevision: 0,
 					idempotencyKey: "same-key",
 					requestFingerprint: "original",
+					authorize: async () => {},
 					execute: async (transaction: StorageTransaction) => {
 						executions++;
 						await transaction.append("campaigns/conflicts/rolls.jsonl", "one\n");
@@ -167,6 +324,11 @@ export function transactionalStorageConformanceCases(
 					() => executeCampaignCommand(storage, { ...base, requestFingerprint: "changed" }),
 					IdempotencyConflictError,
 					"changed payload must conflict on key reuse",
+				);
+				await rejectsWith(
+					() => executeCampaignCommand(storage, { ...base, expectedRevision: 1 }),
+					IdempotencyConflictError,
+					"reused key with a different expected revision must conflict",
 				);
 				const stale = await rejectsWith(
 					() => executeCampaignCommand(storage, { ...base, idempotencyKey: "new-key", requestFingerprint: "stale" }),
@@ -189,6 +351,7 @@ export function transactionalStorageConformanceCases(
 						expectedRevision: 0,
 						idempotencyKey,
 						requestFingerprint,
+						authorize: async () => {},
 						execute: async () => ({ ok: true }),
 					});
 				await command("campaigns/a", "revision", "first");
@@ -197,31 +360,56 @@ export function transactionalStorageConformanceCases(
 			}),
 		},
 		{
-			name: "lossy JSON command results are rejected without committing",
+			name: "lossy JSON command results are rejected without committing gameplay writes",
 			run: fresh(async (storage) => {
-				let returnLossyResult = true;
-				const input = {
+				const cyclic: Record<string, unknown> = {};
+				cyclic.self = cyclic;
+				const sparse = new Array<JsonValue>(1);
+				const accessor: Record<string, unknown> = {};
+				Object.defineProperty(accessor, "value", { enumerable: true, get: () => 1 });
+				const invalidResults: Array<[string, JsonValue]> = [
+					["nan", Number.NaN],
+					["negative-zero", -0],
+					["cycle", cyclic as unknown as JsonValue],
+					["sparse-array", sparse],
+					["accessor", accessor as unknown as JsonValue],
+					["map", new Map() as unknown as JsonValue],
+				];
+				for (const [key, result] of invalidResults) {
+					await rejectsWith(
+						() => executeCampaignCommand(storage, {
+							campaignRoot: "campaigns/lossy",
+							principalId: "alice",
+							expectedRevision: 0,
+							idempotencyKey: key,
+							requestFingerprint: key,
+							authorize: async () => {},
+							execute: async (transaction) => {
+								await transaction.write("campaigns/lossy/campaign.md", key);
+								return result;
+							},
+						}),
+						TypeError,
+						`${key} result must be rejected`,
+					);
+					await storage.transaction(async (transaction) => {
+						equal(await transaction.read("campaigns/lossy/campaign.md"), undefined, `${key} result leaked a gameplay write`);
+						equal(await readCampaignRevision(transaction, "campaigns/lossy"), 0, `${key} result changed the revision`);
+					});
+				}
+				const committed = await executeCampaignCommand(storage, {
 					campaignRoot: "campaigns/lossy",
 					principalId: "alice",
 					expectedRevision: 0,
-					idempotencyKey: "result",
-					requestFingerprint: "same-request",
-					execute: async (transaction: StorageTransaction) => {
-						await transaction.write("campaigns/lossy/campaign.md", "changed");
-						return returnLossyResult ? Number.NaN : 17;
+					idempotencyKey: "valid",
+					requestFingerprint: "valid",
+					authorize: async () => {},
+					execute: async (transaction) => {
+						await transaction.write("campaigns/lossy/campaign.md", "valid");
+						return 17;
 					},
-				};
-				await rejectsWith(
-					() => executeCampaignCommand(storage, input),
-					TypeError,
-					"non-finite result must be rejected before commit",
-				);
-				returnLossyResult = false;
-				const retry = await executeCampaignCommand(storage, input);
-				equal(retry, { revision: 1, result: 17, replayed: false }, "rejected result must leave command uncommitted");
-				await storage.transaction(async (transaction) => {
-					equal(await transaction.read("campaigns/lossy/campaign.md"), "changed", "valid retry must commit its action");
 				});
+				equal(committed, { revision: 1, result: 17, replayed: false }, "valid result must commit after invalid results roll back");
 			}),
 		},
 		{
@@ -245,6 +433,7 @@ export function transactionalStorageConformanceCases(
 					expectedRevision: 0,
 					idempotencyKey: "lost-response",
 					requestFingerprint: "same-request",
+					authorize: async () => {},
 					execute: async (transaction: StorageTransaction) => {
 						executions++;
 						await transaction.append("campaigns/retry/rolls.jsonl", "{\"id\":\"r-1\"}\n");

@@ -53,11 +53,13 @@ export {
 
 export {
 	executeCampaignCommand,
+	readCampaignRevision,
 	IdempotencyConflictError,
 	type CampaignCommandReceipt,
 	type ExecuteCampaignCommand,
 	type JsonValue,
 	type StorageTransaction,
+	type CampaignAuthorizationView,
 	StaleCampaignRevisionError,
 	type TransactionalStorage,
 } from "./transaction.ts";
