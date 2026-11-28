@@ -1,6 +1,6 @@
 #!/usr/bin/env node
 import { parseArgs } from "node:util";
-import { installLocalServer, startServer, backupServer, DEFAULT_SERVER_PORT } from "./runtime.ts";
+import { installLocalServer, startServer, backupServer, restoreServer, rotateLocalCredential, DEFAULT_SERVER_PORT } from "./runtime.ts";
 
 const usage = `Portents local/self-hosted server
 
@@ -8,13 +8,16 @@ Usage:
   portents-server install [--data-dir PATH] [--host HOST] [--port PORT]
   portents-server start   [--data-dir PATH] [--host HOST] [--port PORT]
   portents-server backup  --destination PATH [--data-dir PATH]
+  portents-server restore --source PATH [--data-dir PATH]
+  portents-server credential-rotate [--data-dir PATH]
 
 Environment:
   PORTENTS_DATA_DIR  Data directory (default: ~/.portents)
   PORTENTS_HOST      Listen address (default: 127.0.0.1)
   PORTENTS_PORT      Listen port (default: ${DEFAULT_SERVER_PORT})
 
-The install command prints a bearer credential once. Store it securely; it cannot be recovered.
+The install command prints a bearer credential once. If it is lost, use
+credential-rotate with local filesystem access; there is no HTTP recovery route.
 `;
 
 async function main(argv: readonly string[]): Promise<void> {
@@ -25,6 +28,7 @@ async function main(argv: readonly string[]): Promise<void> {
 			host: { type: "string" },
 			port: { type: "string" },
 			destination: { type: "string" },
+			source: { type: "string" },
 			help: { type: "boolean", short: "h" },
 		},
 		allowPositionals: true,
@@ -75,6 +79,19 @@ async function main(argv: readonly string[]): Promise<void> {
 			if (!parsed.values.destination) throw new Error("backup requires --destination PATH");
 			await backupServer(parsed.values["data-dir"], parsed.values.destination);
 			process.stdout.write(`Backup written to ${parsed.values.destination}\n`);
+			return;
+		}
+		case "restore": {
+			if (!parsed.values.source) throw new Error("restore requires --source PATH");
+			await restoreServer(parsed.values.source, parsed.values["data-dir"]);
+			process.stdout.write(`Restored into ${options.dataDir ?? "default data directory"}\n`);
+			return;
+		}
+		case "credential-rotate": {
+			const rotated = await rotateLocalCredential(parsed.values["data-dir"]);
+			process.stdout.write(`Principal: ${rotated.principalId}\n`);
+			process.stdout.write("Bearer credential (store securely):\n");
+			process.stdout.write(`${rotated.credential}\n`);
 			return;
 		}
 		default:

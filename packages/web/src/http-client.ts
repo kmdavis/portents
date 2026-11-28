@@ -1,4 +1,4 @@
-import { createCommandClient } from "./client.ts";
+import { createCommandClient, ProtocolCommandError } from "./client.ts";
 
 export interface HttpCommandClientOptions {
 	readonly endpoint: string;
@@ -36,7 +36,16 @@ export function createHttpCommandClient({ endpoint, credential, fetch: fetchImpl
 			method: "POST",
 			headers: { Authorization: `Bearer ${credential}`, "Content-Type": "application/json" },
 			body,
+			redirect: "error",
 		});
-		return response.json();
+		try {
+			return await response.json();
+		} catch {
+			throw new ProtocolCommandError({
+				code: "INTERNAL_ERROR",
+				message: `HTTP command failed with status ${response.status}`,
+				details: { status: response.status },
+			});
+		}
 	});
 }

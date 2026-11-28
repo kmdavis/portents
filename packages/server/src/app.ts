@@ -69,7 +69,7 @@ function requireIdempotencyKey(request: CommandRequest): string {
 	return key;
 }
 
-function fingerprint(command: Command): string {
+function fingerprint(request: CommandRequest): string {
 	const canonical = (value: unknown): unknown => {
 		if (Array.isArray(value)) return value.map(canonical);
 		if (typeof value !== "object" || value === null) return value;
@@ -79,7 +79,50 @@ function fingerprint(command: Command): string {
 				.map(([key, child]) => [key, canonical(child)]),
 		);
 	};
-	return createHash("sha256").update(JSON.stringify(canonical(command))).digest("hex");
+	return createHash("sha256").update(JSON.stringify({ version: request.version, command: canonical(request.command) })).digest("hex");
+}
+
+const MAX_REQUEST_BYTES = 1024 * 1024;
+class PayloadTooLargeError extends Error {}
+
+async function readRequestBody(request: Request): Promise<unknown> {
+	const declaredLength = request.headers.get("content-length");
+	if (declaredLength !== null && Number(declaredLength) > MAX_REQUEST_BYTES) throw new PayloadTooLargeError();
+	if (!request.body) throw new ProtocolValidationError("Request body must be valid JSON");
+	const reader = request.body.getReader();
+	const chunks: Uint8Array[] = [];
+	let size = 0;
+	try {
+		while (true) {
+			const { done, value } = await reader.read();
+			if (done) break;
+			size += value.byteLength;
+			if (size > MAX_REQUEST_BYTES) {
+				await reader.cancel();
+				throw new PayloadTooLargeError();
+			}
+			chunks.push(value);
+		}
+	} finally {
+		reader.releaseLock();
+	}
+	const bytes = new Uint8Array(size);
+	let offset = 0;
+	for (const chunk of chunks) {
+		bytes.set(chunk, offset);
+		offset += chunk.byteLength;
+	}
+	return JSON.parse(new TextDecoder().decode(bytes));
+}
+
+function enforceCommandBounds(request: CommandRequest): void {
+	const command = request.command;
+	if ("expression" in command && command.expression.length > 4096) throw new ProtocolValidationError("Dice expression exceeds the 4096-character server limit");
+	if (command.type === "map.generate" && (command.rooms ?? 20) > 100) throw new ProtocolValidationError("Map generation is limited to 100 rooms per command");
+	if (command.type === "deck.draw" && (command.count ?? 1) > 50) throw new ProtocolValidationError("Deck draws are limited to 50 cards per command");
+	if (command.type === "map.moveActor" && (command.actors.length > 256 || (command.explored?.length ?? 0) > 10_000)) {
+		throw new ProtocolValidationError("Map movement is limited to 256 actors and 10000 explored cells per command");
+	}
 }
 
 function campaignStorage(storage: Storage, root: StorageKey, readOnly = false): Storage {
@@ -216,7 +259,7 @@ async function createCampaign(storage: SqliteStorage, principal: Principal, requ
 	validateMetadata(request, "create");
 	const key = requireIdempotencyKey(request);
 	const replayKey = assertValidKey(`server/create-replays/${requireOpaqueSegment(principal.id, "Principal ID")}/${key}`);
-	const commandFingerprint = fingerprint(request.command);
+	const commandFingerprint = fingerprint(request);
 	return storage.transaction(async (transaction) => {
 		const stored = await transaction.read(replayKey);
 		if (stored !== undefined) {
@@ -293,7 +336,7 @@ async function executeCampaignMutation(
 		principalId: principal.id,
 		expectedRevision: request.expectedRevision!,
 		idempotencyKey: requireIdempotencyKey(request),
-		requestFingerprint: fingerprint(request.command),
+		requestFingerprint: fingerprint(request),
 		authorize: async (view) => {
 			await requireOwnedCampaign(principal, id, new TransactionCampaignOwnership(view));
 			slug = await campaignSlug(view, id);
@@ -350,10 +393,14 @@ export function createServerApp(storage: SqliteStorage): Hono {
 			const principal = await authenticateBearer(context.req.header("authorization"), credentials, []);
 			const contentType = context.req.header("content-type")?.split(";")[0]?.trim().toLowerCase();
 			if (contentType !== "application/json") throw new ProtocolValidationError("Content-Type must be application/json");
-			const request = parseCommandRequest(await context.req.json());
+			const request = parseCommandRequest(await readRequestBody(context.req.raw));
+			enforceCommandBounds(request);
 			const outcome = await executeAuthenticatedCommand(storage, principal, request);
 			return context.json({ version: PROTOCOL_VERSION, result: outcome.result, ...(outcome.revision === undefined ? {} : { revision: outcome.revision }) } satisfies CommandResponse);
 		} catch (error) {
+			if (error instanceof PayloadTooLargeError) {
+				return context.json({ version: PROTOCOL_VERSION, error: { code: "PAYLOAD_TOO_LARGE", message: `Request body exceeds ${MAX_REQUEST_BYTES} bytes` } }, 413);
+			}
 			const failure = protocolFailure(error);
 			return context.json({ version: PROTOCOL_VERSION, error: failure.error } satisfies CommandResponse, failure.status);
 		}

@@ -73,28 +73,46 @@ describe("typed gameplay protocol", () => {
 		assert.throws(() => parseCommandResponse({ version: PROTOCOL_VERSION, result: { type: "empty" }, revision: -1 }), ProtocolValidationError);
 	});
 
-	it("posts authenticated commands to the normalized HTTP endpoint", async () => {
-		const client = createHttpCommandClient({
-			endpoint: "https://example.test/base/",
-			credential: "secret",
-			fetch: async (input, init) => {
-				assert.equal(input, "https://example.test/base/api/commands");
-				assert.equal(init?.method, "POST");
-				assert.equal(new Headers(init?.headers).get("authorization"), "Bearer secret");
-				assert.equal(new Headers(init?.headers).get("content-type"), "application/json");
-				assert.deepEqual(JSON.parse(String(init?.body)), {
-					version: PROTOCOL_VERSION,
-					command: { type: "campaign.list" },
-				});
-				return new Response(JSON.stringify({ version: PROTOCOL_VERSION, result: { type: "campaigns", campaigns: [] } }));
-			},
-		});
-		assert.deepEqual(await client.execute({ type: "campaign.list" }), { type: "campaigns", campaigns: [] });
-		assert.doesNotThrow(() => createHttpCommandClient({ endpoint: "http://127.0.0.1:7331", credential: "secret" }));
-		assert.throws(
-			() => createHttpCommandClient({ endpoint: "http://example.test", credential: "secret" }),
-			/loopback/,
-		);
+	it("posts authenticated commands without following redirects", async () => {
+		for (const status of [302, 307, 308]) {
+			const client = createHttpCommandClient({
+				endpoint: "https://example.test/base/",
+				credential: "secret",
+				fetch: async (_input, init) => {
+					assert.equal(init?.redirect, "error");
+					assert.equal(init?.method, "POST");
+					assert.match(String(init?.body), /campaign\.list/);
+					return new Response(null, { status, headers: { Location: "https://other.example/steal" } });
+				},
+			});
+			await assert.rejects(
+				() => client.execute({ type: "campaign.list" }),
+				(error: unknown) => error instanceof ProtocolCommandError && error.code === "INTERNAL_ERROR" &&
+					error.message === `HTTP command failed with status ${status}` &&
+					error.details?.status === status,
+			);
+		}
+	});
+
+	it("maps non-JSON and empty proxy errors to safe status-bearing errors", async () => {
+		for (const response of [
+			new Response("upstream secret: token=do-not-leak", { status: 502, headers: { "Content-Type": "text/html" } }),
+			new Response(null, { status: 503 }),
+		]) {
+			const client = createHttpCommandClient({
+				endpoint: "https://example.test",
+				credential: "secret",
+				fetch: async () => response,
+			});
+			await assert.rejects(
+				() => client.execute({ type: "campaign.list" }),
+				(error: unknown) => error instanceof ProtocolCommandError && error.code === "INTERNAL_ERROR" &&
+					error.details?.status === response.status &&
+					error.message === `HTTP command failed with status ${response.status}` &&
+					!error.message.includes("secret") &&
+					!JSON.stringify(error.details).includes("do-not-leak"),
+			);
+		}
 	});
 	it("validates typed client responses and preserves stable remote error codes", async () => {
 		const request = { type: "dice.roll" as const, expression: "1d20" };

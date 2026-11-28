@@ -1,5 +1,5 @@
 import { randomUUID } from "node:crypto";
-import { access, chmod, mkdir } from "node:fs/promises";
+import { access, chmod, copyFile, lstat, mkdir, open, rm } from "node:fs/promises";
 import { homedir } from "node:os";
 import { dirname, join, resolve } from "node:path";
 import { serve } from "@hono/node-server";
@@ -31,6 +31,7 @@ interface InstallationSettings {
 	readonly principalId: string;
 	readonly host: string;
 	readonly port: number;
+	readonly credentialId?: string;
 }
 
 function dataDirectory(value?: string): string {
@@ -56,7 +57,7 @@ function configuredPort(port?: number, fallback?: number): number {
 	return configured;
 }
 
-async function assertInstalled(storage: SqliteStorage): Promise<InstallationSettings> {
+async function assertInstalled(storage: Pick<SqliteStorage, "read">): Promise<InstallationSettings> {
 	const stored = await storage.read(installKey);
 	if (stored === undefined) throw new Error("Portents is not installed in this data directory; run `portents-server install` first");
 	let installation: unknown;
@@ -68,10 +69,16 @@ async function assertInstalled(storage: SqliteStorage): Promise<InstallationSett
 	if (typeof installation !== "object" || installation === null || !("version" in installation) || installation.version !== 1 ||
 		!("principalId" in installation) || typeof installation.principalId !== "string" || !/^local-[0-9a-f-]{36}$/.test(installation.principalId) ||
 		!("host" in installation) || typeof installation.host !== "string" || !installation.host.trim() ||
-		!("port" in installation) || typeof installation.port !== "number" || !Number.isInteger(installation.port) || installation.port < 1 || installation.port > 65_535) {
+		!("port" in installation) || typeof installation.port !== "number" || !Number.isInteger(installation.port) || installation.port < 1 || installation.port > 65_535 ||
+		("credentialId" in installation && typeof installation.credentialId !== "string")) {
 		throw new Error("Portents installation metadata is corrupt");
 	}
-	return { principalId: installation.principalId, host: installation.host, port: installation.port };
+	return {
+		principalId: installation.principalId,
+		host: installation.host,
+		port: installation.port,
+		...("credentialId" in installation && typeof installation.credentialId === "string" ? { credentialId: installation.credentialId } : {}),
+	};
 }
 
 async function ensureDataDirectory(path: string): Promise<void> {
@@ -88,20 +95,16 @@ export async function installLocalServer(options: ServerRuntimeOptions = {}): Pr
 	const storage = new SqliteStorage(databasePath);
 	try {
 		if (await storage.read(installKey) !== undefined) throw new Error("Portents is already installed in this data directory");
-		if (process.platform !== "win32") await chmod(databasePath, 0o600);
 		const principalId = `local-${randomUUID()}`;
-		const credentials = new LocalCredentialProvider(storage);
-		const issued = await credentials.issue(principalId);
-		try {
-			await storage.transaction(async (transaction) => {
-				if (await transaction.read(installKey) !== undefined) throw new Error("Portents is already installed in this data directory");
-				await transaction.write(installKey, JSON.stringify({ version: 1, principalId, host, port }));
-			});
-		} catch (error) {
-			await credentials.revoke(principalId, issued.id);
-			throw error;
-		}
-		return { dataDir: directory, principalId, credential: issued.credential, endpoint: endpoint(host, port) };
+		const installed = await storage.transaction(async (transaction) => {
+			if (await transaction.read(installKey) !== undefined) throw new Error("Portents is already installed in this data directory");
+			const credentials = new LocalCredentialProvider(storage.credentialsFor(transaction));
+			const issued = await credentials.issue(principalId);
+			await transaction.write(installKey, JSON.stringify({ version: 1, principalId, credentialId: issued.id, host, port }));
+			return issued;
+		});
+		return { dataDir: directory, principalId, credential: installed.credential, endpoint: endpoint(host, port) };
+		
 	} finally {
 		await storage.close();
 	}
@@ -173,11 +176,56 @@ export async function backupServer(dataDir: string | undefined, destination: str
 	if (backupPath === databasePath) throw new TypeError("Backup destination must differ from the live database");
 	await access(databasePath);
 	await mkdir(dirname(backupPath), { recursive: true });
+	const handle = await open(backupPath, "wx", 0o600);
+	await handle.close();
 	const storage = new SqliteStorage(databasePath);
 	try {
 		await assertInstalled(storage);
 		await storage.backup(backupPath);
+		if (process.platform !== "win32") await chmod(backupPath, 0o600);
+	} catch (error) {
+		await rm(backupPath, { force: true });
+		throw error;
 	} finally {
 		await storage.close();
 	}
+}
+
+/** Restore only into a clean directory; stop the server before calling. */
+export async function restoreServer(backup: string, dataDir: string | undefined): Promise<void> {
+	const directory = dataDirectory(dataDir);
+	const databasePath = join(directory, DATABASE_FILENAME);
+	for (const path of [databasePath, `${databasePath}-wal`, `${databasePath}-shm`]) {
+		try {
+			await lstat(path);
+			throw new Error(`Restore destination must be clean: ${path} exists`);
+		} catch (error) {
+			if (!(error instanceof Error) || !("code" in error) || error.code !== "ENOENT") throw error;
+		}
+	}
+	const sourcePath = resolve(backup);
+	const source = new SqliteStorage(sourcePath);
+	try { await assertInstalled(source); } finally { await source.close(); }
+	await mkdir(directory, { recursive: true, mode: 0o700 });
+	await copyFile(sourcePath, databasePath, 1);
+	if (process.platform !== "win32") await chmod(databasePath, 0o600);
+}
+
+export async function rotateLocalCredential(dataDir?: string): Promise<{ principalId: string; credential: string }> {
+	const storage = new SqliteStorage(join(dataDirectory(dataDir), DATABASE_FILENAME));
+	try {
+		return await storage.transaction(async (transaction) => {
+			const installation = await assertInstalled(transaction);
+			const credentials = new LocalCredentialProvider(storage.credentialsFor(transaction));
+			if (installation.credentialId && !(await credentials.revoke(installation.principalId, installation.credentialId))) {
+				throw new Error("Installed credential record is missing; credential rotation was not applied");
+			}
+			const replacement = await credentials.issue(installation.principalId);
+			await transaction.write(installKey, JSON.stringify({
+				version: 1, principalId: installation.principalId, credentialId: replacement.id,
+				host: installation.host, port: installation.port,
+			}));
+			return { principalId: installation.principalId, credential: replacement.credential };
+		});
+	} finally { await storage.close(); }
 }

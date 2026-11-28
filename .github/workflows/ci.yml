@@ -38,6 +38,12 @@ jobs:
 
       - name: Build
         run: pnpm -r build
+  docker-smoke:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Build image and verify persistent authenticated server
+        run: node packages/server/scripts/docker-smoke.mjs
 
   # ext4 is case-sensitive and macOS APFS is not. The storage conformance suite
   # detects which and asserts accordingly, so running both catches a regression
