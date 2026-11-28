@@ -4,6 +4,7 @@ export {
 	type CampaignClock,
 	type CampaignDeps,
 	CampaignError,
+	EntityNotFoundError,
 	assertCampaignResourcePath,
 	campaignKeys,
 	campaignResourcePath,

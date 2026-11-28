@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import { describe, it } from "node:test";
 
-import { formatRoll, roll, seededRandomSource } from "@portents/core";
+import { EntityNotFoundError, formatRoll, InvalidKeyError, roll, seededRandomSource, StorageError, StorageUnavailableError } from "@portents/core";
 import { MemoryStorage } from "@portents/core/memory";
 import { WebSession } from "./session.ts";
 import { executeCommand } from "./commands.ts";
@@ -120,6 +120,75 @@ describe("shared gameplay commands", () => {
 			() => executeCommand(session, request({ type: "map.generate" })),
 			(error: unknown) => error instanceof ProtocolValidationError &&
 				error.code === "INTERNAL_ERROR" && error.message === "Unexpected command failure",
+		);
+	});
+
+	it("maps typed lookup and storage errors without inspecting their messages", async () => {
+		const storage = new MemoryStorage();
+		const session = new WebSession({ storage });
+		await assert.rejects(
+			() => executeCommand(session, request({ type: "campaign.open", campaignId: "absent" })),
+			(error: unknown) => error instanceof ProtocolValidationError && error.code === "NOT_FOUND" &&
+				JSON.stringify(error.details) === JSON.stringify({ entity: "campaign", identifier: "absent" }),
+		);
+
+		const changedMessage = new EntityNotFoundError("campaign", "absent");
+		changedMessage.message = "unrelated revised human wording";
+		const messageSession = new WebSession({ storage: new MemoryStorage() });
+		messageSession.loadCampaign = async () => { throw changedMessage; };
+		await assert.rejects(
+			() => executeCommand(messageSession, request({ type: "campaign.open", campaignId: "absent" })),
+			(error: unknown) => error instanceof ProtocolValidationError && error.code === "NOT_FOUND" &&
+				JSON.stringify(error.details) === JSON.stringify({ entity: "campaign", identifier: "absent" }),
+		);
+
+		const campaign = await session.createCampaign("typed-errors", "generic");
+		await assert.rejects(
+			() => executeCommand(session, request({
+				type: "sheet.patchStatus", campaignId: campaign.slug, character: "absent", status: {},
+			})),
+			(error: unknown) => error instanceof ProtocolValidationError && error.code === "NOT_FOUND" &&
+				JSON.stringify(error.details) === JSON.stringify({ entity: "character", identifier: "absent" }),
+		);
+		await assert.rejects(
+			() => executeCommand(session, request({
+				type: "recall", campaignId: campaign.slug, id: "missing/resource",
+			})),
+			(error: unknown) => error instanceof ProtocolValidationError && error.code === "NOT_FOUND" &&
+				JSON.stringify(error.details) === JSON.stringify({ entity: "resource", identifier: "missing/resource" }),
+		);
+
+		session.map = () => { throw new Error("database not found: private implementation details"); };
+		await assert.rejects(
+			() => executeCommand(session, request({ type: "map.generate" })),
+			(error: unknown) => error instanceof ProtocolValidationError &&
+				error.code === "INTERNAL_ERROR" && error.message === "Unexpected command failure",
+		);
+
+		storage.read = async () => {
+			const error = new StorageUnavailableError("human wording A", new Error("secret"), { operation: "read", key: "secret/path" });
+			error.message = "human wording B";
+			throw error;
+		};
+		await assert.rejects(
+			() => executeCommand(session, request({ type: "campaign.list" })),
+			(error: unknown) => error instanceof ProtocolValidationError &&
+				error.code === "STORAGE_FAILURE" && error.message === "Storage operation failed" &&
+				JSON.stringify(error.details) === JSON.stringify({ operation: "read" }),
+		);
+		storage.read = async () => { throw new StorageError("private backend message", "secret/path"); };
+		await assert.rejects(
+			() => executeCommand(session, request({ type: "campaign.list" })),
+			(error: unknown) => error instanceof ProtocolValidationError &&
+				error.code === "STORAGE_FAILURE" && error.message === "Storage operation failed" &&
+				error.details === undefined,
+		);
+		storage.read = async () => { throw new InvalidKeyError("secret/path", "private validation detail"); };
+		await assert.rejects(
+			() => executeCommand(session, request({ type: "campaign.list" })),
+			(error: unknown) => error instanceof ProtocolValidationError &&
+				error.code === "INVALID_INPUT" && error.message === "Storage key is invalid" &&
+				error.details === undefined,
 		);
 	});
 	it("moves an actor through the shared map-view action and returns updated visibility", async () => {

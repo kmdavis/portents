@@ -5,7 +5,18 @@
  * their campaign explicitly. The local adapter maps legacy slugs by default;
  * hosted adapters must resolve their own IDs rather than expose storage keys.
  */
-import { isResourceSegment, LIKELIHOODS, ORACLE_KINDS, resourceProblems, WORLD_SECTIONS } from "@portents/core";
+import {
+	ActorNotFoundError,
+	EntityNotFoundError,
+	InvalidKeyError,
+	isResourceSegment,
+	LIKELIHOODS,
+	ORACLE_KINDS,
+	resourceProblems,
+	StorageError,
+	StorageUnavailableError,
+	WORLD_SECTIONS,
+} from "@portents/core";
 import type { Actor, Frontmatter, Likelihood, OracleKind, RememberResourceInput, ResourceAudience, TileSource, WorldSection } from "@portents/core";
 export const PROTOCOL_VERSION = 1 as const;
 
@@ -102,6 +113,29 @@ export class ProtocolValidationError extends Error {
 		this.code = code;
 		this.details = details;
 	}
+}
+
+/** Convert typed core failures to safe, stable protocol failures. */
+export function normalizeProtocolError(error: unknown): ProtocolValidationError {
+	if (error instanceof ProtocolValidationError) return error;
+	if (error instanceof EntityNotFoundError || error instanceof ActorNotFoundError) {
+		return new ProtocolValidationError("Requested resource was not found", "NOT_FOUND", {
+			entity: error.entity,
+			identifier: error.identifier,
+		});
+	}
+	if (error instanceof StorageUnavailableError) {
+		return new ProtocolValidationError("Storage operation failed", "STORAGE_FAILURE", {
+			...(error.details.operation ? { operation: error.details.operation } : {}),
+		});
+	}
+	if (error instanceof InvalidKeyError) {
+		return new ProtocolValidationError("Storage key is invalid", "INVALID_INPUT");
+	}
+	if (error instanceof StorageError) {
+		return new ProtocolValidationError("Storage operation failed", "STORAGE_FAILURE");
+	}
+	return new ProtocolValidationError("Unexpected command failure", "INTERNAL_ERROR");
 }
 
 

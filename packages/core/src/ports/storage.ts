@@ -63,10 +63,19 @@
  *
  * Concretely, an adapter MAY lose an update if two writers race. It MUST NOT
  * corrupt a value: a torn read is a bug, a lost update is a documented risk.
+ *
+ * Operational adapter failures MUST reject with {@link StorageUnavailableError}
+ * and include a stable operation discriminant; backend exception messages are
+ * diagnostic causes, never a classification contract.
  */
 
 /** A validated storage key. Produced by {@link assertValidKey}. */
 export type StorageKey = string;
+
+export interface StorageFailureDetails {
+	readonly operation?: "read" | "write" | "append" | "exists" | "list" | "remove" | "transaction";
+	readonly key?: string;
+}
 
 export class StorageError extends Error {
 	readonly key: string | undefined;
@@ -78,6 +87,7 @@ export class StorageError extends Error {
 }
 
 export class InvalidKeyError extends StorageError {
+	readonly kind = "invalid-key" as const;
 	constructor(key: string, reason: string) {
 		super(`Invalid storage key ${JSON.stringify(key)}: ${reason}`, key);
 		this.name = "InvalidKeyError";
@@ -85,10 +95,13 @@ export class InvalidKeyError extends StorageError {
 }
 
 export class StorageUnavailableError extends StorageError {
-	constructor(message: string, cause?: unknown) {
-		super(message);
+	readonly kind = "storage-unavailable" as const;
+	readonly details: StorageFailureDetails;
+	constructor(message: string, cause?: unknown, details: StorageFailureDetails = {}) {
+		super(message, details.key);
 		this.name = "StorageUnavailableError";
 		this.cause = cause;
+		this.details = details;
 	}
 }
 

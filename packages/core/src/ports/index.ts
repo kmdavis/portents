@@ -48,6 +48,7 @@ export {
 	type Storage,
 	StorageError,
 	type StorageKey,
+	type StorageFailureDetails,
 	StorageUnavailableError,
 } from "./storage.ts";
 

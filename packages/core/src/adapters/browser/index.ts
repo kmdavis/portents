@@ -16,7 +16,7 @@
  * than papered over with a fake.
  */
 
-import { assertValidKey, type Storage, type StorageKey, StorageUnavailableError } from "../../ports/storage.ts";
+import { assertValidKey, type Storage, type StorageFailureDetails, type StorageKey, StorageUnavailableError } from "../../ports/storage.ts";
 
 export interface BrowserStorageOptions {
 	/** Database name. Use one per application, not one per campaign. */
@@ -77,8 +77,17 @@ export class BrowserStorage implements Storage {
 	 * inside a single `readwrite` transaction, which is what keeps it atomic
 	 * against readers.
 	 */
-	async #transact<T>(mode: IDBTransactionMode, work: (store: IDBObjectStore) => Promise<T> | T): Promise<T> {
-		const db = await this.#open();
+	async #transact<T>(
+		mode: IDBTransactionMode,
+		work: (store: IDBObjectStore) => Promise<T> | T,
+		details: StorageFailureDetails,
+	): Promise<T> {
+		let db: IDBDatabase;
+		try {
+			db = await this.#open();
+		} catch (error) {
+			throw new StorageUnavailableError("IndexedDB operation failed", error, details);
+		}
 		return new Promise<T>((resolve, reject) => {
 			const transaction = db.transaction(this.#store, mode);
 			let result: T;
@@ -108,22 +117,24 @@ export class BrowserStorage implements Storage {
 					reject(error);
 				},
 			);
+		}).catch((error: unknown) => {
+			if (error instanceof StorageUnavailableError && error.details.operation) throw error;
+			throw new StorageUnavailableError("IndexedDB operation failed", error, details);
 		});
 	}
-
 	async read(key: StorageKey): Promise<string | undefined> {
 		const valid = assertValidKey(key);
 		return this.#transact("readonly", async (store) => {
 			const value = await promisify<unknown>(store.get(valid));
 			return typeof value === "string" ? value : undefined;
-		});
+		}, { operation: "read", key: valid });
 	}
 
 	async write(key: StorageKey, contents: string): Promise<void> {
 		const valid = assertValidKey(key);
 		await this.#transact("readwrite", async (store) => {
 			await promisify(store.put(contents, valid));
-		});
+		}, { operation: "write", key: valid });
 	}
 
 	async append(key: StorageKey, contents: string): Promise<void> {
@@ -132,7 +143,7 @@ export class BrowserStorage implements Storage {
 			const existing = await promisify<unknown>(store.get(valid));
 			const base = typeof existing === "string" ? existing : "";
 			await promisify(store.put(base + contents, valid));
-		});
+		}, { operation: "append", key: valid });
 	}
 
 	async exists(key: StorageKey): Promise<boolean> {
@@ -140,7 +151,7 @@ export class BrowserStorage implements Storage {
 		return this.#transact("readonly", async (store) => {
 			const count = await promisify<number>(store.count(valid));
 			return count > 0;
-		});
+		}, { operation: "exists", key: valid });
 	}
 
 	async list(prefix: string): Promise<StorageKey[]> {
@@ -150,14 +161,14 @@ export class BrowserStorage implements Storage {
 				.filter((key): key is string => typeof key === "string")
 				.filter((key) => key.startsWith(prefix))
 				.sort();
-		});
+		}, { operation: "list" });
 	}
 
 	async remove(key: StorageKey): Promise<void> {
 		const valid = assertValidKey(key);
 		await this.#transact("readwrite", async (store) => {
 			await promisify(store.delete(valid));
-		});
+		}, { operation: "remove", key: valid });
 	}
 
 	/** Close the connection. Mostly for tests and for tearing down a session. */

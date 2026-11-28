@@ -41,6 +41,13 @@ versions, malformed results, and remote protocol errors fail explicitly.
 The client infers the result type from the command and rejects a well-formed
 response whose result belongs to a different command.
 
+The shared sanitizer maps typed lookup failures to `NOT_FOUND`, `InvalidKeyError`
+to `INVALID_INPUT`, and `StorageError` failures to `STORAGE_FAILURE`. A
+`StorageUnavailableError` exposes only its stable operation; storage keys, causes,
+and backend messages never cross the protocol. The web executor and server use
+the same mapping for failures inside or outside command execution. Unexpected
+errors become a sanitized `INTERNAL_ERROR`.
+
 Remote clients can pass `{ expectedRevision, idempotencyKey }` to `execute` for a
 persistent mutation. `executeWithRevision` returns both the typed result and the
 server revision; use a fresh idempotency key for each distinct request and reuse

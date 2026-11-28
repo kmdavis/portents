@@ -262,7 +262,7 @@ export async function recallAction(session: WebSession, params: RecallParams): P
 		}));
 	} catch (error) {
 		if (params.id !== undefined && error instanceof ProtocolValidationError &&
-			error.code === "NOT_FOUND" && error.details?.resourceId === params.id) {
+			error.code === "NOT_FOUND" && error.details?.entity === "resource" && error.details?.identifier === params.id) {
 			return `No resource or setting map with id ${JSON.stringify(params.id)}.`;
 		}
 		throw error;

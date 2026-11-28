@@ -11,6 +11,7 @@ export {
 export { renderAsciiView, type AsciiViewOptions } from "./render.ts";
 export {
 	type Actor,
+	ActorNotFoundError,
 	actorAt,
 	actorGlyph,
 	type ActorKind,

@@ -6,6 +6,7 @@ import { join } from "node:path";
 import { after, describe, it } from "node:test";
 import { detectCaseSensitivity, storageConformanceCases } from "../../testing/storage-conformance.ts";
 import { NodeStorage } from "./index.ts";
+import { StorageUnavailableError } from "../../ports/storage.ts";
 
 const roots: string[] = [];
 
@@ -61,6 +62,17 @@ describe("NodeStorage", () => {
 		await assert.rejects(() => store.exists("../nope.md"), /Invalid storage key/);
 	});
 
+	it("returns false only for missing paths and wraps other exists failures", async () => {
+		const store = new NodeStorage({ root: freshRoot() });
+		assert.equal(await store.exists("missing.md"), false);
+		const brokenStore = new NodeStorage({ root: `${freshRoot()}\0invalid` });
+		await assert.rejects(
+			() => brokenStore.exists("key"),
+			(error: unknown) => error instanceof StorageUnavailableError &&
+				error.details.operation === "exists" && error.details.key === "key",
+		);
+	});
+
 	it("does not report a stray temp file as a value", async () => {
 		const root = freshRoot();
 		const store = new NodeStorage({ root });
@@ -83,12 +95,17 @@ describe("NodeStorage", () => {
 		}
 	});
 
-	it("wraps a genuine filesystem failure in StorageUnavailableError", async () => {
+	it("wraps filesystem failures with structured operation details", async () => {
 		const root = freshRoot();
 		const store = new NodeStorage({ root });
-		// Make a directory where a value is expected, so reading it fails with EISDIR.
 		await mkdir(join(root, "blocked.md"), { recursive: true });
-		await assert.rejects(() => store.read("blocked.md"), /Storage failed while reading blocked\.md/);
+		await assert.rejects(
+			() => store.read("blocked.md"),
+			(error: unknown) => error instanceof StorageUnavailableError &&
+				error.kind === "storage-unavailable" &&
+				error.details.operation === "read" &&
+				error.details.key === "blocked.md",
+		);
 	});
 
 	it("survives many appends in order", async () => {
