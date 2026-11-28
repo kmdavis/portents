@@ -45,6 +45,8 @@ Credential recovery/rotation is a local administrative operation; no anonymous H
 
 Every command request requires the seeded bearer credential. There is one endpoint, `POST /api/commands`; there is no anonymous health or signup route. The response may include the campaign revision. Persistent mutations require an expected revision and a unique idempotency key:
 
+Idempotency fingerprints include the protocol version and validated command exactly as supplied. An omitted optional field and an explicitly supplied default are distinct requests; retries must reuse the same fields and values.
+
 ```ts
 import { randomUUID } from "node:crypto";
 import { createHttpCommandClient } from "@portents/web";

@@ -53,7 +53,20 @@ async function waitForServer(endpoint) {
 		}
 		await new Promise((resolve) => setTimeout(resolve, 500));
 	}
-	throw new Error(`Server did not become ready: ${lastError}`);
+	throw new Error(`Server did not become ready at ${endpoint}: ${lastError}`);
+}
+
+function reportContainerFailure(endpoint) {
+	process.stderr.write(`Docker smoke startup diagnostics for ${endpoint}:\n`);
+	for (const [label, args] of [
+		["state", ["inspect", "--format", "{{json .State}}", container]],
+		["logs", ["logs", "--tail", "100", container]],
+	]) {
+		const result = spawnSync("docker", args, { encoding: "utf8", maxBuffer: 1024 * 1024 });
+		const rawOutput = `${result.stdout ?? ""}${result.stderr ?? ""}`;
+		const output = credential ? rawOutput.replaceAll(credential, "[REDACTED]") : rawOutput;
+		process.stderr.write(`${label} (exit ${result.status ?? "unknown"}):\n${output || "(no output)\n"}`);
+	}
 }
 
 let credential;
@@ -72,15 +85,20 @@ try {
 	docker([
 		"run", "--detach", "--name", container,
 		"--mount", `type=volume,source=${volume},target=/data`,
-		"--env", "PORTENTS_DATA_DIR=/data", "--env", "PORTENTS_HOST=0.0.0.0",
-		"--publish", "127.0.0.1::7331", image, "start",
+		"--env", "PORTENTS_DATA_DIR=/data",
+		"--publish", "127.0.0.1::7331", image, "start", "--host", "0.0.0.0", "--port", "7331",
 	]);
 	containerCreated = true;
 	const published = docker(["port", container, "7331/tcp"]).trim().split(/\r?\n/)[0];
 	const port = published?.match(/:(\d+)$/)?.[1];
 	if (!port) throw new Error("Docker did not report an ephemeral published port");
 	const endpoint = `http://127.0.0.1:${port}`;
-	await waitForServer(endpoint);
+	try {
+		await waitForServer(endpoint);
+	} catch (error) {
+		reportContainerFailure(endpoint);
+		throw error;
+	}
 
 	const created = await command(endpoint, credential, { type: "campaign.create", name: "Docker smoke campaign", system: "dnd5e" }, { idempotencyKey: randomUUID() });
 	const campaignId = created.result?.campaigns?.[0]?.id;
@@ -91,7 +109,12 @@ try {
 	}
 
 	docker(["restart", container]);
-	await waitForServer(endpoint);
+	try {
+		await waitForServer(endpoint);
+	} catch (error) {
+		reportContainerFailure(endpoint);
+		throw error;
+	}
 	const after = await command(endpoint, credential, { type: "campaign.list" });
 	if (!after.result?.campaigns?.some((campaign) => campaign.id === campaignId)) {
 		throw new Error("Campaign did not persist after container restart with the same volume");
