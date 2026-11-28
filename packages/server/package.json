@@ -1,0 +1,53 @@
+{
+  "name": "@portents/server",
+  "version": "0.0.0",
+  "description": "Local and self-hosted Node server for Portents.",
+  "license": "MIT",
+  "author": "Kevan Davis",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/kmdavis/portents.git",
+    "directory": "packages/server"
+  },
+  "homepage": "https://github.com/kmdavis/portents/tree/main/packages/server#readme",
+  "type": "module",
+  "sideEffects": false,
+  "files": [
+    "dist",
+    "README.md",
+    "Dockerfile"
+  ],
+  "exports": {
+    ".": {
+      "development": "./src/index.ts",
+      "types": "./dist/index.d.ts",
+      "default": "./dist/index.js"
+    }
+  },
+  "bin": {
+    "portents-server": "./dist/cli.js"
+  },
+  "scripts": {
+    "build": "tsc -p tsconfig.build.json",
+    "dev": "node --experimental-strip-types --conditions=development src/cli.ts",
+    "start": "node dist/cli.js",
+    "test": "node --conditions=development --test src/server.test.ts src/sqlite-storage.test.ts src/runtime.test.ts",
+    "typecheck": "tsc -p tsconfig.json --noEmit && tsc -p tsconfig.test.json --noEmit"
+  },
+  "dependencies": {
+    "@hono/node-server": "^1.19.0",
+    "@portents/content": "workspace:*",
+    "@portents/core": "workspace:*",
+    "@portents/guidance": "workspace:*",
+    "@portents/identity": "workspace:*",
+    "@portents/web": "workspace:*",
+    "better-sqlite3": "^12.2.0",
+    "hono": "^4.7.0"
+  },
+  "devDependencies": {
+    "@types/better-sqlite3": "^7.6.13"
+  },
+  "engines": {
+    "node": ">=22.6"
+  }
+}

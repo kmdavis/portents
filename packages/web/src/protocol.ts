@@ -41,7 +41,7 @@ export type Command = CampaignCommand
 	| { readonly type: "guidance.get"; readonly topic: string }
 	| { readonly type: "ledger.verify"; readonly campaignId: string; readonly id: string };
 
-export interface CommandRequest { readonly version: number; readonly command: Command }
+export interface CommandRequest { readonly version: number; readonly command: Command; readonly expectedRevision?: number; readonly idempotencyKey?: string }
 export interface LedgerReference { readonly id: string; readonly kind: string }
 export type CommandResult =
 	| { readonly type: "text"; readonly text: string; readonly ledger?: readonly LedgerReference[] }
@@ -87,10 +87,11 @@ export const PROTOCOL_ERROR_CODES = [
 	"IDEMPOTENCY_CONFLICT",
 	"STORAGE_FAILURE",
 	"INTERNAL_ERROR",
+	"SERVER_BUSY",
 ] as const;
 export type ProtocolErrorCode = (typeof PROTOCOL_ERROR_CODES)[number];
 export interface ProtocolError { readonly code: ProtocolErrorCode; readonly message: string; readonly details?: Readonly<Record<string, unknown>> }
-export interface CommandResponse { readonly version: number; readonly result?: CommandResult; readonly error?: ProtocolError }
+export interface CommandResponse { readonly version: number; readonly result?: CommandResult; readonly error?: ProtocolError; readonly revision?: number }
 
 export class ProtocolValidationError extends Error {
 	readonly code: ProtocolErrorCode;
@@ -234,8 +235,16 @@ export function parseCommandRequest(value: unknown): CommandRequest {
 	if (!isProtocolRecord(value) || !Number.isInteger(value.version) || !isProtocolRecord(value.command)) {
 		throw new ProtocolValidationError("Expected a versioned command request");
 	}
-	if (Object.keys(value).some((key) => key !== "version" && key !== "command")) {
+	if (Object.keys(value).some((key) => key !== "version" && key !== "command" && key !== "expectedRevision" && key !== "idempotencyKey")) {
 		throw new ProtocolValidationError("Request contains an unknown field");
+	}
+	if (Object.hasOwn(value, "expectedRevision") &&
+		(typeof value.expectedRevision !== "number" || !Number.isSafeInteger(value.expectedRevision) || value.expectedRevision < 0)) {
+		throw new ProtocolValidationError("expectedRevision must be a non-negative safe integer");
+	}
+	if (Object.hasOwn(value, "idempotencyKey") &&
+		(typeof value.idempotencyKey !== "string" || value.idempotencyKey.length < 1 || value.idempotencyKey.length > 256)) {
+		throw new ProtocolValidationError("idempotencyKey must be a non-empty string of at most 256 characters");
 	}
 	if (value.version !== PROTOCOL_VERSION) {
 		throw new ProtocolValidationError(`Unsupported protocol version: ${String(value.version)}`, "UNSUPPORTED_VERSION");

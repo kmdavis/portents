@@ -1,6 +1,7 @@
 import assert from "node:assert/strict";
 import { describe, it } from "node:test";
 
+import { createHttpCommandClient } from "./http-client.ts";
 import { createCommandClient, parseCommandResponse, ProtocolCommandError } from "./client.ts";
 import {
 	parseCommandRequest,
@@ -46,6 +47,73 @@ describe("typed gameplay protocol", () => {
 			ProtocolValidationError,
 		);
 	});
+	it("validates command metadata and returns committed revisions", async () => {
+		const request = { type: "dice.roll" as const, expression: "1d20" };
+		const client = createCommandClient(async (body) => {
+			assert.deepEqual(JSON.parse(body), {
+				version: PROTOCOL_VERSION,
+				command: request,
+				expectedRevision: 4,
+				idempotencyKey: "request-1",
+			});
+			return { version: PROTOCOL_VERSION, result: { type: "roll", lines: ["1d20: [12] = **12**"], totals: [12], ledger: [] }, revision: 5 };
+		});
+		assert.deepEqual(await client.executeWithRevision(request, { expectedRevision: 4, idempotencyKey: "request-1" }), {
+			result: { type: "roll", lines: ["1d20: [12] = **12**"], totals: [12], ledger: [] },
+			revision: 5,
+		});
+		for (const metadata of [
+			{ expectedRevision: -1 },
+			{ expectedRevision: Number.MAX_SAFE_INTEGER + 1 },
+			{ idempotencyKey: "" },
+			{ idempotencyKey: "x".repeat(257) },
+		]) {
+			assert.throws(() => parseCommandRequest({ version: PROTOCOL_VERSION, command: request, ...metadata }), ProtocolValidationError);
+		}
+		assert.throws(() => parseCommandResponse({ version: PROTOCOL_VERSION, result: { type: "empty" }, revision: -1 }), ProtocolValidationError);
+	});
+
+	it("posts authenticated commands without following redirects", async () => {
+		for (const status of [302, 307, 308]) {
+			const client = createHttpCommandClient({
+				endpoint: "https://example.test/base/",
+				credential: "secret",
+				fetch: async (_input, init) => {
+					assert.equal(init?.redirect, "error");
+					assert.equal(init?.method, "POST");
+					assert.match(String(init?.body), /campaign\.list/);
+					return new Response(null, { status, headers: { Location: "https://other.example/steal" } });
+				},
+			});
+			await assert.rejects(
+				() => client.execute({ type: "campaign.list" }),
+				(error: unknown) => error instanceof ProtocolCommandError && error.code === "INTERNAL_ERROR" &&
+					error.message === `HTTP command failed with status ${status}` &&
+					error.details?.status === status,
+			);
+		}
+	});
+
+	it("maps non-JSON and empty proxy errors to safe status-bearing errors", async () => {
+		for (const response of [
+			new Response("upstream secret: token=do-not-leak", { status: 502, headers: { "Content-Type": "text/html" } }),
+			new Response(null, { status: 503 }),
+		]) {
+			const client = createHttpCommandClient({
+				endpoint: "https://example.test",
+				credential: "secret",
+				fetch: async () => response,
+			});
+			await assert.rejects(
+				() => client.execute({ type: "campaign.list" }),
+				(error: unknown) => error instanceof ProtocolCommandError && error.code === "INTERNAL_ERROR" &&
+					error.details?.status === response.status &&
+					error.message === `HTTP command failed with status ${response.status}` &&
+					!error.message.includes("secret") &&
+					!JSON.stringify(error.details).includes("do-not-leak"),
+			);
+		}
+	});
 	it("validates typed client responses and preserves stable remote error codes", async () => {
 		const request = { type: "dice.roll" as const, expression: "1d20" };
 		const client = createCommandClient(async (body) => {
@@ -67,6 +135,14 @@ describe("typed gameplay protocol", () => {
 		await assert.rejects(
 			() => failingClient.execute(request),
 			(error: unknown) => error instanceof ProtocolCommandError && error.code === "STALE_REVISION",
+		);
+		const busyClient = createCommandClient(async () => ({
+			version: PROTOCOL_VERSION,
+			error: { code: "SERVER_BUSY", message: "busy" },
+		}));
+		await assert.rejects(
+			() => busyClient.execute(request),
+			(error: unknown) => error instanceof ProtocolCommandError && error.code === "SERVER_BUSY",
 		);
 		const mismatchedClient = createCommandClient(async () => ({
 			version: PROTOCOL_VERSION,

@@ -51,4 +51,6 @@ export {
 	createCommandClient,
 	parseCommandResponse,
 	ProtocolCommandError,
+	type CommandClientOptions,
 } from "./client.ts";
+export { createHttpCommandClient, type HttpCommandClientOptions } from "./http-client.ts";

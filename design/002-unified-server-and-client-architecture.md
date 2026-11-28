@@ -97,6 +97,10 @@ Validate sizes, paths, checksums, versions, and dependencies before publishing i
 | Omens | Initially target Fly.io using the same Node.js/Docker image and SQLite transactional adapter, a persistent volume, hosted identity ([#25](https://github.com/kmdavis/portents/issues/25)), HTTPS/MCP, and independent backups. The maintainer already has a paid Fly.io account for another service; isolate Omens resources and credentials and measure its actual marginal billing, not assumed free allowances. A single volume limits availability and is not automatic multi-region failover. Owner isolation, client inference, free access at launch, and optional donations on an independent website remain subject to platform rules and measured capacity. No billing, paid restrictions, or marketplace; capacity upgrades and provider exit are deployment responsibilities. Cloudflare Workers/D1/Durable Objects/R2 are a possible future pivot, not an initial deliverable or prerequisite for #5/#9. |
 | Browser-only demo | Preserve independent `WebSession`/IndexedDB library composition. Server-backed web is separate and never silently synchronizes or promotes local demo state. |
 
+### Local Node spike selection
+
+Issue #9 selects Hono with `@hono/node-server` for one Fetch-compatible HTTP command binding on Node; `better-sqlite3` backs the transactional local/self-hosted store and online backup. Loopback remains the default, and remote HTTP clients require TLS outside loopback. This records the local Node implementation choice only; it does not accept the full proposal or settle hosted identity, MCP bindings, cloud deployment, or asset handling.
+
 ## Dependencies and migration
 
 1. [#5](https://github.com/kmdavis/portents/issues/5) records boundaries. [#14](https://github.com/kmdavis/portents/issues/14) and [#17](https://github.com/kmdavis/portents/issues/17) are early host capability spikes gating UX promises, not mechanics.
