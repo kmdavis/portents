@@ -2,10 +2,15 @@ import { createHash, randomUUID } from "node:crypto";
 import {
 	defaultRandomSource,
 	assertValidKey,
+	deckSize,
 	executeCampaignCommand,
 	IdempotencyConflictError,
+	parseDocument,
+	pileMatchesDeck,
+	type Pile,
 	type JsonValue,
 	readCampaignRevision,
+	sheetProblems,
 	StorageError,
 	StaleCampaignRevisionError,
 	type Storage,
@@ -438,6 +443,84 @@ function parseArchiveImportReplay(value: string): { readonly version: 1; readonl
 	};
 }
 
+function archiveRecord(value: unknown): value is Record<string, unknown> {
+	return value !== null && typeof value === "object" && !Array.isArray(value);
+}
+
+function invalidCampaignArchiveData(): never {
+	throw new ProtocolValidationError("Campaign archive contains invalid campaign data");
+}
+
+async function validateCampaignArchiveData(storage: Storage, slug: string): Promise<void> {
+	try {
+		const overviewText = await storage.read(`campaigns/${slug}/campaign.md`);
+		if (overviewText === undefined) invalidCampaignArchiveData();
+		const overview = parseDocument(overviewText);
+		const session = serverSession(storage);
+		const campaign = await session.loadCampaign(slug);
+		if (typeof overview.data.name !== "string" || !overview.data.name.trim() ||
+			overview.data.slug !== slug || typeof overview.data.system !== "string" || !overview.data.system.trim()) {
+			invalidCampaignArchiveData();
+		}
+		const counters = overview.data.counters;
+		if (!archiveRecord(counters) ||
+			!["sessions", "rolls", "draws"].every((key) => {
+				const value = counters[key];
+				return typeof value === "number" && Number.isSafeInteger(value) && value >= 0;
+			})) invalidCampaignArchiveData();
+		const pending = overview.data.pendingRoll;
+		if (pending !== undefined) {
+			if (!archiveRecord(pending)) invalidCampaignArchiveData();
+			const fields = Object.keys(pending);
+			if (fields.length > 0 && (
+				typeof pending.expression !== "string" || !pending.expression.trim() ||
+				typeof pending.reason !== "string" ||
+				typeof pending.requestedAt !== "string" || Number.isNaN(Date.parse(pending.requestedAt)) ||
+				(pending.kind !== undefined && typeof pending.kind !== "string") ||
+				(pending.dc !== undefined && (typeof pending.dc !== "number" || !Number.isFinite(pending.dc)))
+			)) invalidCampaignArchiveData();
+		}
+
+		if (!(await session.listCampaigns()).some((summary) => summary.slug === slug)) invalidCampaignArchiveData();
+		if (campaign.ledger.problems().length > 0) invalidCampaignArchiveData();
+		void campaign.clocks;
+		if (campaign.settingId && !session.registry.setting(campaign.settingId)) invalidCampaignArchiveData();
+
+		for (const name of await campaign.listCharacters()) {
+			const sheet = await campaign.readCharacter(name);
+			if (!sheet || typeof sheet.data.name !== "string" || campaign.keys.character(sheet.data.name) !== campaign.keys.character(name) ||
+				sheetProblems(sheet).length > 0) invalidCampaignArchiveData();
+		}
+		if (campaign.activeCharacter && !(await campaign.readCharacter(campaign.activeCharacter))) invalidCampaignArchiveData();
+		for (const record of await campaign.listResources()) {
+			const kind = record.path.split("/")[0];
+			if (record.resource.kind !== kind || record.resource.settingId !== undefined ||
+				!record.resource.id.startsWith(`campaign/${slug}/`)) invalidCampaignArchiveData();
+		}
+
+		const pilesText = await storage.read(campaign.keys.piles);
+		if (pilesText !== undefined) {
+			const piles: unknown = JSON.parse(pilesText);
+			if (!archiveRecord(piles)) invalidCampaignArchiveData();
+			for (const [deckId, value] of Object.entries(piles)) {
+				if (!archiveRecord(value) || !Array.isArray(value.draw) || !Array.isArray(value.discard) ||
+					(value.shuffledAt !== undefined && typeof value.shuffledAt !== "string")) invalidCampaignArchiveData();
+				const deck = session.registry.deck(deckId);
+				if (!deck) invalidCampaignArchiveData();
+				const pile = value as unknown as Pile;
+				const size = deckSize(deck);
+				const indices = [...pile.draw, ...pile.discard];
+				if (!pileMatchesDeck(deck, pile) || indices.some((index) =>
+					!Number.isSafeInteger(index) || index < 0 || index >= size) ||
+					new Set(indices).size !== size) invalidCampaignArchiveData();
+			}
+		}
+	} catch (error) {
+		if (error instanceof ProtocolValidationError || error instanceof StorageError) throw error;
+		invalidCampaignArchiveData();
+	}
+}
+
 async function importArchiveForPrincipal(
 	storage: SqliteStorage,
 	principal: Principal,
@@ -467,6 +550,7 @@ async function importArchiveForPrincipal(
 		}
 
 		await importCampaignArchive(archive, campaignStorage(transaction, root));
+		await validateCampaignArchiveData(campaignStorage(transaction, root, true), archive.campaignSlug);
 		await transaction.write(campaignMetadata(campaignId, "owner"), principalId);
 		await transaction.write(campaignMetadata(campaignId, "slug"), archive.campaignSlug);
 		await transaction.write(assertValidKey(`${ownerIndexPrefix(principalId)}${campaignId}`), "1");
@@ -483,19 +567,21 @@ async function importArchiveForPrincipal(
 export function createServerApp(storage: SqliteStorage): Hono {
 	const credentials = new LocalCredentialProvider(storage);
 	const app = new Hono();
-	let admittedCommands = 0;
-	const maxAdmittedCommands = 64;
+	let admittedRequests = 0;
+	let admittedArchiveTransfers = 0;
+	const maxAdmittedRequests = 64;
+	const maxAdmittedArchiveTransfers = 1;
 	app.post("/api/commands", async (context) => {
 		let admitted = false;
 		try {
 			const principal = await authenticateBearer(context.req.header("authorization"), credentials, []);
-			if (admittedCommands >= maxAdmittedCommands) {
+			if (admittedRequests >= maxAdmittedRequests) {
 				return context.json({
 					version: PROTOCOL_VERSION,
 					error: { code: "SERVER_BUSY", message: "The server is at capacity; retry the request" },
 				} satisfies CommandResponse, 503);
 			}
-			admittedCommands++;
+			admittedRequests++;
 			admitted = true;
 			const contentType = context.req.header("content-type")?.split(";")[0]?.trim().toLowerCase();
 			if (contentType !== "application/json") throw new ProtocolValidationError("Content-Type must be application/json");
@@ -510,12 +596,22 @@ export function createServerApp(storage: SqliteStorage): Hono {
 			const failure = protocolFailure(error);
 			return context.json({ version: PROTOCOL_VERSION, error: failure.error } satisfies CommandResponse, failure.status);
 		} finally {
-			if (admitted) admittedCommands--;
+			if (admitted) admittedRequests--;
 		}
 	});
 	app.get("/api/campaigns/:campaignId/archive", async (context) => {
+		let admitted = false;
 		try {
 			const principal = await authenticateBearer(context.req.header("authorization"), credentials, []);
+			if (admittedRequests >= maxAdmittedRequests || admittedArchiveTransfers >= maxAdmittedArchiveTransfers) {
+				return context.json({
+					version: PROTOCOL_VERSION,
+					error: { code: "SERVER_BUSY", message: "The server is at capacity; retry the request" },
+				} satisfies CommandResponse, 503);
+			}
+			admittedRequests++;
+			admittedArchiveTransfers++;
+			admitted = true;
 			const campaignId = requireOpaqueSegment(context.req.param("campaignId"), "Campaign ID");
 			const archive = await storage.transaction(async (transaction) => {
 				await requireOwnedCampaign(principal, campaignId, new TransactionCampaignOwnership(transaction));
@@ -529,11 +625,26 @@ export function createServerApp(storage: SqliteStorage): Hono {
 			}
 			const failure = protocolFailure(error);
 			return context.json({ version: PROTOCOL_VERSION, error: failure.error } satisfies CommandResponse, failure.status);
+		} finally {
+			if (admitted) {
+				admittedRequests--;
+				admittedArchiveTransfers--;
+			}
 		}
 	});
 	app.post("/api/campaigns/import", async (context) => {
+		let admitted = false;
 		try {
 			const principal = await authenticateBearer(context.req.header("authorization"), credentials, []);
+			if (admittedRequests >= maxAdmittedRequests || admittedArchiveTransfers >= maxAdmittedArchiveTransfers) {
+				return context.json({
+					version: PROTOCOL_VERSION,
+					error: { code: "SERVER_BUSY", message: "The server is at capacity; retry the request" },
+				} satisfies CommandResponse, 503);
+			}
+			admittedRequests++;
+			admittedArchiveTransfers++;
+			admitted = true;
 			const contentType = context.req.header("content-type")?.split(";")[0]?.trim().toLowerCase();
 			if (contentType !== "application/json") throw new ProtocolValidationError("Content-Type must be application/json");
 			const idempotencyKey = requireArchiveIdempotencyKey(context.req.header("idempotency-key"));
@@ -559,6 +670,11 @@ export function createServerApp(storage: SqliteStorage): Hono {
 			}
 			const failure = protocolFailure(error);
 			return context.json({ version: PROTOCOL_VERSION, error: failure.error } satisfies CommandResponse, failure.status);
+		} finally {
+			if (admitted) {
+				admittedRequests--;
+				admittedArchiveTransfers--;
+			}
 		}
 	});
 	app.onError((error, context) => {

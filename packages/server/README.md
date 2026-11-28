@@ -92,10 +92,21 @@ content conflicts.
 Archives are limited to 64 MiB and contain sorted campaign-relative text files,
 per-file SHA-256 checksums, an archive checksum, and fingerprints of the bundled
 content packs. Import rejects unsupported formats, unsafe or unexpected file
-paths, checksum failures, and missing or changed content packs. Credential,
-ownership, and idempotency records are outside the campaign namespace and are
-never exported. Pack-owned image assets remain references to the versioned pack;
-the text-only campaign storage does not contain binary assets to copy.
+paths, checksum failures, and missing or changed content packs. It also parses
+the campaign, ledger, character sheets, resources and piles before publishing
+ownership; malformed domain data is rejected without a partial import.
+Credential, ownership, and idempotency records are outside the campaign
+namespace and are never exported. Pack-owned image assets remain references to
+the versioned pack; text-only campaign storage has no binary assets to copy.
+
+The server admits one archive transfer concurrently, shared with the 64-request
+process-wide cap. Export stops reading as soon as cumulative serialized size
+exceeds the limit. Storage still exposes whole-value reads, so one stored file
+must be materialized before its size can be measured. The lower-level
+`importCampaignArchive` helper requires an empty namespace; callers needing
+all-or-nothing writes must pass transaction-scoped storage. Without a
+transaction, a failed write may leave a partial import, and the empty-target
+check is not atomic against concurrent writers.
 
 
 ## Docker

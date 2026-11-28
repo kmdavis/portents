@@ -1,4 +1,5 @@
 import assert from "node:assert/strict";
+import { createHash } from "node:crypto";
 import { createServer } from "node:net";
 import { mkdtempSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
@@ -12,7 +13,7 @@ import {
 	stringifyDocument, stringifyResourceDocument, stringifySheet,
 } from "@portents/core";
 import { commonContent } from "@portents/content";
-import { MAX_ARCHIVE_BYTES, parseCampaignArchive } from "./archive.ts";
+import { MAX_ARCHIVE_BYTES, parseCampaignArchive, type CampaignArchiveV1 } from "./archive.ts";
 import { PROTOCOL_VERSION, WebSession, type CommandResponse } from "@portents/web";
 import { createServerApp } from "./app.ts";
 import { DATABASE_FILENAME, installLocalServer, startServer } from "./runtime.ts";
@@ -45,6 +46,34 @@ async function fetchCommand(endpoint: string, credential: string, command: unkno
 	});
 	return { status: response.status, body: await response.json() as CommandResponse };
 }
+function archiveDigest(value: string): string {
+	return createHash("sha256").update(value, "utf8").digest("hex");
+}
+
+function archiveCanonicalJson(value: unknown): string {
+	if (value === null || typeof value === "string" || typeof value === "boolean" || typeof value === "number") return JSON.stringify(value) ?? "null";
+	if (Array.isArray(value)) return `[${value.map(archiveCanonicalJson).join(",")}]`;
+	if (typeof value === "object") {
+		const record = value as Record<string, unknown>;
+		return `{${Object.keys(record).sort().map((key) => `${JSON.stringify(key)}:${archiveCanonicalJson(record[key])}`).join(",")}}`;
+	}
+	throw new TypeError("Not JSON");
+}
+
+function replaceCampaignDocument(archive: CampaignArchiveV1, contents: string): CampaignArchiveV1 {
+	const files = archive.files.map((file) =>
+		file.path === "campaign.md" ? { ...file, contents, sha256: archiveDigest(contents) } : file,
+	);
+	const payload = {
+		format: archive.format,
+		version: archive.version,
+		campaignSlug: archive.campaignSlug,
+		packVersions: archive.packVersions,
+		files,
+	};
+	return { ...payload, sha256: archiveDigest(archiveCanonicalJson(payload)) };
+}
+
 
 async function availablePort(): Promise<number> {
 	const probe = createServer();
@@ -439,7 +468,7 @@ describe("local and self-hosted command server", () => {
 			})));
 			await storage.write(`${root}/world/place/old-bridge.md`, stringifyResourceDocument({
 				schemaVersion: 1,
-				id: "portents/greywater/place/old-bridge",
+				id: "campaign/archive-source/place/old-bridge",
 				kind: "place",
 				name: "Old Bridge",
 				body: "A stone bridge over the Greywash.",
@@ -451,7 +480,9 @@ describe("local and self-hosted command server", () => {
 				clock: fixedClock("2025-01-01T00:00:00.000Z"),
 			});
 			await ledger.append({ kind: "roll", request: "1d20+5", reason: "archive check", result: "17", total: 17 });
-			const deck = commonContent.flatMap((pack) => pack.decks ?? [])[0];
+			const deckId = commonContent.flatMap((pack) => pack.decks ?? [])[0]?.id;
+			assert.ok(deckId);
+			const deck = new WebSession().registry.deck(deckId);
 			assert.ok(deck);
 			const pile = createPile(deck, {
 				rng: seededRandomSource("archive-pile"),
@@ -499,8 +530,29 @@ describe("local and self-hosted command server", () => {
 				body: "{}",
 			});
 			assert.equal(oversizedImport.status, 413);
+			const campaignKeysBeforeInvalidImport = await storage.list("campaigns/");
+			const invalidCampaignArchive = replaceCampaignDocument(archive, [
+				"---",
+				"slug: archive-source",
+				"system: 5e (2024)",
+				"counters:",
+				"  sessions: 0",
+				"  rolls: 1",
+				"  draws: 0",
+				"---",
+				"# Missing required name",
+				"",
+			].join("\n"));
+			parseCampaignArchive(invalidCampaignArchive);
+			const invalidImport = await importRequest(recipient.credential, "archive-import-1", invalidCampaignArchive);
+			assert.equal(invalidImport.status, 400);
+			assert.deepEqual(await storage.list("campaigns/"), campaignKeysBeforeInvalidImport);
+			const recipientBeforeImport = await postCommand(app, recipient.credential, { type: "campaign.list" });
+			assert.equal(recipientBeforeImport.body.result?.type, "campaigns");
+			if (recipientBeforeImport.body.result?.type !== "campaigns") throw new Error("campaign.list returned no campaigns");
+			assert.deepEqual(recipientBeforeImport.body.result.campaigns, []);
 			const importedResponse = await importRequest(recipient.credential, "archive-import-1", archive);
-			assert.equal(importedResponse.status, 201);
+			assert.equal(importedResponse.status, 201, await importedResponse.clone().text());
 			const importedBody = await importedResponse.json() as { campaignId: string; slug: string };
 			assert.notEqual(importedBody.campaignId, sourceId);
 			assert.equal(importedBody.slug, "archive-source");
@@ -529,6 +581,51 @@ describe("local and self-hosted command server", () => {
 			const changedArchive = parseCampaignArchive(await changedExportResponse.json());
 			const conflictingReplay = await importRequest(recipient.credential, "archive-import-1", changedArchive);
 			assert.equal(conflictingReplay.status, 409);
+			const exerciseArchiveAdmission = async (
+				request: () => Promise<Response>,
+				expectedStatus: number,
+			) => {
+				let release!: () => void;
+				let markEntered!: () => void;
+				const gate = new Promise<void>((resolve) => { release = resolve; });
+				const entered = new Promise<void>((resolve) => { markEntered = resolve; });
+				const originalTransaction = storage.transaction.bind(storage);
+				let held = false;
+				storage.transaction = async (operation) => {
+					if (!held) {
+						held = true;
+						markEntered();
+						await gate;
+					}
+					return originalTransaction(operation);
+				};
+				const pending = request();
+				try {
+					await entered;
+					const busy = await request();
+					assert.equal(busy.status, 503);
+					assert.equal((await busy.json() as { error?: { code?: string } }).error?.code, "SERVER_BUSY");
+				} finally {
+					release();
+					storage.transaction = originalTransaction;
+				}
+				assert.equal((await pending).status, expectedStatus);
+				assert.equal((await request()).status, expectedStatus);
+			};
+			const exportRequest = async () => app.request(`/api/campaigns/${sourceId}/archive`, {
+				headers: { authorization: `Bearer ${sourceOwner.credential}` },
+			});
+			await exerciseArchiveAdmission(exportRequest, 200);
+			let admissionImportSequence = 0;
+			await exerciseArchiveAdmission(
+				() => importRequest(recipient.credential, `archive-admission-${++admissionImportSequence}`, archive),
+				201,
+			);
+			const failedArchiveExport = await app.request("/api/campaigns/not-a-campaign/archive", {
+				headers: { authorization: `Bearer ${sourceOwner.credential}` },
+			});
+			assert.equal(failedArchiveExport.status, 404);
+			assert.equal((await exportRequest()).status, 200);
 
 			const hiddenFromSourceOwner = await postCommand(app, sourceOwner.credential, {
 				type: "campaign.brief", campaignId: importedBody.campaignId,
