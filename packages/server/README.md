@@ -79,6 +79,36 @@ await client.execute(
 
 Use HTTPS for any network connection beyond loopback. Never place credentials in URLs, logs, source control, or client-visible error messages.
 
+## Campaign archives
+
+`GET /api/campaigns/{campaignId}/archive` exports an authenticated campaign
+snapshot. `POST /api/campaigns/import` imports a version-1 JSON archive and
+requires an `Idempotency-Key` header. Imports preserve the campaign's internal
+slug and references, assign a new server campaign ID to the authenticated owner,
+start at revision zero, and never overwrite an existing campaign. Reusing a key
+with the same archive returns the original campaign ID; reusing it with different
+content conflicts.
+
+Archives are limited to 64 MiB and contain sorted campaign-relative text files,
+per-file SHA-256 checksums, an archive checksum, and fingerprints of the bundled
+content packs. Import rejects unsupported formats, unsafe or unexpected file
+paths, checksum failures, and missing or changed content packs. It also parses
+the campaign, ledger, character sheets, resources and piles before publishing
+ownership; malformed domain data is rejected without a partial import.
+Credential, ownership, and idempotency records are outside the campaign
+namespace and are never exported. Pack-owned image assets remain references to
+the versioned pack; text-only campaign storage has no binary assets to copy.
+
+The server admits one archive transfer concurrently, shared with the 64-request
+process-wide cap. Export stops reading as soon as cumulative serialized size
+exceeds the limit. Storage still exposes whole-value reads, so one stored file
+must be materialized before its size can be measured. The lower-level
+`importCampaignArchive` helper requires an empty namespace; callers needing
+all-or-nothing writes must pass transaction-scoped storage. Without a
+transaction, a failed write may leave a partial import, and the empty-target
+check is not atomic against concurrent writers.
+
+
 ## Docker
 
 Build from the repository root so the workspace packages are available:

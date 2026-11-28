@@ -1,4 +1,5 @@
 import assert from "node:assert/strict";
+import { createHash } from "node:crypto";
 import { createServer } from "node:net";
 import { mkdtempSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
@@ -6,7 +7,13 @@ import { join } from "node:path";
 import { after, describe, it } from "node:test";
 import { LocalCredentialProvider } from "@portents/identity";
 import { MemoryStorage } from "@portents/core/memory";
-import { InvalidKeyError, StorageError, StorageUnavailableError } from "@portents/core";
+import {
+	assertValidKey, createPile, createSheet, fixedClock, InvalidKeyError, Ledger,
+	parseDocument, seededRandomSource, StorageError, StorageUnavailableError,
+	stringifyDocument, stringifyResourceDocument, stringifySheet,
+} from "@portents/core";
+import { commonContent } from "@portents/content";
+import { MAX_ARCHIVE_BYTES, parseCampaignArchive, type CampaignArchiveV1 } from "./archive.ts";
 import { PROTOCOL_VERSION, WebSession, type CommandResponse } from "@portents/web";
 import { createServerApp } from "./app.ts";
 import { DATABASE_FILENAME, installLocalServer, startServer } from "./runtime.ts";
@@ -39,6 +46,34 @@ async function fetchCommand(endpoint: string, credential: string, command: unkno
 	});
 	return { status: response.status, body: await response.json() as CommandResponse };
 }
+function archiveDigest(value: string): string {
+	return createHash("sha256").update(value, "utf8").digest("hex");
+}
+
+function archiveCanonicalJson(value: unknown): string {
+	if (value === null || typeof value === "string" || typeof value === "boolean" || typeof value === "number") return JSON.stringify(value) ?? "null";
+	if (Array.isArray(value)) return `[${value.map(archiveCanonicalJson).join(",")}]`;
+	if (typeof value === "object") {
+		const record = value as Record<string, unknown>;
+		return `{${Object.keys(record).sort().map((key) => `${JSON.stringify(key)}:${archiveCanonicalJson(record[key])}`).join(",")}}`;
+	}
+	throw new TypeError("Not JSON");
+}
+
+function replaceCampaignDocument(archive: CampaignArchiveV1, contents: string): CampaignArchiveV1 {
+	const files = archive.files.map((file) =>
+		file.path === "campaign.md" ? { ...file, contents, sha256: archiveDigest(contents) } : file,
+	);
+	const payload = {
+		format: archive.format,
+		version: archive.version,
+		campaignSlug: archive.campaignSlug,
+		packVersions: archive.packVersions,
+		files,
+	};
+	return { ...payload, sha256: archiveDigest(archiveCanonicalJson(payload)) };
+}
+
 
 async function availablePort(): Promise<number> {
 	const probe = createServer();
@@ -391,5 +426,221 @@ describe("local and self-hosted command server", () => {
 			}
 		}
 	});
+	it("exports campaign snapshots and imports them under a new authenticated owner", async () => {
+		const storage = new SqliteStorage(join(temporaryDirectory(), DATABASE_FILENAME));
+		try {
+			const provider = new LocalCredentialProvider(storage);
+			const sourceOwner = await provider.issue("archive-source-owner");
+			const recipient = await provider.issue("archive-recipient");
+			const app = createServerApp(storage);
+
+			const unauthenticatedExport = await app.request("/api/campaigns/anything/archive");
+			assert.equal(unauthenticatedExport.status, 401);
+			const unauthenticatedImport = await app.request("/api/campaigns/import", {
+				method: "POST",
+				headers: { "content-type": "application/json", "Idempotency-Key": "unauthenticated" },
+				body: "not JSON",
+			});
+			assert.equal(unauthenticatedImport.status, 401);
+			const created = await postCommand(app, sourceOwner.credential, {
+				type: "campaign.create", name: "Archive Source", system: "5e",
+			}, { idempotencyKey: "archive-create" });
+			assert.equal(created.status, 200);
+			if (created.body.result?.type !== "campaigns") throw new Error("campaign.create returned no campaign");
+			const sourceId = created.body.result.campaigns[0]!.id;
+			const root = `campaigns/${sourceId}/campaigns/archive-source`;
+			const campaignText = await storage.read(`${root}/campaign.md`);
+			assert.ok(campaignText);
+			const campaign = parseDocument(campaignText);
+			await storage.write(`${root}/campaign.md`, stringifyDocument({
+				data: {
+					...campaign.data,
+					pendingRoll: {
+						expression: "1d20+5",
+						reason: "archive check",
+						requestedAt: "2025-01-01T00:00:00.000Z",
+					},
+				},
+				body: campaign.body,
+			}));
+			await storage.write(`${root}/characters/iria.md`, stringifySheet(createSheet({
+				name: "Iria", meta: { system: "5e" },
+			})));
+			await storage.write(`${root}/world/place/old-bridge.md`, stringifyResourceDocument({
+				schemaVersion: 1,
+				id: "campaign/archive-source/place/old-bridge",
+				kind: "place",
+				name: "Old Bridge",
+				body: "A stone bridge over the Greywash.",
+			}));
+			await storage.write(`${root}/maps/old-bridge.txt`, ".......\n...#...\n.......\n");
+			const ledger = await Ledger.open({
+				storage,
+				key: assertValidKey(`${root}/rolls.jsonl`),
+				clock: fixedClock("2025-01-01T00:00:00.000Z"),
+			});
+			await ledger.append({ kind: "roll", request: "1d20+5", reason: "archive check", result: "17", total: 17 });
+			const deckId = commonContent.flatMap((pack) => pack.decks ?? [])[0]?.id;
+			assert.ok(deckId);
+			const deck = new WebSession().registry.deck(deckId);
+			assert.ok(deck);
+			const pile = createPile(deck, {
+				rng: seededRandomSource("archive-pile"),
+				now: () => "2025-01-01T00:00:00.000Z",
+			});
+			await storage.write(`${root}/piles.json`, `${JSON.stringify({ [deck.id]: pile }, null, "\t")}\n`);
+
+			const forbiddenExport = await app.request(`/api/campaigns/${sourceId}/archive`, {
+				headers: { authorization: `Bearer ${recipient.credential}` },
+			});
+			assert.equal(forbiddenExport.status, 404);
+			const exported = await app.request(`/api/campaigns/${sourceId}/archive`, {
+				headers: { authorization: `Bearer ${sourceOwner.credential}` },
+			});
+			assert.equal(exported.status, 200);
+			const archive = parseCampaignArchive(await exported.json());
+			assert.equal(archive.campaignSlug, "archive-source");
+			assert.ok(archive.packVersions.length > 0);
+			for (const path of [
+				"campaign.md", "characters/iria.md", "world/place/old-bridge.md",
+				"maps/old-bridge.txt", "rolls.jsonl", "piles.json",
+			]) assert.ok(archive.files.some((file) => file.path === path), `missing ${path}`);
+			assert.match(archive.files.find((file) => file.path === "campaign.md")!.contents, /pendingRoll/);
+			assert.doesNotMatch(JSON.stringify(archive), /credentials|idempotency|server\/owners/i);
+			await storage.write(`${root}/journal.md`, "# Changed after export\n");
+
+			const importRequest = async (credential: string, key: string, value: unknown) =>
+				app.request("/api/campaigns/import", {
+					method: "POST",
+					headers: {
+						authorization: `Bearer ${credential}`,
+						"content-type": "application/json",
+						"Idempotency-Key": key,
+					},
+					body: JSON.stringify(value),
+				});
+			const oversizedImport = await app.request("/api/campaigns/import", {
+				method: "POST",
+				headers: {
+					authorization: `Bearer ${recipient.credential}`,
+					"content-type": "application/json",
+					"Idempotency-Key": "archive-too-large",
+					"content-length": String(MAX_ARCHIVE_BYTES + 1),
+				},
+				body: "{}",
+			});
+			assert.equal(oversizedImport.status, 413);
+			const campaignKeysBeforeInvalidImport = await storage.list("campaigns/");
+			const invalidCampaignArchive = replaceCampaignDocument(archive, [
+				"---",
+				"slug: archive-source",
+				"system: 5e (2024)",
+				"counters:",
+				"  sessions: 0",
+				"  rolls: 1",
+				"  draws: 0",
+				"---",
+				"# Missing required name",
+				"",
+			].join("\n"));
+			parseCampaignArchive(invalidCampaignArchive);
+			const invalidImport = await importRequest(recipient.credential, "archive-import-1", invalidCampaignArchive);
+			assert.equal(invalidImport.status, 400);
+			assert.deepEqual(await storage.list("campaigns/"), campaignKeysBeforeInvalidImport);
+			const recipientBeforeImport = await postCommand(app, recipient.credential, { type: "campaign.list" });
+			assert.equal(recipientBeforeImport.body.result?.type, "campaigns");
+			if (recipientBeforeImport.body.result?.type !== "campaigns") throw new Error("campaign.list returned no campaigns");
+			assert.deepEqual(recipientBeforeImport.body.result.campaigns, []);
+			const importedResponse = await importRequest(recipient.credential, "archive-import-1", archive);
+			assert.equal(importedResponse.status, 201, await importedResponse.clone().text());
+			const importedBody = await importedResponse.json() as { campaignId: string; slug: string };
+			assert.notEqual(importedBody.campaignId, sourceId);
+			assert.equal(importedBody.slug, "archive-source");
+			const recipientCampaigns = await postCommand(app, recipient.credential, { type: "campaign.list" });
+			assert.equal(recipientCampaigns.status, 200);
+			if (recipientCampaigns.body.result?.type !== "campaigns") throw new Error("campaign.list returned no campaigns");
+			assert.ok(recipientCampaigns.body.result.campaigns.some((campaign) => campaign.id === importedBody.campaignId));
+			const importedRoot = `campaigns/${importedBody.campaignId}/campaigns/archive-source`;
+			for (const file of archive.files) {
+				assert.equal(await storage.read(`${importedRoot}/${file.path}`), file.contents, `changed ${file.path}`);
+			}
+			assert.notEqual(await storage.read(`${importedRoot}/journal.md`), "# Changed after export\n");
+
+			const replay = await importRequest(recipient.credential, "archive-import-1", archive);
+			assert.equal(replay.status, 200);
+			assert.equal((await replay.json() as { campaignId: string }).campaignId, importedBody.campaignId);
+			const secondImport = await importRequest(recipient.credential, "archive-import-2", archive);
+			assert.equal(secondImport.status, 201);
+			const secondImportBody = await secondImport.json() as { campaignId: string };
+			assert.notEqual(secondImportBody.campaignId, importedBody.campaignId);
+
+			const changedExportResponse = await app.request(`/api/campaigns/${sourceId}/archive`, {
+				headers: { authorization: `Bearer ${sourceOwner.credential}` },
+			});
+			assert.equal(changedExportResponse.status, 200);
+			const changedArchive = parseCampaignArchive(await changedExportResponse.json());
+			const conflictingReplay = await importRequest(recipient.credential, "archive-import-1", changedArchive);
+			assert.equal(conflictingReplay.status, 409);
+			const exerciseArchiveAdmission = async (
+				request: () => Promise<Response>,
+				expectedStatus: number,
+			) => {
+				let release!: () => void;
+				let markEntered!: () => void;
+				const gate = new Promise<void>((resolve) => { release = resolve; });
+				const entered = new Promise<void>((resolve) => { markEntered = resolve; });
+				const originalTransaction = storage.transaction.bind(storage);
+				let held = false;
+				storage.transaction = async (operation) => {
+					if (!held) {
+						held = true;
+						markEntered();
+						await gate;
+					}
+					return originalTransaction(operation);
+				};
+				const pending = request();
+				try {
+					await entered;
+					const busy = await request();
+					assert.equal(busy.status, 503);
+					assert.equal((await busy.json() as { error?: { code?: string } }).error?.code, "SERVER_BUSY");
+				} finally {
+					release();
+					storage.transaction = originalTransaction;
+				}
+				assert.equal((await pending).status, expectedStatus);
+				assert.equal((await request()).status, expectedStatus);
+			};
+			const exportRequest = async () => app.request(`/api/campaigns/${sourceId}/archive`, {
+				headers: { authorization: `Bearer ${sourceOwner.credential}` },
+			});
+			await exerciseArchiveAdmission(exportRequest, 200);
+			let admissionImportSequence = 0;
+			await exerciseArchiveAdmission(
+				() => importRequest(recipient.credential, `archive-admission-${++admissionImportSequence}`, archive),
+				201,
+			);
+			const failedArchiveExport = await app.request("/api/campaigns/not-a-campaign/archive", {
+				headers: { authorization: `Bearer ${sourceOwner.credential}` },
+			});
+			assert.equal(failedArchiveExport.status, 404);
+			assert.equal((await exportRequest()).status, 200);
+
+			const hiddenFromSourceOwner = await postCommand(app, sourceOwner.credential, {
+				type: "campaign.brief", campaignId: importedBody.campaignId,
+			});
+			assert.equal(hiddenFromSourceOwner.status, 404);
+			const revisionCheck = await postCommand(app, recipient.credential, {
+				type: "campaign.journal", campaignId: importedBody.campaignId,
+				heading: "Imported", body: "The snapshot starts at revision zero.",
+			}, { expectedRevision: 0, idempotencyKey: "archive-revision-check" });
+			assert.equal(revisionCheck.status, 200);
+			assert.equal(revisionCheck.body.revision, 1);
+		} finally {
+			await storage.close();
+		}
+	});
+
 
 });
