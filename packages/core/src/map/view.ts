@@ -1,3 +1,14 @@
+export class ActorNotFoundError extends Error {
+	readonly kind = "not-found" as const;
+	readonly entity = "actor" as const;
+	readonly identifier: string;
+	constructor(identifier: string) {
+		super(`No actor with id ${JSON.stringify(identifier)}`);
+		this.name = "ActorNotFoundError";
+		this.identifier = identifier;
+	}
+}
+
 /**
  * What the party knows about a map, and who is standing on it.
  *
@@ -207,7 +218,7 @@ export function moveActor(view: MapView, id: string, to: Position, options: FovO
 		found = true;
 		return { ...actor, x: to.x, y: to.y };
 	});
-	if (!found) throw new Error(`No actor with id ${JSON.stringify(id)}`);
+	if (!found) throw new ActorNotFoundError(id);
 	return withActors(view, actors, options);
 }
 

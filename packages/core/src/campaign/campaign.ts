@@ -97,6 +97,18 @@ export class CampaignError extends Error {
 	}
 }
 
+export class EntityNotFoundError extends Error {
+	readonly kind = "not-found" as const;
+	readonly entity: "campaign" | "character" | "resource";
+	readonly identifier: string;
+	constructor(entity: "campaign" | "character" | "resource", identifier: string) {
+		super(`No ${entity} ${JSON.stringify(identifier)} exists`);
+		this.name = "EntityNotFoundError";
+		this.entity = entity;
+		this.identifier = identifier;
+	}
+}
+
 // ── Slugs and keys ───────────────────────────────────────────────────────────
 
 /**
@@ -371,11 +383,7 @@ export class Campaign {
 	static async open(deps: CampaignDeps, slug: string): Promise<Campaign> {
 		const keys = campaignKeys(slug);
 		const text = await deps.storage.read(keys.overview);
-		if (text === undefined) {
-			throw new CampaignError(
-				`No campaign "${slug}". Its overview would be at ${keys.overview}. List campaigns to see what exists.`,
-			);
-		}
+		if (text === undefined) throw new EntityNotFoundError("campaign", slug);
 		const doc = parseDocument(text);
 		requireString(doc.data, "name", `Campaign "${slug}"`);
 		const stored = doc.data.slug;
@@ -858,6 +866,12 @@ export class Campaign {
 		return map ? formatSettingImageMap(map) : undefined;
 	}
 
+	async requireRecallById(id: string): Promise<string> {
+		const result = await this.recallById(id);
+		if (result === undefined) throw new EntityNotFoundError("resource", id);
+		return result;
+	}
+
 	// ── Characters ─────────────────────────────────────────────────────────
 
 	async listCharacters(): Promise<string[]> {
@@ -870,6 +884,12 @@ export class Campaign {
 	async readCharacter(name: string): Promise<Sheet | undefined> {
 		const text = await this.#deps.storage.read(this.#keys.character(name));
 		return text === undefined ? undefined : parseSheet(text);
+	}
+
+	async requireCharacter(name: string): Promise<Sheet> {
+		const sheet = await this.readCharacter(name);
+		if (!sheet) throw new EntityNotFoundError("character", name);
+		return sheet;
 	}
 
 	async writeCharacter(sheet: Sheet): Promise<void> {
@@ -925,7 +945,7 @@ export class Campaign {
 	/** Patch a character's status and write it back. The commonest edit during play. */
 	async patchCharacter(name: string, patch: Record<string, Scalar | null>): Promise<Sheet> {
 		const sheet = await this.readCharacter(name);
-		if (!sheet) throw new CampaignError(`No character "${name}" in this campaign`);
+		if (!sheet) throw new EntityNotFoundError("character", name);
 		const patched = patchStatus(sheet, patch);
 		await this.writeCharacter(patched);
 		return patched;

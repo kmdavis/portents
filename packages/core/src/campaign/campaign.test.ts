@@ -8,7 +8,7 @@ import { parseDocument } from "../sheets/frontmatter.ts";
 import { getSection, parseSheet, statusValue } from "../sheets/sheet.ts";
 import { tickingClock } from "../ports/clock.ts";
 import { seededRandomSource } from "../ports/random.ts";
-import { Campaign, CampaignError, campaignKeys, slugify, WORLD_SECTIONS } from "./campaign.ts";
+import { Campaign, CampaignError, EntityNotFoundError, campaignKeys, slugify, WORLD_SECTIONS } from "./campaign.ts";
 
 function deps(storage = new MemoryStorage()) {
 	return {
@@ -87,6 +87,25 @@ describe("slugify", () => {
 
 	it("refuses a name with nothing usable in it", () => {
 		assert.throws(() => slugify("!!!"), CampaignError);
+	});
+});
+
+describe("typed campaign, resource and sheet lookup errors", () => {
+	it("identifies missing campaign, resource and sheet entities without message parsing", async () => {
+		await assert.rejects(
+			() => Campaign.open(deps(), "absent"),
+			(error: unknown) => error instanceof EntityNotFoundError &&
+				error.kind === "not-found" && error.entity === "campaign" && error.identifier === "absent",
+		);
+		const { campaign } = await fresh();
+		await assert.rejects(
+			() => campaign.requireRecallById("campaign/the-bell-of-wrenfield/npc/absent"),
+			(error: unknown) => error instanceof EntityNotFoundError && error.kind === "not-found" && error.entity === "resource",
+		);
+		await assert.rejects(
+			() => campaign.requireCharacter("absent"),
+			(error: unknown) => error instanceof EntityNotFoundError && error.kind === "not-found" && error.entity === "character",
+		);
 	});
 });
 

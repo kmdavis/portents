@@ -1,4 +1,7 @@
 import {
+	ActorNotFoundError,
+	EntityNotFoundError,
+	StorageUnavailableError,
 	appendToSection,
 	formatResourceList,
 	moveActor,
@@ -32,14 +35,18 @@ const text = (value: string): CommandResult => ({ type: "text", text: value });
 
 function fail(error: unknown): never {
 	if (error instanceof ProtocolValidationError) throw error;
-	const message = error instanceof Error ? error.message : String(error);
-	const lower = message.toLowerCase();
-	const code = /not found|no campaign|no character|no actor with id|does not exist|unknown .*id/.test(lower)
-		? "NOT_FOUND"
-		: /storage|quota|database|indexeddb/.test(lower)
-			? "STORAGE_FAILURE"
-			: "INTERNAL_ERROR";
-	throw new ProtocolValidationError(code === "INTERNAL_ERROR" ? "Unexpected command failure" : message, code);
+	if (error instanceof EntityNotFoundError || error instanceof ActorNotFoundError) {
+		throw new ProtocolValidationError("Requested resource was not found", "NOT_FOUND", {
+			entity: error.entity,
+			identifier: error.identifier,
+		});
+	}
+	if (error instanceof StorageUnavailableError) {
+		throw new ProtocolValidationError("Storage operation failed", "STORAGE_FAILURE", {
+			...(error.details.operation ? { operation: error.details.operation } : {}),
+		});
+	}
+	throw new ProtocolValidationError("Unexpected command failure", "INTERNAL_ERROR");
 }
 
 /** Validate and execute one versioned command against the local session facade. */
@@ -246,8 +253,7 @@ export async function executeCommand(
 				const campaign = await getCampaign(command.campaignId);
 				const name = command.character ?? campaign.activeCharacter;
 				if (!name) throw new ProtocolValidationError("Updating a sheet needs a character");
-				const sheet = await campaign.readCharacter(name);
-				if (!sheet) throw new ProtocolValidationError(`No character ${JSON.stringify(name)}`, "NOT_FOUND");
+				const sheet = await campaign.requireCharacter(name);
 				const next = command.type === "sheet.setSection"
 					? setSection(sheet, command.section, command.body)
 					: appendToSection(sheet, command.section, command.body);
@@ -257,9 +263,7 @@ export async function executeCommand(
 			case "recall": {
 				const campaign = await getCampaign(command.campaignId);
 				if (command.id !== undefined) {
-					const resource = await campaign.recallById(command.id);
-					if (resource === undefined) throw new ProtocolValidationError(`No resource ${JSON.stringify(command.id)}`, "NOT_FOUND", { resourceId: command.id });
-					return text(resource);
+					return text(await campaign.requireRecallById(command.id));
 				}
 				const records = await campaign.queryResources({
 					text: command.query,

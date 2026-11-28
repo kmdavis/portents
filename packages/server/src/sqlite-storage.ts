@@ -1,7 +1,7 @@
 import Database from "better-sqlite3";
 import { realpathSync } from "node:fs";
 import { basename, dirname, join, resolve } from "node:path";
-import { assertValidKey, StorageUnavailableError, type Storage, type StorageKey, type TransactionalStorage } from "@portents/core";
+import { assertValidKey, InvalidKeyError, StorageUnavailableError, type Storage, type StorageFailureDetails, type StorageKey, type TransactionalStorage } from "@portents/core";
 import type { LocalCredentialRecord, LocalCredentialRepository } from "@portents/identity";
 
 const APPEND_CHUNK_SIZE = 64 * 1024;
@@ -89,19 +89,59 @@ export class SqliteStorage implements Storage, TransactionalStorage, LocalCreden
 		return result;
 	}
 
+	#storageFailure(error: unknown, operation: NonNullable<StorageFailureDetails["operation"]>, key?: string): never {
+		if (error instanceof InvalidKeyError) throw error;
+		if (error instanceof StorageUnavailableError && error.details.operation) throw error;
+		throw new StorageUnavailableError("SQLite storage operation failed", error, {
+			operation,
+			...(key ? { key } : {}),
+		});
+	}
+
+	#storage<T>(
+		operation: Exclude<StorageFailureDetails["operation"], "transaction" | undefined>,
+		key: string | undefined,
+		work: () => T | Promise<T>,
+	): Promise<T> {
+		return this.#run(work).catch((error: unknown) => this.#storageFailure(error, operation, key));
+	}
+
 	#view(): Storage & { expire(): void } {
 		let active = true;
-		const ensureActive = () => {
-			if (!active) throw new StorageUnavailableError("SQLite transaction is no longer active");
+		const ensureActive = (operation: NonNullable<StorageFailureDetails["operation"]>, key?: string) => {
+			if (!active) this.#storageFailure(new StorageUnavailableError("SQLite transaction is no longer active"), operation, key);
 		};
 		const isActive = (): boolean => active;
 		const view = {
-			read: async (key: StorageKey) => { ensureActive(); return this.#read(assertValidKey(key)); },
-			write: async (key: StorageKey, value: string) => { ensureActive(); this.#replace(assertValidKey(key), value); },
-			append: async (key: StorageKey, value: string) => { ensureActive(); this.#appendChunks(assertValidKey(key), value); },
-			exists: async (key: StorageKey) => { ensureActive(); return this.#read(assertValidKey(key)) !== undefined; },
-			list: async (prefix: string) => { ensureActive(); return this.#list(prefix); },
-			remove: async (key: StorageKey) => { ensureActive(); this.#remove(assertValidKey(key)); },
+			read: async (key: StorageKey) => {
+				const valid = assertValidKey(key);
+				ensureActive("read", valid);
+				try { return this.#read(valid); } catch (error) { this.#storageFailure(error, "read", valid); }
+			},
+			write: async (key: StorageKey, value: string) => {
+				const valid = assertValidKey(key);
+				ensureActive("write", valid);
+				try { this.#replace(valid, value); } catch (error) { this.#storageFailure(error, "write", valid); }
+			},
+			append: async (key: StorageKey, value: string) => {
+				const valid = assertValidKey(key);
+				ensureActive("append", valid);
+				try { this.#appendChunks(valid, value); } catch (error) { this.#storageFailure(error, "append", valid); }
+			},
+			exists: async (key: StorageKey) => {
+				const valid = assertValidKey(key);
+				ensureActive("exists", valid);
+				try { return this.#read(valid) !== undefined; } catch (error) { this.#storageFailure(error, "exists", valid); }
+			},
+			list: async (prefix: string) => {
+				ensureActive("list");
+				try { return this.#list(prefix); } catch (error) { this.#storageFailure(error, "list"); }
+			},
+			remove: async (key: StorageKey) => {
+				const valid = assertValidKey(key);
+				ensureActive("remove", valid);
+				try { this.#remove(valid); } catch (error) { this.#storageFailure(error, "remove", valid); }
+			},
 			expire: () => { active = false; },
 		};
 		this.#viewActivity.set(view, isActive);
@@ -174,35 +214,43 @@ export class SqliteStorage implements Storage, TransactionalStorage, LocalCreden
 
 	read(key: StorageKey): Promise<string | undefined> {
 		const valid = assertValidKey(key);
-		return this.#run(() => this.#read(valid));
+		return this.#storage("read", valid, () => this.#read(valid));
 	}
 	write(key: StorageKey, value: string): Promise<void> {
 		const valid = assertValidKey(key);
-		return this.#run(() => this.#write(valid, value));
+		return this.#storage("write", valid, () => this.#write(valid, value));
 	}
 	append(key: StorageKey, value: string): Promise<void> {
 		const valid = assertValidKey(key);
-		return this.#run(() => this.#append(valid, value));
+		return this.#storage("append", valid, () => this.#append(valid, value));
 	}
 	exists(key: StorageKey): Promise<boolean> {
 		const valid = assertValidKey(key);
-		return this.#run(() => this.#read(valid) !== undefined);
+		return this.#storage("exists", valid, () => this.#read(valid) !== undefined);
 	}
 	list(prefix: string): Promise<StorageKey[]> {
-		return this.#run(() => this.#list(prefix));
+		return this.#storage("list", undefined, () => this.#list(prefix));
 	}
 	remove(key: StorageKey): Promise<void> {
 		const valid = assertValidKey(key);
-		return this.#run(() => this.#remove(valid));
+		return this.#storage("remove", valid, () => this.#remove(valid));
 	}
 
 	transaction<T>(operation: (transaction: Storage) => Promise<T>): Promise<T> {
 		return this.#run(async () => {
-			this.#db.exec("BEGIN IMMEDIATE");
+			try {
+				this.#db.exec("BEGIN IMMEDIATE");
+			} catch (error) {
+				this.#storageFailure(error, "transaction");
+			}
 			const transaction = this.#view();
 			try {
 				const result = await operation(transaction);
-				this.#db.exec("COMMIT");
+				try {
+					this.#db.exec("COMMIT");
+				} catch (error) {
+					this.#storageFailure(error, "transaction");
+				}
 				return result;
 			} catch (error) {
 				try {
@@ -214,6 +262,11 @@ export class SqliteStorage implements Storage, TransactionalStorage, LocalCreden
 			} finally {
 				transaction.expire();
 			}
+		}).catch((error: unknown) => {
+			if (error instanceof StorageUnavailableError && !error.details.operation) {
+				this.#storageFailure(error, "transaction");
+			}
+			throw error;
 		});
 	}
 

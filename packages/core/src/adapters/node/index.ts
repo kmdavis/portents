@@ -13,7 +13,7 @@
 import { constants } from "node:fs";
 import { access, appendFile, mkdir, readdir, readFile, rename, rm, writeFile } from "node:fs/promises";
 import { dirname, join, resolve, sep } from "node:path";
-import { assertValidKey, type Storage, type StorageKey, StorageUnavailableError } from "../../ports/storage.ts";
+import { assertValidKey, InvalidKeyError, type Storage, type StorageKey, StorageUnavailableError } from "../../ports/storage.ts";
 
 export interface NodeStorageOptions {
 	/** Directory that holds everything. Created on first write. */
@@ -44,7 +44,7 @@ export class NodeStorage implements Storage {
 			return await readFile(this.#path(key), "utf8");
 		} catch (error) {
 			if (isMissing(error)) return undefined;
-			throw wrap(error, `reading ${key}`);
+			throw wrap(error, `reading ${key}`, "read", key);
 		}
 	}
 
@@ -67,7 +67,7 @@ export class NodeStorage implements Storage {
 				throw error;
 			}
 		} catch (error) {
-			throw wrap(error, `writing ${key}`);
+			throw wrap(error, `writing ${key}`, "write", key);
 		}
 	}
 
@@ -77,7 +77,7 @@ export class NodeStorage implements Storage {
 			await mkdir(dirname(path), { recursive: true });
 			await appendFile(path, contents, "utf8");
 		} catch (error) {
-			throw wrap(error, `appending to ${key}`);
+			throw wrap(error, `appending to ${key}`, "append", key);
 		}
 	}
 
@@ -123,7 +123,7 @@ export class NodeStorage implements Storage {
 		try {
 			await walk(this.root, "");
 		} catch (error) {
-			throw wrap(error, `listing ${JSON.stringify(prefix)}`);
+			throw wrap(error, `listing ${JSON.stringify(prefix)}`, "list");
 		}
 		return keys.filter((key) => key.startsWith(prefix)).sort();
 	}
@@ -132,7 +132,7 @@ export class NodeStorage implements Storage {
 		try {
 			await rm(this.#path(key), { force: true });
 		} catch (error) {
-			throw wrap(error, `removing ${key}`);
+			throw wrap(error, `removing ${key}`, "remove", key);
 		}
 	}
 }
@@ -141,11 +141,23 @@ function isMissing(error: unknown): boolean {
 	return (error as { code?: string })?.code === "ENOENT";
 }
 
-function wrap(error: unknown, what: string): Error {
-	if (error instanceof StorageUnavailableError) return error;
-	// Key-validation errors are the caller's fault and must surface unchanged.
-	if ((error as Error)?.name === "InvalidKeyError") return error as Error;
-	return new StorageUnavailableError(`Storage failed while ${what}: ${(error as Error)?.message ?? error}`, error);
+function wrap(
+	error: unknown,
+	what: string,
+	operation: "read" | "write" | "append" | "list" | "remove",
+	key?: string,
+): Error {
+	if (error instanceof StorageUnavailableError) {
+		return new StorageUnavailableError(error.message, error, {
+			operation,
+			...(key ? { key } : {}),
+		});
+	}
+	if (error instanceof InvalidKeyError) return error;
+	return new StorageUnavailableError(`Storage failed while ${what}: ${(error as Error)?.message ?? error}`, error, {
+		operation,
+		...(key ? { key } : {}),
+	});
 }
 
 export { DEFAULT_HOME_DIRNAME, HOME_ENV_VAR, openHomeStorage, portentsHome } from "./home.ts";

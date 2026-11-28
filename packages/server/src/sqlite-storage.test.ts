@@ -4,7 +4,7 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { after, describe, it } from "node:test";
 import Database from "better-sqlite3";
-import type { Storage } from "@portents/core";
+import { StorageUnavailableError, type Storage } from "@portents/core";
 import type { LocalCredentialRepository } from "@portents/identity";
 import { storageConformanceCases, transactionalStorageConformanceCases } from "@portents/core/testing";
 import { SqliteStorage } from "./sqlite-storage.ts";
@@ -60,6 +60,17 @@ describe("SqliteStorage", () => {
 		await store.remove("a");
 		assert.equal(await store.exists("a"), false);
 		await store.close();
+	});
+	it("returns structured storage failures for closed connections", async () => {
+		const store = new SqliteStorage(":memory:");
+		await store.close();
+		await assert.rejects(
+			() => store.read("missing"),
+			(error: unknown) => error instanceof StorageUnavailableError &&
+				error.kind === "storage-unavailable" &&
+				error.details.operation === "read" &&
+				error.details.key === "missing",
+		);
 	});
 
 	it("awaits transaction operations and rolls back asynchronous failures", async () => {

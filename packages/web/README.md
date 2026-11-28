@@ -41,6 +41,10 @@ versions, malformed results, and remote protocol errors fail explicitly.
 The client infers the result type from the command and rejects a well-formed
 response whose result belongs to a different command.
 
+The executor maps typed core lookup failures to `NOT_FOUND` and structured
+`StorageUnavailableError` failures to `STORAGE_FAILURE`; it never classifies by
+message text. Unexpected errors become a sanitized `INTERNAL_ERROR`.
+
 Remote clients can pass `{ expectedRevision, idempotencyKey }` to `execute` for a
 persistent mutation. `executeWithRevision` returns both the typed result and the
 server revision; use a fresh idempotency key for each distinct request and reuse

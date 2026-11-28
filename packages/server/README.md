@@ -23,6 +23,10 @@ The server binds to `127.0.0.1:7331` by default. Stop it with Ctrl-C or SIGTERM;
 
 SQLite connections are serialized within one Node process; opening another connection to the same file while local work is queued or active is rejected. SQLite's 5-second busy timeout still applies across processes. Run one server process per database file; do not run a multi-process server cluster against the same file.
 
+Campaign, resource and sheet misses use typed not-found errors. Storage adapter
+failures carry a stable operation kind; unexpected backend errors are surfaced
+through a sanitized protocol failure, not exposed as database messages.
+
 `backup` uses SQLite's online backup API and includes campaign data, credentials, ownership records, and idempotency receipts. It refuses to overwrite an existing destination. On POSIX, the destination is created as mode `0600` from creation. Protect backups like the live database.
 
 ```sh
