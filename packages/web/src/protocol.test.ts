@@ -136,6 +136,14 @@ describe("typed gameplay protocol", () => {
 			() => failingClient.execute(request),
 			(error: unknown) => error instanceof ProtocolCommandError && error.code === "STALE_REVISION",
 		);
+		const busyClient = createCommandClient(async () => ({
+			version: PROTOCOL_VERSION,
+			error: { code: "SERVER_BUSY", message: "busy" },
+		}));
+		await assert.rejects(
+			() => busyClient.execute(request),
+			(error: unknown) => error instanceof ProtocolCommandError && error.code === "SERVER_BUSY",
+		);
 		const mismatchedClient = createCommandClient(async () => ({
 			version: PROTOCOL_VERSION,
 			result: { type: "empty" },

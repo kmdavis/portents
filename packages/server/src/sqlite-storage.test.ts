@@ -1,5 +1,5 @@
 import assert from "node:assert/strict";
-import { mkdtempSync, rmSync } from "node:fs";
+import { mkdtempSync, rmSync, symlinkSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { after, describe, it } from "node:test";
@@ -146,6 +146,20 @@ describe("SqliteStorage", () => {
 		await store.close();
 	});
 
+	it("preserves supplementary Unicode across 64 KiB chunk boundaries", async () => {
+		const store = new SqliteStorage(join(temporaryDirectory(), "unicode.sqlite"));
+		const value = "a".repeat(64 * 1024 - 1) + "😀" + "b";
+		try {
+			await store.write("write", value);
+			assert.equal(await store.read("write"), value);
+			await store.append("append", value);
+			await store.append("append", value);
+			assert.equal(await store.read("append"), value + value);
+		} finally {
+			await store.close();
+		}
+	});
+
 	it("expires committed and rolled-back views, including across a later transaction", async () => {
 		const store = new SqliteStorage(":memory:");
 		let committed!: Storage;
@@ -174,10 +188,14 @@ describe("SqliteStorage", () => {
 		await store.close();
 	});
 
-	it("coordinates two file connections without synchronous busy waits", async () => {
-		const path = join(temporaryDirectory(), "shared.sqlite");
+	it("coordinates symlink aliases and rejects initialization during active same-path work", async () => {
+		if (process.platform === "win32") return;
+		const directory = temporaryDirectory();
+		const path = join(directory, "shared.sqlite");
+		const alias = join(directory, "shared-alias.sqlite");
 		const first = new SqliteStorage(path);
-		const second = new SqliteStorage(path);
+		symlinkSync(path, alias);
+		const second = new SqliteStorage(alias);
 		let release!: () => void;
 		let entered!: () => void;
 		const gate = new Promise<void>((resolve) => { release = resolve; });
@@ -188,6 +206,7 @@ describe("SqliteStorage", () => {
 			await gate;
 		});
 		await started;
+		assert.throws(() => new SqliteStorage(alias), /operations on the same database are queued or active/);
 		const queued = second.write("shared", "outside");
 		release();
 		await Promise.all([transaction, queued]);

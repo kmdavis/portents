@@ -1,11 +1,38 @@
 import Database from "better-sqlite3";
-import { resolve } from "node:path";
+import { realpathSync } from "node:fs";
+import { basename, dirname, join, resolve } from "node:path";
 import { assertValidKey, StorageUnavailableError, type Storage, type StorageKey, type TransactionalStorage } from "@portents/core";
 import type { LocalCredentialRecord, LocalCredentialRepository } from "@portents/identity";
 
 const APPEND_CHUNK_SIZE = 64 * 1024;
 let nextMemoryQueue = 0;
 const queues = new Map<string, Promise<unknown>>();
+const inFlight = new Map<string, number>();
+
+function canonicalDatabaseKey(path: string): string {
+	const absolute = resolve(path);
+	let canonical: string;
+	try {
+		canonical = realpathSync(absolute);
+	} catch (error) {
+		if (!(error instanceof Error) || !("code" in error) || error.code !== "ENOENT") throw error;
+		canonical = join(realpathSync(dirname(absolute)), basename(absolute));
+	}
+	return process.platform === "win32" ? canonical.toLowerCase() : canonical;
+}
+
+function* textChunks(value: string): Generator<string> {
+	for (let offset = 0; offset < value.length;) {
+		let end = Math.min(offset + APPEND_CHUNK_SIZE, value.length);
+		if (end < value.length) {
+			const last = value.charCodeAt(end - 1);
+			const next = value.charCodeAt(end);
+			if (last >= 0xd800 && last <= 0xdbff && next >= 0xdc00 && next <= 0xdfff) end--;
+		}
+		yield value.slice(offset, end);
+		offset = end;
+	}
+}
 
 /** SQLite-backed campaign storage and credential repository. */
 export class SqliteStorage implements Storage, TransactionalStorage, LocalCredentialRepository {
@@ -16,10 +43,14 @@ export class SqliteStorage implements Storage, TransactionalStorage, LocalCreden
 	readonly #viewActivity = new WeakMap<object, () => boolean>();
 
 	constructor(database: Database.Database | string) {
+		const queueKey = typeof database === "string"
+			? database === ":memory:" ? `memory:${++nextMemoryQueue}` : canonicalDatabaseKey(database)
+			: database.name && database.name !== ":memory:" ? canonicalDatabaseKey(database.name) : `memory:${++nextMemoryQueue}`;
+		if ((inFlight.get(queueKey) ?? 0) > 0) {
+			throw new Error("Cannot initialize SQLite storage while operations on the same database are queued or active");
+		}
+		this.#queueKey = queueKey;
 		this.#db = typeof database === "string" ? new Database(database) : database;
-		this.#queueKey = typeof database === "string"
-			? database === ":memory:" ? `memory:${++nextMemoryQueue}` : resolve(database)
-			: database.name && database.name !== ":memory:" ? resolve(database.name) : `memory:${++nextMemoryQueue}`;
 		this.#db.pragma("foreign_keys = ON");
 		this.#db.pragma("journal_mode = WAL");
 		this.#db.pragma("synchronous = FULL");
@@ -43,9 +74,14 @@ export class SqliteStorage implements Storage, TransactionalStorage, LocalCreden
 
 	#run<T>(operation: () => T | Promise<T>): Promise<T> {
 		const previous = queues.get(this.#queueKey) ?? Promise.resolve();
+		inFlight.set(this.#queueKey, (inFlight.get(this.#queueKey) ?? 0) + 1);
 		const result = Promise.all([this.#tail, previous]).then(() => {
 			if (this.#closed) throw new StorageUnavailableError("SQLite storage is closed");
 			return operation();
+		}).finally(() => {
+			const count = inFlight.get(this.#queueKey)! - 1;
+			if (count === 0) inFlight.delete(this.#queueKey);
+			else inFlight.set(this.#queueKey, count);
 		});
 		const settled = result.catch(() => undefined);
 		this.#tail = settled;
@@ -106,9 +142,13 @@ export class SqliteStorage implements Storage, TransactionalStorage, LocalCreden
 	}
 	#replace(key: StorageKey, value: string): void {
 		this.#db.prepare("DELETE FROM storage_chunks WHERE key = ?").run(key);
-		for (let offset = 0, sequence = 0; offset < value.length || (offset === 0 && value.length === 0); offset += APPEND_CHUNK_SIZE, sequence++) {
-			this.#db.prepare("INSERT INTO storage_chunks(key, sequence, value) VALUES(?, ?, ?)").run(key, sequence, value.slice(offset, offset + APPEND_CHUNK_SIZE));
-			if (value.length === 0) break;
+		if (value.length === 0) {
+			this.#db.prepare("INSERT INTO storage_chunks(key, sequence, value) VALUES(?, 0, '')").run(key);
+			return;
+		}
+		let sequence = 0;
+		for (const chunk of textChunks(value)) {
+			this.#db.prepare("INSERT INTO storage_chunks(key, sequence, value) VALUES(?, ?, ?)").run(key, sequence++, chunk);
 		}
 	}
 	#write(key: StorageKey, value: string): void {
@@ -119,8 +159,9 @@ export class SqliteStorage implements Storage, TransactionalStorage, LocalCreden
 	}
 	#appendChunks(key: StorageKey, value: string): void {
 		const next = this.#db.prepare("SELECT COALESCE(MAX(sequence) + 1, 0) AS sequence FROM storage_chunks WHERE key = ?").get(key) as { sequence: number };
-		for (let offset = 0, sequence = next.sequence; offset < value.length; offset += APPEND_CHUNK_SIZE, sequence++) {
-			this.#db.prepare("INSERT INTO storage_chunks(key, sequence, value) VALUES(?, ?, ?)").run(key, sequence, value.slice(offset, offset + APPEND_CHUNK_SIZE));
+		let sequence = next.sequence;
+		for (const chunk of textChunks(value)) {
+			this.#db.prepare("INSERT INTO storage_chunks(key, sequence, value) VALUES(?, ?, ?)").run(key, sequence++, chunk);
 		}
 		if (next.sequence === 0 && value.length === 0) this.#db.prepare("INSERT INTO storage_chunks(key, sequence, value) VALUES(?, 0, '')").run(key);
 	}

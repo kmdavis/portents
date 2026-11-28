@@ -87,6 +87,7 @@ export const PROTOCOL_ERROR_CODES = [
 	"IDEMPOTENCY_CONFLICT",
 	"STORAGE_FAILURE",
 	"INTERNAL_ERROR",
+	"SERVER_BUSY",
 ] as const;
 export type ProtocolErrorCode = (typeof PROTOCOL_ERROR_CODES)[number];
 export interface ProtocolError { readonly code: ProtocolErrorCode; readonly message: string; readonly details?: Readonly<Record<string, unknown>> }

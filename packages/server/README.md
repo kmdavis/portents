@@ -14,11 +14,14 @@ From the repository root:
 pnpm install --frozen-lockfile
 pnpm -r build
 pnpm --filter @portents/server start -- install
+pnpm --filter @portents/server start -- start
 ```
 
 `install` creates `~/.portents/portents.sqlite` (or `PORTENTS_DATA_DIR`), seeds one local principal, and prints its random bearer credential once. The database stores only a credential digest. Store the credential securely; if lost, rotate it with local filesystem access using the CLI command below. There is no signup or anonymous recovery endpoint.
 
 The server binds to `127.0.0.1:7331` by default. Stop it with Ctrl-C or SIGTERM; it closes the listener and database cleanly. Configure `PORTENTS_DATA_DIR`, `PORTENTS_HOST`, and `PORTENTS_PORT` or pass `--data-dir`, `--host`, and `--port` to the CLI. The default host remains loopback; bind a non-loopback address only behind a TLS-terminating reverse proxy.
+
+SQLite connections are serialized within one Node process; opening another connection to the same file while local work is queued or active is rejected. SQLite's 5-second busy timeout still applies across processes. Run one server process per database file; do not run a multi-process server cluster against the same file.
 
 `backup` uses SQLite's online backup API and includes campaign data, credentials, ownership records, and idempotency receipts. It refuses to overwrite an existing destination. On POSIX, the destination is created as mode `0600` from creation. Protect backups like the live database.
 
@@ -44,6 +47,8 @@ Credential recovery/rotation is a local administrative operation; no anonymous H
 ## HTTP client
 
 Every command request requires the seeded bearer credential. There is one endpoint, `POST /api/commands`; there is no anonymous health or signup route. The response may include the campaign revision. Persistent mutations require an expected revision and a unique idempotency key:
+
+The server admits at most 64 in-flight authenticated requests; overload returns HTTP 503 with `SERVER_BUSY`. Hosted deployments must add per-principal rate limiting (and suitable abuse monitoring); the server's global in-flight admission cap is not a substitute.
 
 Idempotency fingerprints include the protocol version and validated command exactly as supplied. An omitted optional field and an explicitly supplied default are distinct requests; retries must reuse the same fields and values.
 

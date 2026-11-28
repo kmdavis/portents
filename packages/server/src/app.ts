@@ -388,9 +388,20 @@ function protocolFailure(error: unknown): { readonly error: ProtocolError; reado
 export function createServerApp(storage: SqliteStorage): Hono {
 	const credentials = new LocalCredentialProvider(storage);
 	const app = new Hono();
+	let admittedCommands = 0;
+	const maxAdmittedCommands = 64;
 	app.post("/api/commands", async (context) => {
+		let admitted = false;
 		try {
 			const principal = await authenticateBearer(context.req.header("authorization"), credentials, []);
+			if (admittedCommands >= maxAdmittedCommands) {
+				return context.json({
+					version: PROTOCOL_VERSION,
+					error: { code: "SERVER_BUSY", message: "The server is at capacity; retry the request" },
+				} satisfies CommandResponse, 503);
+			}
+			admittedCommands++;
+			admitted = true;
 			const contentType = context.req.header("content-type")?.split(";")[0]?.trim().toLowerCase();
 			if (contentType !== "application/json") throw new ProtocolValidationError("Content-Type must be application/json");
 			const request = parseCommandRequest(await readRequestBody(context.req.raw));
@@ -403,6 +414,8 @@ export function createServerApp(storage: SqliteStorage): Hono {
 			}
 			const failure = protocolFailure(error);
 			return context.json({ version: PROTOCOL_VERSION, error: failure.error } satisfies CommandResponse, failure.status);
+		} finally {
+			if (admitted) admittedCommands--;
 		}
 	});
 	app.onError((error, context) => {

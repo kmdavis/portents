@@ -218,6 +218,58 @@ describe("local and self-hosted command server", () => {
 		}
 	});
 
+	it("bounds concurrent authenticated requests and releases admission after failures", async () => {
+		const storage = new SqliteStorage(join(temporaryDirectory(), DATABASE_FILENAME));
+		try {
+			const provider = new LocalCredentialProvider(storage);
+			const owner = await provider.issue("admission-owner");
+			const app = createServerApp(storage);
+			const controllers: ReadableStreamDefaultController<Uint8Array>[] = [];
+			let markStarted!: () => void;
+			const allStarted = new Promise<void>((resolve) => { markStarted = resolve; });
+			const requests = Array.from({ length: 64 }, () => {
+				let sent = false;
+				const body = new ReadableStream<Uint8Array>({
+					pull(controller) {
+						if (!sent) {
+							sent = true;
+							controllers.push(controller);
+							if (controllers.length === 64) markStarted();
+						}
+					},
+				});
+				return app.fetch(new Request("http://localhost/api/commands", {
+					method: "POST",
+					headers: { authorization: `Bearer ${owner.credential}`, "content-type": "application/json" },
+					body,
+					duplex: "half",
+				} as RequestInit));
+			});
+			await allStarted;
+
+			const overloaded = await postCommand(app, owner.credential, { type: "campaign.list" });
+			assert.equal(overloaded.status, 503);
+			assert.deepEqual(overloaded.body.error, {
+				code: "SERVER_BUSY",
+				message: "The server is at capacity; retry the request",
+			});
+
+			for (const controller of controllers) {
+				controller.enqueue(new TextEncoder().encode("{"));
+				controller.close();
+			}
+			const failures = await Promise.all(requests);
+			for (const response of failures) {
+				assert.equal(response.status, 400);
+				assert.equal((await response.json() as CommandResponse).error?.code, "INVALID_INPUT");
+			}
+			const recovered = await postCommand(app, owner.credential, { type: "campaign.list" });
+			assert.equal(recovered.status, 200);
+		} finally {
+			await storage.close();
+		}
+	});
+
 	it("rejects bounded complexity and includes the protocol version in replay identity", async () => {
 		const storage = new SqliteStorage(join(temporaryDirectory(), DATABASE_FILENAME));
 		try {

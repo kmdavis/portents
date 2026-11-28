@@ -1,5 +1,5 @@
 import assert from "node:assert/strict";
-import { copyFileSync, mkdtempSync, rmSync, statSync, writeFileSync } from "node:fs";
+import { chmodSync, copyFileSync, mkdtempSync, rmSync, statSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { after, describe, it } from "node:test";
@@ -20,6 +20,26 @@ async function command(app: ReturnType<typeof createServerApp>, credential: stri
  return { status: response.status, body: await response.json() as CommandResponse };
 }
 
+
+ it("keeps the database and SQLite sidecars private in an existing permissive directory", async () => {
+  if (process.platform === "win32") return;
+  const directory = temp();
+  chmodSync(directory, 0o777);
+  await installLocalServer({ dataDir: directory });
+  const databasePath = join(directory, DATABASE_FILENAME);
+  assert.equal(statSync(databasePath).mode & 0o777, 0o600);
+ const storage = new SqliteStorage(databasePath);
+ try {
+  await storage.write("permission-check", "created");
+   for (const suffix of ["-wal", "-shm"]) {
+    try {
+     assert.equal(statSync(`${databasePath}${suffix}`).mode & 0o777, 0o600);
+    } catch (error) {
+     if (!(error instanceof Error) || !("code" in error) || error.code !== "ENOENT") throw error;
+    }
+   }
+  } finally { await storage.close(); }
+ });
 describe("server lifecycle", () => {
  it("restores authentication, ownership, revision, receipts, and ledger; rotates credentials locally", async () => {
   const sourceDir = temp();

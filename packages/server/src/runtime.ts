@@ -81,6 +81,28 @@ async function assertInstalled(storage: Pick<SqliteStorage, "read">): Promise<In
 	};
 }
 
+async function ensurePrivateDatabase(path: string): Promise<void> {
+	if (process.platform === "win32") return;
+	try {
+		const handle = await open(path, "wx", 0o600);
+		await handle.close();
+	} catch (error) {
+		if (!(error instanceof Error) || !("code" in error) || error.code !== "EEXIST") throw error;
+		await chmod(path, 0o600);
+	}
+}
+
+async function protectSQLiteFiles(path: string): Promise<void> {
+	if (process.platform === "win32") return;
+	for (const file of [path, `${path}-wal`, `${path}-shm`]) {
+		try {
+			await chmod(file, 0o600);
+		} catch (error) {
+			if (!(error instanceof Error) || !("code" in error) || error.code !== "ENOENT") throw error;
+		}
+	}
+}
+
 async function ensureDataDirectory(path: string): Promise<void> {
 	await mkdir(path, { recursive: true, mode: 0o700 });
 }
@@ -92,7 +114,9 @@ export async function installLocalServer(options: ServerRuntimeOptions = {}): Pr
 	const port = configuredPort(options.port);
 	await ensureDataDirectory(directory);
 	const databasePath = join(directory, DATABASE_FILENAME);
+	await ensurePrivateDatabase(databasePath);
 	const storage = new SqliteStorage(databasePath);
+	await protectSQLiteFiles(databasePath);
 	try {
 		if (await storage.read(installKey) !== undefined) throw new Error("Portents is already installed in this data directory");
 		const principalId = `local-${randomUUID()}`;
@@ -125,7 +149,9 @@ export async function startServer(options: ServerRuntimeOptions = {}): Promise<R
 	} catch {
 		throw new Error("No Portents installation was found; run `portents-server install` first");
 	}
+	await ensurePrivateDatabase(databasePath);
 	const storage = new SqliteStorage(databasePath);
+	await protectSQLiteFiles(databasePath);
 	let server: ReturnType<typeof serve> | undefined;
 	try {
 		const installation = await assertInstalled(storage);
@@ -175,10 +201,12 @@ export async function backupServer(dataDir: string | undefined, destination: str
 	const backupPath = resolve(destination);
 	if (backupPath === databasePath) throw new TypeError("Backup destination must differ from the live database");
 	await access(databasePath);
+	await ensurePrivateDatabase(databasePath);
 	await mkdir(dirname(backupPath), { recursive: true });
 	const handle = await open(backupPath, "wx", 0o600);
 	await handle.close();
 	const storage = new SqliteStorage(databasePath);
+	await protectSQLiteFiles(databasePath);
 	try {
 		await assertInstalled(storage);
 		await storage.backup(backupPath);
@@ -204,6 +232,7 @@ export async function restoreServer(backup: string, dataDir: string | undefined)
 		}
 	}
 	const sourcePath = resolve(backup);
+	await ensurePrivateDatabase(sourcePath);
 	const source = new SqliteStorage(sourcePath);
 	try { await assertInstalled(source); } finally { await source.close(); }
 	await mkdir(directory, { recursive: true, mode: 0o700 });
@@ -212,7 +241,10 @@ export async function restoreServer(backup: string, dataDir: string | undefined)
 }
 
 export async function rotateLocalCredential(dataDir?: string): Promise<{ principalId: string; credential: string }> {
-	const storage = new SqliteStorage(join(dataDirectory(dataDir), DATABASE_FILENAME));
+	const databasePath = join(dataDirectory(dataDir), DATABASE_FILENAME);
+	await ensurePrivateDatabase(databasePath);
+	const storage = new SqliteStorage(databasePath);
+	await protectSQLiteFiles(databasePath);
 	try {
 		return await storage.transaction(async (transaction) => {
 			const installation = await assertInstalled(transaction);
