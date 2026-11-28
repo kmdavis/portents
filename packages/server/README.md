@@ -79,6 +79,25 @@ await client.execute(
 
 Use HTTPS for any network connection beyond loopback. Never place credentials in URLs, logs, source control, or client-visible error messages.
 
+## Campaign archives
+
+`GET /api/campaigns/{campaignId}/archive` exports an authenticated campaign
+snapshot. `POST /api/campaigns/import` imports a version-1 JSON archive and
+requires an `Idempotency-Key` header. Imports preserve the campaign's internal
+slug and references, assign a new server campaign ID to the authenticated owner,
+start at revision zero, and never overwrite an existing campaign. Reusing a key
+with the same archive returns the original campaign ID; reusing it with different
+content conflicts.
+
+Archives are limited to 64 MiB and contain sorted campaign-relative text files,
+per-file SHA-256 checksums, an archive checksum, and fingerprints of the bundled
+content packs. Import rejects unsupported formats, unsafe or unexpected file
+paths, checksum failures, and missing or changed content packs. Credential,
+ownership, and idempotency records are outside the campaign namespace and are
+never exported. Pack-owned image assets remain references to the versioned pack;
+the text-only campaign storage does not contain binary assets to copy.
+
+
 ## Docker
 
 Build from the repository root so the workspace packages are available:

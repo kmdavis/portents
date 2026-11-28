@@ -31,7 +31,7 @@
     "build": "tsc -p tsconfig.build.json",
     "dev": "node --experimental-strip-types --conditions=development src/cli.ts",
     "start": "node dist/cli.js",
-    "test": "node --conditions=development --test src/server.test.ts src/sqlite-storage.test.ts src/runtime.test.ts",
+    "test": "node --conditions=development --test src/server.test.ts src/sqlite-storage.test.ts src/runtime.test.ts src/archive.test.ts",
     "typecheck": "tsc -p tsconfig.json --noEmit && tsc -p tsconfig.test.json --noEmit"
   },
   "dependencies": {

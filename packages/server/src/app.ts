@@ -23,6 +23,7 @@ import {
 	type CampaignOwnership,
 	type Principal,
 } from "@portents/identity";
+import { commonContent } from "@portents/content";
 import { Hono } from "hono";
 import { executeCommand, normalizeProtocolError, WebSession, type CampaignIdentityMap } from "@portents/web";
 import {
@@ -36,6 +37,15 @@ import {
 	type CommandResult,
 	type ProtocolError,
 } from "@portents/web";
+import {
+	CampaignArchiveError,
+	exportCampaignArchive,
+	importCampaignArchive,
+	MAX_ARCHIVE_BYTES,
+	parseCampaignArchive,
+	contentPackVersion,
+	type CampaignArchiveV1,
+} from "./archive.ts";
 import { SqliteStorage } from "./sqlite-storage.ts";
 
 function serverSession(storage: Storage): WebSession {
@@ -44,6 +54,9 @@ function serverSession(storage: Storage): WebSession {
 
 const campaignMetadata = (id: string, field: "owner" | "slug") => assertValidKey(`server/campaigns/${id}/${field}`);
 const ownerIndexPrefix = (principalId: string) => `server/owners/${principalId}/`;
+const archivePackVersions = commonContent.map(contentPackVersion).sort((left, right) =>
+	left.id < right.id ? -1 : left.id > right.id ? 1 : 0,
+);
 
 export interface ServerCommandOutcome {
 	readonly result: CommandResult;
@@ -85,9 +98,9 @@ function fingerprint(request: CommandRequest): string {
 const MAX_REQUEST_BYTES = 1024 * 1024;
 class PayloadTooLargeError extends Error {}
 
-async function readRequestBody(request: Request): Promise<unknown> {
+async function readRequestBody(request: Request, maxBytes = MAX_REQUEST_BYTES): Promise<unknown> {
 	const declaredLength = request.headers.get("content-length");
-	if (declaredLength !== null && Number(declaredLength) > MAX_REQUEST_BYTES) throw new PayloadTooLargeError();
+	if (declaredLength !== null && Number(declaredLength) > maxBytes) throw new PayloadTooLargeError();
 	if (!request.body) throw new ProtocolValidationError("Request body must be valid JSON");
 	const reader = request.body.getReader();
 	const chunks: Uint8Array[] = [];
@@ -97,7 +110,7 @@ async function readRequestBody(request: Request): Promise<unknown> {
 			const { done, value } = await reader.read();
 			if (done) break;
 			size += value.byteLength;
-			if (size > MAX_REQUEST_BYTES) {
+			if (size > maxBytes) {
 				await reader.cancel();
 				throw new PayloadTooLargeError();
 			}
@@ -388,6 +401,84 @@ function protocolFailure(error: unknown): { readonly error: ProtocolError; reado
 	};
 }
 
+function requireArchiveIdempotencyKey(value: string | undefined): string {
+	if (!value || !/^[A-Za-z0-9_-]{1,128}$/.test(value)) {
+		throw new ProtocolValidationError("Campaign archive imports require a valid Idempotency-Key header");
+	}
+	return value;
+}
+
+function requireCompatibleArchivePacks(archive: CampaignArchiveV1): void {
+	if (archive.packVersions.length !== archivePackVersions.length ||
+		archive.packVersions.some((required, index) => {
+			const installed = archivePackVersions[index];
+			return required.id !== installed?.id || required.version !== installed.version;
+		})) {
+		throw new ProtocolValidationError("Campaign archive requires unavailable or incompatible content packs");
+	}
+}
+
+function parseArchiveImportReplay(value: string): { readonly version: 1; readonly fingerprint: string; readonly campaignId: string } {
+	let replay: unknown;
+	try {
+		replay = JSON.parse(value);
+	} catch {
+		throw new StorageError("Campaign archive import replay is corrupt", assertValidKey("server/archive-imports"));
+	}
+	if (typeof replay !== "object" || replay === null ||
+		!("version" in replay) || replay.version !== 1 ||
+		!("fingerprint" in replay) || typeof replay.fingerprint !== "string" ||
+		!("campaignId" in replay) || typeof replay.campaignId !== "string") {
+		throw new StorageError("Campaign archive import replay is corrupt", assertValidKey("server/archive-imports"));
+	}
+	return {
+		version: 1,
+		fingerprint: replay.fingerprint,
+		campaignId: requireOpaqueSegment(replay.campaignId, "Campaign ID"),
+	};
+}
+
+async function importArchiveForPrincipal(
+	storage: SqliteStorage,
+	principal: Principal,
+	archive: CampaignArchiveV1,
+	idempotencyKey: string,
+): Promise<{ readonly campaignId: string; readonly replayed: boolean }> {
+	const principalId = requireOpaqueSegment(principal.id, "Principal ID");
+	const replayKey = assertValidKey(`server/archive-imports/${principalId}/${idempotencyKey}`);
+	return storage.transaction(async (transaction) => {
+		const stored = await transaction.read(replayKey);
+		if (stored !== undefined) {
+			const replay = parseArchiveImportReplay(stored);
+			if (replay.fingerprint !== archive.sha256) throw new IdempotencyConflictError(idempotencyKey);
+			if (await transaction.read(campaignMetadata(replay.campaignId, "owner")) !== principalId) {
+				throw new ResourceUnavailableError();
+			}
+			return { campaignId: replay.campaignId, replayed: true };
+		}
+
+		const campaignId = randomUUID();
+		const root = campaignRoot(campaignId);
+		if (await transaction.exists(campaignMetadata(campaignId, "owner")) ||
+			await transaction.exists(campaignMetadata(campaignId, "slug")) ||
+			(await transaction.list(`${root}/`)).length > 0 ||
+			await readCampaignRevision(transaction, root) !== 0) {
+			throw new StorageError("Campaign archive identity collision", root);
+		}
+
+		await importCampaignArchive(archive, campaignStorage(transaction, root));
+		await transaction.write(campaignMetadata(campaignId, "owner"), principalId);
+		await transaction.write(campaignMetadata(campaignId, "slug"), archive.campaignSlug);
+		await transaction.write(assertValidKey(`${ownerIndexPrefix(principalId)}${campaignId}`), "1");
+		await transaction.write(replayKey, JSON.stringify({
+			version: 1,
+			fingerprint: archive.sha256,
+			campaignId,
+		}));
+		return { campaignId, replayed: false };
+	});
+}
+
 /** Create the authenticated HTTP API shared by local and self-hosted Node servers. */
 export function createServerApp(storage: SqliteStorage): Hono {
 	const credentials = new LocalCredentialProvider(storage);
@@ -420,6 +511,54 @@ export function createServerApp(storage: SqliteStorage): Hono {
 			return context.json({ version: PROTOCOL_VERSION, error: failure.error } satisfies CommandResponse, failure.status);
 		} finally {
 			if (admitted) admittedCommands--;
+		}
+	});
+	app.get("/api/campaigns/:campaignId/archive", async (context) => {
+		try {
+			const principal = await authenticateBearer(context.req.header("authorization"), credentials, []);
+			const campaignId = requireOpaqueSegment(context.req.param("campaignId"), "Campaign ID");
+			const archive = await storage.transaction(async (transaction) => {
+				await requireOwnedCampaign(principal, campaignId, new TransactionCampaignOwnership(transaction));
+				const slug = await campaignSlug(transaction, campaignId);
+				return exportCampaignArchive(campaignStorage(transaction, campaignRoot(campaignId), true), slug, archivePackVersions);
+			});
+			return context.json(archive);
+		} catch (error) {
+			if (error instanceof CampaignArchiveError && error.code === "ARCHIVE_TOO_LARGE") {
+				return context.json({ version: PROTOCOL_VERSION, error: { code: "PAYLOAD_TOO_LARGE", message: "Campaign archive exceeds the 64 MiB limit" } }, 413);
+			}
+			const failure = protocolFailure(error);
+			return context.json({ version: PROTOCOL_VERSION, error: failure.error } satisfies CommandResponse, failure.status);
+		}
+	});
+	app.post("/api/campaigns/import", async (context) => {
+		try {
+			const principal = await authenticateBearer(context.req.header("authorization"), credentials, []);
+			const contentType = context.req.header("content-type")?.split(";")[0]?.trim().toLowerCase();
+			if (contentType !== "application/json") throw new ProtocolValidationError("Content-Type must be application/json");
+			const idempotencyKey = requireArchiveIdempotencyKey(context.req.header("idempotency-key"));
+			let archive: CampaignArchiveV1;
+			try {
+				archive = parseCampaignArchive(await readRequestBody(context.req.raw, MAX_ARCHIVE_BYTES));
+			} catch (error) {
+				if (error instanceof CampaignArchiveError) {
+					if (error.code === "ARCHIVE_TOO_LARGE") throw error;
+					throw new ProtocolValidationError("Campaign archive is invalid");
+				}
+				throw error;
+			}
+			requireCompatibleArchivePacks(archive);
+			const imported = await importArchiveForPrincipal(storage, principal, archive, idempotencyKey);
+			return context.json(
+				{ campaignId: imported.campaignId, slug: archive.campaignSlug },
+				imported.replayed ? 200 : 201,
+			);
+		} catch (error) {
+			if (error instanceof PayloadTooLargeError || error instanceof CampaignArchiveError && error.code === "ARCHIVE_TOO_LARGE") {
+				return context.json({ version: PROTOCOL_VERSION, error: { code: "PAYLOAD_TOO_LARGE", message: "Campaign archive exceeds the 64 MiB limit" } }, 413);
+			}
+			const failure = protocolFailure(error);
+			return context.json({ version: PROTOCOL_VERSION, error: failure.error } satisfies CommandResponse, failure.status);
 		}
 	});
 	app.onError((error, context) => {

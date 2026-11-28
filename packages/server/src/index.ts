@@ -11,3 +11,11 @@ export {
 	type ServerRuntimeOptions,
 } from "./runtime.ts";
 export { SqliteStorage } from "./sqlite-storage.ts";
+export {
+	CampaignArchiveError,
+	exportCampaignArchive,
+	importCampaignArchive,
+	MAX_ARCHIVE_BYTES,
+	parseCampaignArchive,
+	type CampaignArchiveV1,
+} from "./archive.ts";
