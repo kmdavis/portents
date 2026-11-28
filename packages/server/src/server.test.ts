@@ -6,6 +6,7 @@ import { join } from "node:path";
 import { after, describe, it } from "node:test";
 import { LocalCredentialProvider } from "@portents/identity";
 import { MemoryStorage } from "@portents/core/memory";
+import { InvalidKeyError, StorageError, StorageUnavailableError } from "@portents/core";
 import { PROTOCOL_VERSION, WebSession, type CommandResponse } from "@portents/web";
 import { createServerApp } from "./app.ts";
 import { DATABASE_FILENAME, installLocalServer, startServer } from "./runtime.ts";
@@ -345,4 +346,50 @@ describe("local and self-hosted command server", () => {
 			await storage.close();
 		}
 	});
+	it("sanitizes typed storage failures raised outside command execution", async () => {
+		const failures = [
+			{
+				error: new StorageUnavailableError("private backend wording", new Error("secret cause"), {
+					operation: "transaction",
+					key: "private/storage-key",
+				}),
+				status: 500,
+				code: "STORAGE_FAILURE",
+				message: "Storage operation failed",
+				details: { operation: "transaction" },
+			},
+			{
+				error: new StorageError("private backend wording", "private/storage-key"),
+				status: 500,
+				code: "STORAGE_FAILURE",
+				message: "Storage operation failed",
+			},
+			{
+				error: new InvalidKeyError("private/storage-key", "private validation detail"),
+				status: 400,
+				code: "INVALID_INPUT",
+				message: "Storage key is invalid",
+			},
+		] as const;
+
+		for (const [index, failure] of failures.entries()) {
+			const storage = new SqliteStorage(join(temporaryDirectory(), DATABASE_FILENAME));
+			try {
+				const provider = new LocalCredentialProvider(storage);
+				const owner = await provider.issue(`protocol-failure-${index}`);
+				const app = createServerApp(storage);
+				storage.transaction = async () => { throw failure.error; };
+
+				const response = await postCommand(app, owner.credential, { type: "campaign.list" });
+				assert.equal(response.status, failure.status);
+				assert.equal(response.body.error?.code, failure.code);
+				assert.equal(response.body.error?.message, failure.message);
+				assert.deepEqual(response.body.error?.details, "details" in failure ? failure.details : undefined);
+				assert.doesNotMatch(JSON.stringify(response.body), /private|secret cause/);
+			} finally {
+				await storage.close();
+			}
+		}
+	});
+
 });

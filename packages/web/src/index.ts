@@ -39,6 +39,7 @@ export {
 	type ProtocolError,
 	type ProtocolErrorCode,
 	ProtocolValidationError,
+	normalizeProtocolError,
 	type LedgerReference,
 	PROTOCOL_VERSION,
 	PROTOCOL_ERROR_CODES,

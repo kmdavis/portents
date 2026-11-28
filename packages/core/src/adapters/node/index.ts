@@ -88,8 +88,9 @@ export class NodeStorage implements Storage {
 		try {
 			await access(path, constants.F_OK);
 			return true;
-		} catch {
-			return false;
+		} catch (error) {
+			if (isMissing(error)) return false;
+			throw wrap(error, `checking ${key}`, "exists", key);
 		}
 	}
 
@@ -144,7 +145,7 @@ function isMissing(error: unknown): boolean {
 function wrap(
 	error: unknown,
 	what: string,
-	operation: "read" | "write" | "append" | "list" | "remove",
+	operation: "read" | "write" | "append" | "exists" | "list" | "remove",
 	key?: string,
 ): Error {
 	if (error instanceof StorageUnavailableError) {

@@ -24,7 +24,7 @@ import {
 	type Principal,
 } from "@portents/identity";
 import { Hono } from "hono";
-import { executeCommand, WebSession, type CampaignIdentityMap } from "@portents/web";
+import { executeCommand, normalizeProtocolError, WebSession, type CampaignIdentityMap } from "@portents/web";
 import {
 	parseCommandRequest,
 	parseCommandResponse,
@@ -367,21 +367,25 @@ async function executeAuthenticatedCommand(storage: SqliteStorage, principal: Pr
 }
 
 function protocolFailure(error: unknown): { readonly error: ProtocolError; readonly status: 400 | 401 | 403 | 404 | 409 | 500 } {
-	if (error instanceof ProtocolValidationError) {
-		const status = error.code === "UNAUTHENTICATED" ? 401
-			: error.code === "UNAUTHORIZED" ? 403
-				: error.code === "NOT_FOUND" ? 404
-					: error.code === "STALE_REVISION" || error.code === "IDEMPOTENCY_CONFLICT" ? 409
-						: error.code === "STORAGE_FAILURE" || error.code === "INTERNAL_ERROR" ? 500 : 400;
-		return { error: { code: error.code, message: error.message, ...(error.details ? { details: error.details } : {}) }, status };
-	}
 	if (error instanceof UnauthenticatedError) return { error: { code: "UNAUTHENTICATED", message: "Authentication is required" }, status: 401 };
 	if (error instanceof ResourceUnavailableError) return { error: { code: "NOT_FOUND", message: "The requested resource is unavailable" }, status: 404 };
 	if (error instanceof StaleCampaignRevisionError) return { error: { code: "STALE_REVISION", message: error.message }, status: 409 };
 	if (error instanceof IdempotencyConflictError) return { error: { code: "IDEMPOTENCY_CONFLICT", message: error.message }, status: 409 };
 	if (error instanceof SyntaxError) return { error: { code: "INVALID_INPUT", message: "Request body must be valid JSON" }, status: 400 };
-	if (error instanceof StorageError) return { error: { code: "STORAGE_FAILURE", message: "The server could not access durable storage" }, status: 500 };
-	return { error: { code: "INTERNAL_ERROR", message: "Unexpected command failure" }, status: 500 };
+	const protocolError = normalizeProtocolError(error);
+	const status = protocolError.code === "UNAUTHENTICATED" ? 401
+		: protocolError.code === "UNAUTHORIZED" ? 403
+			: protocolError.code === "NOT_FOUND" ? 404
+				: protocolError.code === "STALE_REVISION" || protocolError.code === "IDEMPOTENCY_CONFLICT" ? 409
+					: protocolError.code === "STORAGE_FAILURE" || protocolError.code === "INTERNAL_ERROR" ? 500 : 400;
+	return {
+		error: {
+			code: protocolError.code,
+			message: protocolError.message,
+			...(protocolError.details ? { details: protocolError.details } : {}),
+		},
+		status,
+	};
 }
 
 /** Create the authenticated HTTP API shared by local and self-hosted Node servers. */

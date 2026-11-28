@@ -62,6 +62,17 @@ describe("NodeStorage", () => {
 		await assert.rejects(() => store.exists("../nope.md"), /Invalid storage key/);
 	});
 
+	it("returns false only for missing paths and wraps other exists failures", async () => {
+		const store = new NodeStorage({ root: freshRoot() });
+		assert.equal(await store.exists("missing.md"), false);
+		const brokenStore = new NodeStorage({ root: `${freshRoot()}\0invalid` });
+		await assert.rejects(
+			() => brokenStore.exists("key"),
+			(error: unknown) => error instanceof StorageUnavailableError &&
+				error.details.operation === "exists" && error.details.key === "key",
+		);
+	});
+
 	it("does not report a stray temp file as a value", async () => {
 		const root = freshRoot();
 		const store = new NodeStorage({ root });

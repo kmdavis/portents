@@ -1,7 +1,4 @@
 import {
-	ActorNotFoundError,
-	EntityNotFoundError,
-	StorageUnavailableError,
 	appendToSection,
 	formatResourceList,
 	moveActor,
@@ -14,6 +11,7 @@ import {
 import {
 	ProtocolValidationError,
 	PROTOCOL_VERSION,
+	normalizeProtocolError,
 	parseCommandRequest,
 	type CommandResult,
 	type LedgerReference,
@@ -34,19 +32,7 @@ export interface ExecuteCommandOptions {
 const text = (value: string): CommandResult => ({ type: "text", text: value });
 
 function fail(error: unknown): never {
-	if (error instanceof ProtocolValidationError) throw error;
-	if (error instanceof EntityNotFoundError || error instanceof ActorNotFoundError) {
-		throw new ProtocolValidationError("Requested resource was not found", "NOT_FOUND", {
-			entity: error.entity,
-			identifier: error.identifier,
-		});
-	}
-	if (error instanceof StorageUnavailableError) {
-		throw new ProtocolValidationError("Storage operation failed", "STORAGE_FAILURE", {
-			...(error.details.operation ? { operation: error.details.operation } : {}),
-		});
-	}
-	throw new ProtocolValidationError("Unexpected command failure", "INTERNAL_ERROR");
+	throw normalizeProtocolError(error);
 }
 
 /** Validate and execute one versioned command against the local session facade. */
