@@ -1,6 +1,7 @@
 import assert from "node:assert/strict";
 import { describe, it } from "node:test";
 
+import { createHttpCommandClient } from "./http-client.ts";
 import { createCommandClient, parseCommandResponse, ProtocolCommandError } from "./client.ts";
 import {
 	parseCommandRequest,
@@ -44,6 +45,55 @@ describe("typed gameplay protocol", () => {
 		assert.throws(
 			() => parseCommandRequest({ version: PROTOCOL_VERSION, command: { type: "dice.odds", expression: "1d20", dc: Number.NaN } }),
 			ProtocolValidationError,
+		);
+	});
+	it("validates command metadata and returns committed revisions", async () => {
+		const request = { type: "dice.roll" as const, expression: "1d20" };
+		const client = createCommandClient(async (body) => {
+			assert.deepEqual(JSON.parse(body), {
+				version: PROTOCOL_VERSION,
+				command: request,
+				expectedRevision: 4,
+				idempotencyKey: "request-1",
+			});
+			return { version: PROTOCOL_VERSION, result: { type: "roll", lines: ["1d20: [12] = **12**"], totals: [12], ledger: [] }, revision: 5 };
+		});
+		assert.deepEqual(await client.executeWithRevision(request, { expectedRevision: 4, idempotencyKey: "request-1" }), {
+			result: { type: "roll", lines: ["1d20: [12] = **12**"], totals: [12], ledger: [] },
+			revision: 5,
+		});
+		for (const metadata of [
+			{ expectedRevision: -1 },
+			{ expectedRevision: Number.MAX_SAFE_INTEGER + 1 },
+			{ idempotencyKey: "" },
+			{ idempotencyKey: "x".repeat(257) },
+		]) {
+			assert.throws(() => parseCommandRequest({ version: PROTOCOL_VERSION, command: request, ...metadata }), ProtocolValidationError);
+		}
+		assert.throws(() => parseCommandResponse({ version: PROTOCOL_VERSION, result: { type: "empty" }, revision: -1 }), ProtocolValidationError);
+	});
+
+	it("posts authenticated commands to the normalized HTTP endpoint", async () => {
+		const client = createHttpCommandClient({
+			endpoint: "https://example.test/base/",
+			credential: "secret",
+			fetch: async (input, init) => {
+				assert.equal(input, "https://example.test/base/api/commands");
+				assert.equal(init?.method, "POST");
+				assert.equal(new Headers(init?.headers).get("authorization"), "Bearer secret");
+				assert.equal(new Headers(init?.headers).get("content-type"), "application/json");
+				assert.deepEqual(JSON.parse(String(init?.body)), {
+					version: PROTOCOL_VERSION,
+					command: { type: "campaign.list" },
+				});
+				return new Response(JSON.stringify({ version: PROTOCOL_VERSION, result: { type: "campaigns", campaigns: [] } }));
+			},
+		});
+		assert.deepEqual(await client.execute({ type: "campaign.list" }), { type: "campaigns", campaigns: [] });
+		assert.doesNotThrow(() => createHttpCommandClient({ endpoint: "http://127.0.0.1:7331", credential: "secret" }));
+		assert.throws(
+			() => createHttpCommandClient({ endpoint: "http://example.test", credential: "secret" }),
+			/loopback/,
 		);
 	});
 	it("validates typed client responses and preserves stable remote error codes", async () => {

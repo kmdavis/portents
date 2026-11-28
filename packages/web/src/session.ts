@@ -42,6 +42,7 @@ import {
 	rollTable,
 	formatTableResult,
 	type Storage,
+	type RandomSource,
 	seededRandomSource,
 	splitRepeat,
 	systemClock,
@@ -66,6 +67,8 @@ export interface SessionOptions {
 	readonly database?: string;
 	/** Fixed seed for reproducible output. Omit for real randomness. */
 	readonly seed?: string;
+	/** Explicit source of entropy. Mutually exclusive with `seed`. */
+	readonly random?: RandomSource;
 	/** Exact prebuilt registry. Mutually exclusive with extraPacks. */
 	readonly registry?: ContentRegistry;
 	/** Data-only packs appended after the batteries-included bundle. */
@@ -107,6 +110,9 @@ export class WebSession {
 	#campaign: Campaign | undefined;
 
 	constructor(options: SessionOptions = {}) {
+		if (options.seed !== undefined && options.random !== undefined) {
+			throw new Error("WebSession accepts either seed or random, not both");
+		}
 		if (options.registry && options.extraPacks) {
 			throw new Error("WebSession accepts either registry or extraPacks, not both");
 		}
@@ -119,7 +125,7 @@ export class WebSession {
 			// mutation test showed it was not.
 			storage: options.storage ?? new BrowserStorage({ database: options.database ?? "portents" }),
 			clock: systemClock,
-			random: options.seed === undefined ? undefined : seededRandomSource(options.seed),
+			random: options.random ?? (options.seed === undefined ? undefined : seededRandomSource(options.seed)),
 			registry: this.registry,
 		};
 	}

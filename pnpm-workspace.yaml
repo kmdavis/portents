@@ -6,3 +6,4 @@ packages:
 onlyBuiltDependencies:
   - esbuild
   - "@resvg/resvg-js"
+  - better-sqlite3

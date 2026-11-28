@@ -87,8 +87,12 @@ export function parseCommandResponse(value: unknown): CommandResponse {
 	if (!isProtocolRecord(value) || !Number.isInteger(value.version) || value.version !== PROTOCOL_VERSION) {
 		throw new ProtocolValidationError("Unsupported or invalid protocol response version", "UNSUPPORTED_VERSION");
 	}
-	if (Object.keys(value).some((key) => key !== "version" && key !== "result" && key !== "error")) {
+	if (Object.keys(value).some((key) => !["version", "result", "error", "revision"].includes(key))) {
 		throw new ProtocolValidationError("Response contains an unknown field");
+	}
+	if (Object.hasOwn(value, "revision") &&
+		(typeof value.revision !== "number" || !Number.isSafeInteger(value.revision) || value.revision < 0)) {
+		throw new ProtocolValidationError("Response revision must be a non-negative safe integer");
 	}
 	if ((value.result === undefined) === (value.error === undefined)) {
 		throw new ProtocolValidationError("Response must contain exactly one result or error");
@@ -157,20 +161,32 @@ function expectedResultTypes(command: Command): readonly CommandResult["type"][]
 	}
 }
 
+export interface CommandClientOptions {
+	readonly expectedRevision?: number;
+	readonly idempotencyKey?: string;
+}
+
 /** A typed client over a transport that accepts a JSON request body. */
 export function createCommandClient(transport: (body: string) => Promise<unknown>) {
+	async function send<C extends Command>(command: C, options?: CommandClientOptions): Promise<{ result: ResultFor<C>; revision?: number }> {
+		const response = parseCommandResponse(await transport(serializeCommandRequest({
+			version: PROTOCOL_VERSION,
+			command,
+			...options,
+		})));
+		if (response.error !== undefined) throw new ProtocolCommandError(response.error);
+		if (response.result === undefined) throw new ProtocolValidationError("Protocol response has no result");
+		if (!expectedResultTypes(command).includes(response.result.type)) {
+			throw new ProtocolValidationError("Response result does not match the command type");
+		}
+		return { result: response.result as ResultFor<C>, ...(response.revision === undefined ? {} : { revision: response.revision }) };
+	}
 	return {
-		async execute<C extends Command>(command: C): Promise<ResultFor<C>> {
-			const response = parseCommandResponse(await transport(serializeCommandRequest({
-				version: PROTOCOL_VERSION,
-				command,
-			})));
-			if (response.error !== undefined) throw new ProtocolCommandError(response.error);
-			if (response.result === undefined) throw new ProtocolValidationError("Protocol response has no result");
-			if (!expectedResultTypes(command).includes(response.result.type)) {
-				throw new ProtocolValidationError("Response result does not match the command type");
-			}
-			return response.result as ResultFor<C>;
+		async execute<C extends Command>(command: C, options?: CommandClientOptions): Promise<ResultFor<C>> {
+			return (await send(command, options)).result;
+		},
+		executeWithRevision<C extends Command>(command: C, options?: CommandClientOptions): Promise<{ result: ResultFor<C>; revision?: number }> {
+			return send(command, options);
 		},
 	};
 }

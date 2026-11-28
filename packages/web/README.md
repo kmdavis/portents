@@ -41,6 +41,27 @@ versions, malformed results, and remote protocol errors fail explicitly.
 The client infers the result type from the command and rejects a well-formed
 response whose result belongs to a different command.
 
+Remote clients can pass `{ expectedRevision, idempotencyKey }` to `execute` for a
+persistent mutation. `executeWithRevision` returns both the typed result and the
+server revision; use a fresh idempotency key for each distinct request and reuse
+the original key and revision on retry. `createHttpCommandClient` provides the
+HTTP binding and sends the bearer credential in an Authorization header:
+
+```ts
+import { createHttpCommandClient } from "@portents/web";
+
+const client = createHttpCommandClient({
+  endpoint: "http://127.0.0.1:7331",
+  credential: process.env.PORTENTS_CREDENTIAL!,
+});
+const result = await client.executeWithRevision(
+  { type: "campaign.create", name: "Greywater", system: "5e" },
+  { idempotencyKey: crypto.randomUUID() },
+);
+```
+
+Use HTTPS outside loopback. The credential is never placed in the endpoint URL.
+
 Map movement is a stateless transition over a caller-supplied tile and actor
 snapshot. `map.moveActor` returns the updated actor positions and visibility
 sets; the caller owns persistence and player/GM projection. The command does
@@ -56,6 +77,8 @@ new WebSession();                                  // IndexedDB, database "porte
 new WebSession({ database: "my-campaign" });       // IndexedDB, named
 new WebSession({ storage: new MyKeyValueStore() }); // anything else
 ```
+
+For deterministic tests, use `seed`. Hosts may inject `random` (a `RandomSource` from `@portents/core`) instead; the two options are mutually exclusive. Node hosts can use `defaultRandomSource()` for cryptographic entropy.
 
 | Host | Adapter |
 |---|---|
