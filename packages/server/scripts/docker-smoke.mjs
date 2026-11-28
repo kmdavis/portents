@@ -21,44 +21,45 @@ function docker(args, options = {}) {
 	return result.stdout;
 }
 
-async function command(endpoint, credential, command, metadata = {}) {
-	const response = await fetch(`${endpoint}/api/commands`, {
-		method: "POST",
-		headers: {
-			authorization: `Bearer ${credential}`,
-			"content-type": "application/json",
-		},
-		body: JSON.stringify({ version: 1, command, ...metadata }),
+function containerRequest(body) {
+	const script = `let input = ""; for await (const chunk of process.stdin) input += chunk; const request = JSON.parse(input); const response = await fetch("http://127.0.0.1:7331/api/commands", { method: "POST", headers: { "content-type": "application/json", ...(request.credential ? { authorization: "Bearer " + request.credential } : {}) }, body: JSON.stringify(request.body) }); process.stdout.write(JSON.stringify({ status: response.status, payload: await response.json() }));`;
+	const result = docker(["exec", "-i", container, "node", "--input-type=module", "-e", script], { input: JSON.stringify(body) });
+	return JSON.parse(result);
+}
+
+async function command(credential, command, metadata = {}) {
+	const { status, payload } = containerRequest({
+		credential,
+		body: { version: 1, command, ...metadata },
 	});
-	const payload = await response.json();
-	if (!response.ok || payload.error) {
-		throw new Error(`Authenticated ${command.type} request failed (${response.status}): ${payload.error?.code ?? "invalid response"}`);
+	if (status < 200 || status >= 300 || payload.error) {
+		throw new Error(`Authenticated ${command.type} request failed (${status}): ${payload.error?.code ?? "invalid response"}`);
 	}
 	return payload;
 }
 
-async function waitForServer(endpoint) {
+async function waitForServer() {
 	let lastError;
 	for (let attempt = 0; attempt < 60; attempt++) {
 		try {
-			const response = await fetch(`${endpoint}/api/commands`, {
-				method: "POST",
-				headers: { "content-type": "application/json" },
-				body: JSON.stringify({ version: 1, command: { type: "campaign.list" } }),
+			const { status } = containerRequest({
+				body: { version: 1, command: { type: "campaign.list" } },
 			});
-			if (response.status === 401) return;
-			lastError = new Error(`Unauthenticated readiness request returned ${response.status}`);
+			if (status === 401) return;
+			lastError = new Error(`Unauthenticated readiness request returned ${status}`);
 		} catch (error) {
 			lastError = error;
 		}
 		await new Promise((resolve) => setTimeout(resolve, 500));
 	}
-	throw new Error(`Server did not become ready at ${endpoint}: ${lastError}`);
+	throw new Error(`Server did not become ready inside container: ${lastError}`);
 }
 
-function reportContainerFailure(endpoint) {
-	process.stderr.write(`Docker smoke startup diagnostics for ${endpoint}:\n`);
+function reportContainerFailure() {
+	process.stderr.write("Docker smoke startup diagnostics:\n");
 	for (const [label, args] of [
+		["docker port", ["port", container]],
+		["NetworkSettings.Ports", ["inspect", "--format", "{{json .NetworkSettings.Ports}}", container]],
 		["state", ["inspect", "--format", "{{json .State}}", container]],
 		["logs", ["logs", "--tail", "100", container]],
 	]) {
@@ -67,7 +68,11 @@ function reportContainerFailure(endpoint) {
 		const output = credential ? rawOutput.replaceAll(credential, "[REDACTED]") : rawOutput;
 		process.stderr.write(`${label} (exit ${result.status ?? "unknown"}):\n${output || "(no output)\n"}`);
 	}
+	const script = `const response = await fetch("http://127.0.0.1:7331/api/commands", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ version: 1, command: { type: "campaign.list" } }) }); console.log(JSON.stringify({ status: response.status, payload: await response.json() }));`;
+	const probe = spawnSync("docker", ["exec", container, "node", "--input-type=module", "-e", script], { encoding: "utf8", maxBuffer: 1024 * 1024 });
+	process.stderr.write(`in-container HTTP probe (exit ${probe.status ?? "unknown"}):\n${probe.stdout ?? ""}${probe.stderr ?? ""}`);
 }
+
 
 let credential;
 let containerCreated = false;
@@ -86,36 +91,32 @@ try {
 		"run", "--detach", "--name", container,
 		"--mount", `type=volume,source=${volume},target=/data`,
 		"--env", "PORTENTS_DATA_DIR=/data",
-		"--publish", "127.0.0.1::7331", image, "start", "--host", "0.0.0.0", "--port", "7331",
+		image, "start", "--host", "0.0.0.0", "--port", "7331",
 	]);
 	containerCreated = true;
-	const published = docker(["port", container, "7331/tcp"]).trim().split(/\r?\n/)[0];
-	const port = published?.match(/:(\d+)$/)?.[1];
-	if (!port) throw new Error("Docker did not report an ephemeral published port");
-	const endpoint = `http://127.0.0.1:${port}`;
 	try {
-		await waitForServer(endpoint);
+		await waitForServer();
 	} catch (error) {
-		reportContainerFailure(endpoint);
+		reportContainerFailure();
 		throw error;
 	}
 
-	const created = await command(endpoint, credential, { type: "campaign.create", name: "Docker smoke campaign", system: "dnd5e" }, { idempotencyKey: randomUUID() });
+	const created = await command(credential, { type: "campaign.create", name: "Docker smoke campaign", system: "dnd5e" }, { idempotencyKey: randomUUID() });
 	const campaignId = created.result?.campaigns?.[0]?.id;
 	if (!campaignId) throw new Error("Campaign create returned no campaign ID");
-	const before = await command(endpoint, credential, { type: "campaign.list" });
+	const before = await command(credential, { type: "campaign.list" });
 	if (!before.result?.campaigns?.some((campaign) => campaign.id === campaignId)) {
 		throw new Error("Created campaign missing from authenticated campaign list");
 	}
 
 	docker(["restart", container]);
 	try {
-		await waitForServer(endpoint);
+		await waitForServer();
 	} catch (error) {
-		reportContainerFailure(endpoint);
+		reportContainerFailure();
 		throw error;
 	}
-	const after = await command(endpoint, credential, { type: "campaign.list" });
+	const after = await command(credential, { type: "campaign.list" });
 	if (!after.result?.campaigns?.some((campaign) => campaign.id === campaignId)) {
 		throw new Error("Campaign did not persist after container restart with the same volume");
 	}
